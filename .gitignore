@@ -1,0 +1,30 @@
+# Node
+node_modules/
+npm-debug.log*
+.env
+.env.*
+!.env.example
+
+# Terraform
+infra/**/.terraform/
+infra/**/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+infra/build/
+
+# Build output
+dist/
+build/
+.next/
+out/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
