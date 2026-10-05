@@ -3,9 +3,6 @@ export interface IUser {
   userId: string;
   name?: string;
   email: string;
-  phoneNumber?: string;
-  houseAddress?: string;
-  flatRoomNumber?: string;
   passwordHash?: string;
   role: UserRole;
   createdAt: string;

@@ -14,7 +14,7 @@ const generateToken = (userId: string) => {
 
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { name, email, password, role, phoneNumber, houseAddress, flatRoomNumber } = req.body;
+    const { name, email, password, role } = req.body;
 
     // Check if email already exists via emailIndex GSI
     const existing = await docClient.send(new QueryCommand({
@@ -38,9 +38,6 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       userId,
       name,
       email,
-      phoneNumber: typeof phoneNumber === 'string' ? phoneNumber.trim() : undefined,
-      houseAddress: typeof houseAddress === 'string' ? houseAddress.trim() : undefined,
-      flatRoomNumber: typeof flatRoomNumber === 'string' ? flatRoomNumber.trim() : undefined,
       passwordHash,
       role: role || 'Landlord',
       createdAt: now,
@@ -56,9 +53,6 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       userId,
       name,
       email,
-      phoneNumber: newUser.phoneNumber,
-      houseAddress: newUser.houseAddress,
-      flatRoomNumber: newUser.flatRoomNumber,
       role: newUser.role,
       token: generateToken(userId),
     });
@@ -96,9 +90,6 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       userId: user.userId,
       name: user.name,
       email: user.email,
-      phoneNumber: user.phoneNumber,
-      houseAddress: user.houseAddress,
-      flatRoomNumber: user.flatRoomNumber,
       role: user.role,
       token: generateToken(user.userId),
     });
