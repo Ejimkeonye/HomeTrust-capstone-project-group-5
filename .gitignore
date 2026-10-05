@@ -30,3 +30,11 @@ Thumbs.db
 *.log
 # Vercel local cache and configuration
 .vercel
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+!terraform.tfvars.example
+build/
