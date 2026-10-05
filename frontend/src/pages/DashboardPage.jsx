@@ -14,7 +14,7 @@ import CreatePropertyModal from "../components/CreatePropertyModal";
 export default function DashboardPage({ user, onLogout, onViewReport, onStartInspection, onOpenInviteModal }) {
   const [properties, setProperties] = useState(() => {
     try {
-      const saved = localStorage.getItem("homecompa_properties");
+      const saved = localStorage.getItem("hometrust_properties");
       return saved ? JSON.parse(saved) : [];
     } catch (e) {
       console.error(e);
@@ -25,39 +25,44 @@ export default function DashboardPage({ user, onLogout, onViewReport, onStartIns
   const [activeTab, setActiveTab] = useState("home");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const firstName = user?.name ? user.name.split(" ")[0] : "Clement";
+  const firstName = user?.name ? user.name.split(" ")[0] : (user?.firstName || "Clement");
 
   useEffect(() => {
-    localStorage.setItem("homecompa_properties", JSON.stringify(properties));
+    localStorage.setItem("hometrust_properties", JSON.stringify(properties));
   }, [properties]);
 
+  // Match properties created by this user or fallback to the most recent one
   const userProperties = properties.filter((prop) => {
     return (
       prop.createdById === user?.id ||
+      prop.ownerId === user?.id ||
       prop.landlordId === user?.id ||
-      prop.tenantEmail?.toLowerCase() === user?.email?.toLowerCase() ||
-      (user?.flatNo && prop.flatNo === user?.flatNo)
+      prop.tenantEmail?.toLowerCase() === user?.email?.toLowerCase()
     );
   });
 
   const defaultImage = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=400&q=80";
 
-  const activeProperty = userProperties[0] || {
-    id: "demo-1",
-    name: "No 2, sunshine estate, Ikeja city, Lagos",
-    address: "No 2, sunshine estate, Ikeja city, Lagos",
-    flatNo: user?.flatNo || "2",
+  // If user registered an address during signup, build a dynamic default from user profile if no property is matched yet
+  const dynamicUserProperty = {
+    id: user?.activePropertyId || `prop-${user?.id || 'demo'}`,
+    name: user?.houseAddress || "No property address registered",
+    address: user?.houseAddress || "Please update your address in profile",
+    flatNo: user?.flatRoomNo || user?.flatNo || "1",
     image: defaultImage,
-    progress: 80,
+    progress: 0,
   };
+
+  const activeProperty = userProperties[0] || properties[0] || dynamicUserProperty;
 
   const handlePropertyCreated = (newProperty) => {
     const formattedProperty = {
       ...newProperty,
       id: newProperty.id || `prop-${Date.now()}`,
       createdById: user?.id,
-      landlordId: user?.role === "landlord" ? user?.id : newProperty.landlordId,
-      tenantEmail: user?.role === "tenant" ? user?.email : newProperty.tenantEmail,
+      ownerId: user?.id,
+      landlordId: user?.role === "Landlord" ? user?.id : newProperty.landlordId,
+      tenantEmail: user?.role === "Tenant" ? user?.email : newProperty.tenantEmail,
       inviteToken:
         newProperty.inviteToken ||
         `token-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
@@ -122,10 +127,10 @@ export default function DashboardPage({ user, onLogout, onViewReport, onStartIns
             />
             <div className="flex-1 min-w-0">
               <h3 className="text-xs font-bold text-slate-900 leading-tight truncate">
-                {activeProperty.address || activeProperty.name || "No 2, sunshine estate, Ikeja city, Lagos"}
+                {activeProperty.address || activeProperty.name || "No address provided"}
               </h3>
               <p className="text-[11px] text-slate-400 font-medium mt-1">
-                Flat {activeProperty.flatNo || "2"}
+                Flat {activeProperty.flatNo || "1"}
               </p>
             </div>
           </div>
@@ -164,12 +169,12 @@ export default function DashboardPage({ user, onLogout, onViewReport, onStartIns
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs font-bold text-slate-800">
                 <span>Move in</span>
-                <span>{activeProperty.progress || 80}%</span>
+                <span>{activeProperty.progress || 0}%</span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
                 <div
                   className="bg-purple-800 h-full rounded-full transition-all duration-500"
-                  style={{ width: `${activeProperty.progress || 80}%` }}
+                  style={{ width: `${activeProperty.progress || 0}%` }}
                 />
               </div>
             </div>

@@ -12,7 +12,7 @@ import InvitePartyModal from './components/InvitePartyModal';
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const activeSession = localStorage.getItem('homecompa_current_session');
+      const activeSession = localStorage.getItem('hometrust_current_session');
       return activeSession ? JSON.parse(activeSession) : null;
     } catch (e) {
       console.error(e);
@@ -45,20 +45,20 @@ export default function App() {
       return 'onboarding';
     }
 
-    const activeSession = localStorage.getItem('homecompa_current_session');
+    const activeSession = localStorage.getItem('hometrust_current_session');
     return activeSession ? 'dashboard' : 'landing';
   });
 
   const handleAuthSuccess = (userData) => {
     setCurrentUser(userData);
-    localStorage.setItem('homecompa_current_session', JSON.stringify(userData));
+    localStorage.setItem('hometrust_current_session', JSON.stringify(userData));
     setCurrentView('dashboard');
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('homecompa_token');
-    localStorage.removeItem('homecompa_user');
-    localStorage.removeItem('homecompa_current_session');
+    localStorage.removeItem('hometrust_token');
+    localStorage.removeItem('hometrust_user');
+    localStorage.removeItem('hometrust_current_session');
     setCurrentUser(null);
     setCurrentView('login');
   };
@@ -76,13 +76,13 @@ export default function App() {
 
   const handleCompleteInspection = (updatedData) => {
     if (selectedProperty) {
-      const saved = JSON.parse(localStorage.getItem('homecompa_properties') || '[]');
+      const saved = JSON.parse(localStorage.getItem('hometrust_properties') || '[]');
       const updated = saved.map((p) =>
         p.id === selectedProperty.id
           ? { ...p, inspectionData: updatedData, status: 'READ_ONLY', progress: 100 }
           : p
       );
-      localStorage.setItem('homecompa_properties', JSON.stringify(updated));
+      localStorage.setItem('hometrust_properties', JSON.stringify(updated));
     }
     setCurrentView('dashboard');
   };
@@ -166,6 +166,9 @@ export default function App() {
       <InvitePartyModal
         isOpen={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}
+        onSuccess={() => {
+          setIsInviteModalOpen(false);
+        }}
         property={selectedProperty || defaultProperty}
         currentUserRole={currentUser?.role || 'landlord'}
       />
