@@ -28,3 +28,5 @@ Thumbs.db
 
 # Logs
 *.log
+# Vercel local cache and configuration
+.vercel
