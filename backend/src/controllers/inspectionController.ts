@@ -1,28 +1,45 @@
 import { Response, NextFunction } from 'express';
-import Inspection from '../models/Inspection';
-import Property from '../models/Property';
+import { PutCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { v4 as uuidv4 } from 'uuid';
+import { docClient, TABLES } from '../config/dynamodb';
 import { AuthRequest } from '../middlewares/authMiddleware';
-import mongoose from 'mongoose';
+import { IInspection, IItemCondition } from '../types';
 
 export const createInspection = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { propertyId, mode } = req.body;
 
-    const property = await Property.findById(propertyId);
-    if (!property || property.ownerId.toString() !== req.user._id.toString()) {
+    // Verify property exists and requester is the owner
+    const propResult = await docClient.send(new GetCommand({
+      TableName: TABLES.PROPERTIES,
+      Key: { propertyId },
+    }));
+
+    if (!propResult.Item || propResult.Item.ownerId !== req.user!.userId) {
       res.status(403);
       throw new Error('Not authorized for this property');
     }
 
-    const inspection = await Inspection.create({
+    const now = new Date().toISOString();
+    const inspectionId = uuidv4();
+
+    const newInspection: IInspection = {
+      inspectionId,
       propertyId,
-      landlordId: req.user._id,
+      landlordId: req.user!.userId,
       mode: mode || 'Full',
       state: 'DRAFT',
       items: [],
-    });
+      createdAt: now,
+      updatedAt: now,
+    };
 
-    res.status(201).json(inspection);
+    await docClient.send(new PutCommand({
+      TableName: TABLES.INSPECTIONS,
+      Item: newInspection,
+    }));
+
+    res.status(201).json(newInspection);
   } catch (error) {
     next(error);
   }
@@ -30,22 +47,19 @@ export const createInspection = async (req: AuthRequest, res: Response, next: Ne
 
 export const getInspection = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const inspection = await Inspection.findById(req.params.id)
-      .populate('propertyId')
-      .populate('landlordId', 'name email role')
-      .populate('tenantId', 'name email role');
+    const result = await docClient.send(new GetCommand({
+      TableName: TABLES.INSPECTIONS,
+      Key: { inspectionId: req.params.id },
+    }));
 
-    if (!inspection) {
+    if (!result.Item) {
       res.status(404);
       throw new Error('Inspection not found');
     }
 
-    // After populate, landlordId / tenantId are hydrated documents — use type assertion to access _id
-    const landlordDoc = inspection.landlordId as any;
-    const tenantDoc = inspection.tenantId as any;
-
-    const isLandlord = landlordDoc._id.toString() === req.user._id.toString();
-    const isTenant = tenantDoc && tenantDoc._id.toString() === req.user._id.toString();
+    const inspection = result.Item as IInspection;
+    const isLandlord = inspection.landlordId === req.user!.userId;
+    const isTenant = inspection.tenantId === req.user!.userId;
 
     if (!isLandlord && !isTenant) {
       res.status(403);
@@ -61,33 +75,45 @@ export const getInspection = async (req: AuthRequest, res: Response, next: NextF
 export const updateInspectionState = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { state } = req.body;
-
-    // Validate state value
     const validStates = ['DRAFT', 'IN_PROGRESS', 'UNDER_REVIEW', 'READ_ONLY'];
+
     if (!validStates.includes(state)) {
       res.status(400);
       throw new Error(`Invalid state. Must be one of: ${validStates.join(', ')}`);
     }
 
-    const inspection = await Inspection.findById(req.params.id);
-    if (!inspection) {
+    const result = await docClient.send(new GetCommand({
+      TableName: TABLES.INSPECTIONS,
+      Key: { inspectionId: req.params.id },
+    }));
+
+    if (!result.Item) {
       res.status(404);
       throw new Error('Inspection not found');
     }
 
-    const userId = req.user._id.toString();
-    const isLandlord = inspection.landlordId.toString() === userId;
-    const isTenant = inspection.tenantId && inspection.tenantId.toString() === userId;
+    const inspection = result.Item as IInspection;
+    const isLandlord = inspection.landlordId === req.user!.userId;
+    const isTenant = inspection.tenantId === req.user!.userId;
 
     if (!isLandlord && !isTenant) {
       res.status(403);
       throw new Error('Not authorized');
     }
 
-    inspection.state = state;
-    await inspection.save();
+    const updated = await docClient.send(new UpdateCommand({
+      TableName: TABLES.INSPECTIONS,
+      Key: { inspectionId: req.params.id },
+      UpdateExpression: 'SET #state = :state, updatedAt = :updatedAt',
+      ExpressionAttributeNames: { '#state': 'state' }, // 'state' is a reserved word
+      ExpressionAttributeValues: {
+        ':state': state,
+        ':updatedAt': new Date().toISOString(),
+      },
+      ReturnValues: 'ALL_NEW',
+    }));
 
-    res.json(inspection);
+    res.json(updated.Attributes);
   } catch (error) {
     next(error);
   }
@@ -96,46 +122,60 @@ export const updateInspectionState = async (req: AuthRequest, res: Response, nex
 export const addItemCondition = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { roomId, itemName, condition, notes } = req.body;
-
-    // Validate condition
     const validConditions = ['Good', 'Fair', 'Damaged', 'N/A'];
+
     if (!validConditions.includes(condition)) {
       res.status(400);
       throw new Error(`Invalid condition. Must be one of: ${validConditions.join(', ')}`);
     }
 
-    const inspection = await Inspection.findById(req.params.id);
-    if (!inspection) {
+    const result = await docClient.send(new GetCommand({
+      TableName: TABLES.INSPECTIONS,
+      Key: { inspectionId: req.params.id },
+    }));
+
+    if (!result.Item) {
       res.status(404);
       throw new Error('Inspection not found');
     }
+
+    const inspection = result.Item as IInspection;
 
     if (inspection.state === 'READ_ONLY') {
       res.status(400);
       throw new Error('Cannot modify a read-only inspection');
     }
 
-    // Only landlord or tenant linked to this inspection can add items
-    const userId = req.user._id.toString();
-    const isLandlord = inspection.landlordId.toString() === userId;
-    const isTenant = inspection.tenantId && inspection.tenantId.toString() === userId;
-
+    const isLandlord = inspection.landlordId === req.user!.userId;
+    const isTenant = inspection.tenantId === req.user!.userId;
     if (!isLandlord && !isTenant) {
       res.status(403);
       throw new Error('Not authorized to modify this inspection');
     }
 
-    inspection.items.push({
-      roomId: new mongoose.Types.ObjectId(roomId),
+    const newItem: IItemCondition = {
+      itemId: uuidv4(),
+      roomId,
       itemName,
       condition,
       notes,
       evidence: [],
-    } as any);
+    };
 
-    await inspection.save();
+    // DynamoDB list_append adds new item to the items array
+    const updated = await docClient.send(new UpdateCommand({
+      TableName: TABLES.INSPECTIONS,
+      Key: { inspectionId: req.params.id },
+      UpdateExpression: 'SET items = list_append(if_not_exists(items, :empty), :newItem), updatedAt = :updatedAt',
+      ExpressionAttributeValues: {
+        ':newItem': [newItem],
+        ':empty': [],
+        ':updatedAt': new Date().toISOString(),
+      },
+      ReturnValues: 'ALL_NEW',
+    }));
 
-    res.status(201).json(inspection);
+    res.status(201).json(updated.Attributes);
   } catch (error) {
     next(error);
   }

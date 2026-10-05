@@ -1,102 +1,118 @@
-import { Response, NextFunction } from "express";
-import Property from "../models/Property";
-import { AuthRequest } from "../middlewares/authMiddleware";
+import { Response, NextFunction } from 'express';
+import { PutCommand, GetCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { v4 as uuidv4 } from 'uuid';
+import { docClient, TABLES } from '../config/dynamodb';
+import { AuthRequest } from '../middlewares/authMiddleware';
+import { IProperty, IRoom } from '../types';
 
-export const createProperty = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction,
-) => {
+export const createProperty = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { name, address, type, rooms } = req.body;
+    const now = new Date().toISOString();
+    const propertyId = uuidv4();
 
-    const property = await Property.create({
+    // Give each room a unique ID
+    const mappedRooms: IRoom[] = (rooms || []).map((r: { name: string }) => ({
+      roomId: uuidv4(),
+      name: r.name,
+    }));
+
+    const newProperty: IProperty = {
+      propertyId,
       name,
       address,
       type,
-      rooms: rooms || [],
-      ownerId: req.user._id,
-    });
+      ownerId: req.user!.userId,
+      rooms: mappedRooms,
+      createdAt: now,
+      updatedAt: now,
+    };
 
-    res.status(201).json(property);
+    await docClient.send(new PutCommand({
+      TableName: TABLES.PROPERTIES,
+      Item: newProperty,
+    }));
+
+    res.status(201).json(newProperty);
   } catch (error) {
     next(error);
   }
 };
 
-export const getProperties = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction,
-) => {
+export const getProperties = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 10;
-    const skip = (page - 1) * limit;
+    // Query using ownerIndex GSI to get all properties for this user
+    const result = await docClient.send(new QueryCommand({
+      TableName: TABLES.PROPERTIES,
+      IndexName: 'ownerIndex',
+      KeyConditionExpression: 'ownerId = :ownerId',
+      ExpressionAttributeValues: { ':ownerId': req.user!.userId },
+    }));
 
-    const properties = await Property.find({ ownerId: req.user._id })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Property.countDocuments({ ownerId: req.user._id });
+    const properties = (result.Items || []) as IProperty[];
 
     res.json({
       properties,
-      page,
-      pages: Math.ceil(total / limit),
-      total,
+      total: properties.length,
     });
   } catch (error) {
     next(error);
   }
 };
 
-export const updateProperty = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction,
-) => {
+export const getPropertyById = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const property = await Property.findById(req.params.id);
+    const result = await docClient.send(new GetCommand({
+      TableName: TABLES.PROPERTIES,
+      Key: { propertyId: req.params.id },
+    }));
 
-    if (!property) {
+    if (!result.Item) {
       res.status(404);
-      throw new Error("Property not found");
+      throw new Error('Property not found');
     }
 
-    if (property.ownerId.toString() !== req.user._id.toString()) {
-      res.status(403);
-      throw new Error("User not authorized to update this property");
-    }
-
-    const updatedProperty = await Property.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true },
-    );
-
-    res.json(updatedProperty);
+    res.json(result.Item);
   } catch (error) {
     next(error);
   }
 };
 
-export const getPropertyById = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction,
-) => {
+export const updateProperty = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const property = await Property.findById(req.params.id);
+    const result = await docClient.send(new GetCommand({
+      TableName: TABLES.PROPERTIES,
+      Key: { propertyId: req.params.id },
+    }));
 
-    if (!property) {
+    if (!result.Item) {
       res.status(404);
-      throw new Error("Property not found");
+      throw new Error('Property not found');
     }
 
-    // Check if user is owner or invited tenant (Tenant logic will be handled later, for now owner)
-    // For simplicity, returning if requested
-    res.json(property);
+    const property = result.Item as IProperty;
+    if (property.ownerId !== req.user!.userId) {
+      res.status(403);
+      throw new Error('Not authorized to update this property');
+    }
+
+    const { name, address, type } = req.body;
+
+    const updated = await docClient.send(new UpdateCommand({
+      TableName: TABLES.PROPERTIES,
+      Key: { propertyId: req.params.id },
+      UpdateExpression: 'SET #n = :name, address = :address, #t = :type, updatedAt = :updatedAt',
+      ExpressionAttributeNames: { '#n': 'name', '#t': 'type' }, // 'name' and 'type' are reserved words in DynamoDB
+      ExpressionAttributeValues: {
+        ':name': name,
+        ':address': address,
+        ':type': type,
+        ':updatedAt': new Date().toISOString(),
+      },
+      ReturnValues: 'ALL_NEW',
+    }));
+
+    res.json(updated.Attributes);
   } catch (error) {
     next(error);
   }
