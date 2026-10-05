@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft, Eye, EyeOff, CheckCircle } from "lucide-react";
 
-export default function AuthPage({ onAuthSuccess, onBack, inviteToken }) {
+export default function AuthPage({ onSuccess, onAuthSuccess, onBack, inviteToken }) {
   const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -16,7 +16,7 @@ export default function AuthPage({ onAuthSuccess, onBack, inviteToken }) {
     flatRoomNo: "",
     password: "",
     confirmPassword: "",
-    role: inviteToken ? "Tenant" : "Tenant",
+    role: "Tenant",
   });
 
   // Dynamic Password Validation Rules
@@ -59,9 +59,8 @@ export default function AuthPage({ onAuthSuccess, onBack, inviteToken }) {
       return;
     }
 
-    // Preserve existing localStorage logic
-    const savedUsers = JSON.parse(localStorage.getItem("homecompa_users_db") || "[]");
-    const savedProps = JSON.parse(localStorage.getItem("homecompa_properties") || "[]");
+    const savedUsers = JSON.parse(localStorage.getItem("hometrust_users_db") || "[]");
+    const savedProps = JSON.parse(localStorage.getItem("hometrust_properties") || "[]");
 
     const cleanEmail = formData.email.trim().toLowerCase();
     const fullName = `${formData.firstName.trim()} ${formData.lastName.trim()}`;
@@ -76,6 +75,7 @@ export default function AuthPage({ onAuthSuccess, onBack, inviteToken }) {
     }
 
     const userId = `usr-${Date.now()}`;
+    const propertyId = `prop-${Date.now()}`;
     let linkedPropertyId = null;
 
     if (inviteToken) {
@@ -92,7 +92,22 @@ export default function AuthPage({ onAuthSuccess, onBack, inviteToken }) {
         }
         return prop;
       });
-      localStorage.setItem("homecompa_properties", JSON.stringify(updatedProps));
+      localStorage.setItem("hometrust_properties", JSON.stringify(updatedProps));
+    } else {
+      // Create a real property record using the user's actual registered address!
+      const newProperty = {
+        id: propertyId,
+        name: formData.houseAddress.trim(),
+        address: formData.houseAddress.trim(),
+        flatNo: formData.flatRoomNo.trim() || "1",
+        image: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80",
+        progress: 0,
+        status: "ACTIVE",
+        ownerId: userId,
+      };
+      savedProps.push(newProperty);
+      localStorage.setItem("hometrust_properties", JSON.stringify(savedProps));
+      linkedPropertyId = propertyId;
     }
 
     const userData = {
@@ -110,18 +125,22 @@ export default function AuthPage({ onAuthSuccess, onBack, inviteToken }) {
     };
 
     savedUsers.push(userData);
-    localStorage.setItem("homecompa_users_db", JSON.stringify(savedUsers));
+    localStorage.setItem("hometrust_users_db", JSON.stringify(savedUsers));
 
     const sessionData = {
       ...userData,
       activePropertyId: linkedPropertyId
     };
 
-    localStorage.setItem("homecompa_token", `token-${Date.now()}`);
-    localStorage.setItem("homecompa_user", JSON.stringify(userData));
-    localStorage.setItem("homecompa_current_session", JSON.stringify(sessionData));
+    localStorage.setItem("hometrust_token", `token-${Date.now()}`);
+    localStorage.setItem("hometrust_user", JSON.stringify(userData));
+    localStorage.setItem("hometrust_current_session", JSON.stringify(sessionData));
 
-    onAuthSuccess(sessionData);
+    // Safely call whichever success prop App.jsx passed down
+    const triggerSuccess = onSuccess || onAuthSuccess;
+    if (triggerSuccess) {
+      triggerSuccess(sessionData);
+    }
   };
 
   return (
