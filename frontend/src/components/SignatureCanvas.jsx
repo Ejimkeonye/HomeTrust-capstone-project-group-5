@@ -1,7 +1,12 @@
-import { useRef, useState, useEffect } from 'react';
-import { RotateCcw, Check } from 'lucide-react';
+import { useRef, useState, useEffect } from "react";
+import { RotateCcw, Check } from "lucide-react";
 
-export default function SignatureCanvas({ label, onSave, savedSignature, disabled }) {
+export default function SignatureCanvas({
+  label,
+  onSave,
+  savedSignature,
+  disabled,
+}) {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(!!savedSignature);
@@ -9,10 +14,10 @@ export default function SignatureCanvas({ label, onSave, savedSignature, disable
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext("2d");
     ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#000000';
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#000000";
   }, []);
 
   const getCoordinates = (e) => {
@@ -30,7 +35,7 @@ export default function SignatureCanvas({ label, onSave, savedSignature, disable
     if (disabled) return;
     setIsDrawing(true);
     const { x, y } = getCoordinates(e);
-    const ctx = canvasRef.current.getContext('2d');
+    const ctx = canvasRef.current.getContext("2d");
     ctx.beginPath();
     ctx.moveTo(x, y);
   };
@@ -39,7 +44,7 @@ export default function SignatureCanvas({ label, onSave, savedSignature, disable
     if (!isDrawing || disabled) return;
     e.preventDefault();
     const { x, y } = getCoordinates(e);
-    const ctx = canvasRef.current.getContext('2d');
+    const ctx = canvasRef.current.getContext("2d");
     ctx.lineTo(x, y);
     ctx.stroke();
     setHasDrawn(true);
@@ -53,7 +58,7 @@ export default function SignatureCanvas({ label, onSave, savedSignature, disable
     if (disabled) return;
     const canvas = canvasRef.current;
     if (canvas) {
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
     setHasDrawn(false);
@@ -63,7 +68,7 @@ export default function SignatureCanvas({ label, onSave, savedSignature, disable
   const handleConfirm = () => {
     if (!hasDrawn || disabled) return;
     const canvas = canvasRef.current;
-    const dataUrl = canvas.toDataURL('image/png');
+    const dataUrl = canvas.toDataURL("image/png");
     onSave(dataUrl);
   };
 
@@ -80,7 +85,11 @@ export default function SignatureCanvas({ label, onSave, savedSignature, disable
 
       {savedSignature ? (
         <div className="bg-white border border-emerald-200 rounded-xl p-2 text-center relative group">
-          <img src={savedSignature} alt={`${label} signature`} className="h-20 mx-auto object-contain" />
+          <img
+            src={savedSignature}
+            alt={`${label} signature`}
+            className="h-20 mx-auto object-contain"
+          />
           {!disabled && (
             <button
               type="button"
@@ -104,7 +113,7 @@ export default function SignatureCanvas({ label, onSave, savedSignature, disable
             onTouchStart={startDrawing}
             onTouchMove={draw}
             onTouchEnd={stopDrawing}
-            className={`w-full h-24 bg-white border border-slate-300 rounded-xl touch-none ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-crosshair'}`}
+            className={`w-full h-24 bg-white border border-slate-300 rounded-xl touch-none ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-crosshair"}`}
           />
           {!disabled && (
             <div className="flex justify-between items-center text-xs">

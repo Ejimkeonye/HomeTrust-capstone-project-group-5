@@ -1,20 +1,34 @@
 import { useState } from "react";
 import { Building2, CheckCircle, Lock, User, ArrowRight } from "lucide-react";
 
-export default function PartyOnboardingPage({ token, property, onCompleteOnboarding }) {
+export default function PartyOnboardingPage({
+  token,
+  property,
+  onCompleteOnboarding,
+}) {
   // Resolve property data safely from props or localStorage
-  const activeProperty = property || (() => {
-    if (!token) return null;
-    try {
-      // 1. Try Base64 decoding fallback
-      const parsed = JSON.parse(atob(token));
-      return { id: parsed.propId, name: parsed.propName, invitedRole: parsed.role };
-    } catch {
-      // 2. Fall back to searching homecompa_properties in localStorage
-      const saved = JSON.parse(localStorage.getItem("homecompa_properties") || "[]");
-      return saved.find((p) => p.inviteToken === token || p.id === token) || null;
-    }
-  })();
+  const activeProperty =
+    property ||
+    (() => {
+      if (!token) return null;
+      try {
+        // 1. Try Base64 decoding fallback
+        const parsed = JSON.parse(atob(token));
+        return {
+          id: parsed.propId,
+          name: parsed.propName,
+          invitedRole: parsed.role,
+        };
+      } catch {
+        // 2. Fall back to searching homecompa_properties in localStorage
+        const saved = JSON.parse(
+          localStorage.getItem("homecompa_properties") || "[]",
+        );
+        return (
+          saved.find((p) => p.inviteToken === token || p.id === token) || null
+        );
+      }
+    })();
 
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
@@ -27,7 +41,9 @@ export default function PartyOnboardingPage({ token, property, onCompleteOnboard
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!fullName.trim() || password.length < 6) {
-      setError("Please provide your full name and a password with at least 6 characters.");
+      setError(
+        "Please provide your full name and a password with at least 6 characters.",
+      );
       return;
     }
 
@@ -46,9 +62,13 @@ export default function PartyOnboardingPage({ token, property, onCompleteOnboard
     };
 
     // 2. Register user in homecompa_users_db
-    const savedUsers = JSON.parse(localStorage.getItem("homecompa_users_db") || "[]");
+    const savedUsers = JSON.parse(
+      localStorage.getItem("homecompa_users_db") || "[]",
+    );
     const userIndex = savedUsers.findIndex(
-      (u) => u.name?.toLowerCase() === cleanName.toLowerCase() && u.role === invitedRole
+      (u) =>
+        u.name?.toLowerCase() === cleanName.toLowerCase() &&
+        u.role === invitedRole,
     );
 
     if (userIndex >= 0) {
@@ -59,14 +79,24 @@ export default function PartyOnboardingPage({ token, property, onCompleteOnboard
     localStorage.setItem("homecompa_users_db", JSON.stringify(savedUsers));
 
     // 3. Link party to property in homecompa_properties
-    const savedProps = JSON.parse(localStorage.getItem("homecompa_properties") || "[]");
+    const savedProps = JSON.parse(
+      localStorage.getItem("homecompa_properties") || "[]",
+    );
     const updatedProps = savedProps.map((p) => {
       if (p.inviteToken === token || p.id === targetPropId) {
         return {
           ...p,
           ...(isLandlord
-            ? { landlordId: newUser.id, landlordName: cleanName, landlordEmail: cleanEmail }
-            : { tenantId: newUser.id, tenantName: cleanName, tenantEmail: cleanEmail }),
+            ? {
+                landlordId: newUser.id,
+                landlordName: cleanName,
+                landlordEmail: cleanEmail,
+              }
+            : {
+                tenantId: newUser.id,
+                tenantName: cleanName,
+                tenantEmail: cleanEmail,
+              }),
           status: "Party Joined",
         };
       }
@@ -82,7 +112,10 @@ export default function PartyOnboardingPage({ token, property, onCompleteOnboard
 
     localStorage.setItem("homecompa_token", `token-${Date.now()}`);
     localStorage.setItem("homecompa_user", JSON.stringify(newUser));
-    localStorage.setItem("homecompa_current_session", JSON.stringify(sessionData));
+    localStorage.setItem(
+      "homecompa_current_session",
+      JSON.stringify(sessionData),
+    );
 
     // 5. Complete onboarding
     onCompleteOnboarding(sessionData);
@@ -91,8 +124,12 @@ export default function PartyOnboardingPage({ token, property, onCompleteOnboard
   if (!activeProperty && !token) {
     return (
       <div className="max-w-md mx-auto my-16 p-8 bg-white border border-red-200 rounded-2xl shadow-sm text-center space-y-4 font-sans">
-        <p className="text-red-600 font-semibold text-sm">Invalid or expired invitation link.</p>
-        <p className="text-xs text-slate-500">Please request a new magic link from your property counterpart.</p>
+        <p className="text-red-600 font-semibold text-sm">
+          Invalid or expired invitation link.
+        </p>
+        <p className="text-xs text-slate-500">
+          Please request a new magic link from your property counterpart.
+        </p>
       </div>
     );
   }
@@ -104,10 +141,16 @@ export default function PartyOnboardingPage({ token, property, onCompleteOnboard
           <span className="inline-block px-3 py-1 bg-purple-50 text-purple-800 text-xs font-semibold rounded-full border border-purple-200">
             {isLandlord ? "Landlord" : "Tenant"} Joint Inspection Invitation
           </span>
-          <h2 className="text-2xl font-extrabold text-slate-900">Welcome to Hometrust</h2>
+          <h2 className="text-2xl font-extrabold text-slate-900">
+            Welcome to Hometrust
+          </h2>
           <p className="text-xs text-slate-600">
-            You've been invited to participate in a joint property inspection as the{" "}
-            <span className="font-bold">{isLandlord ? "Landlord" : "Tenant"}</span>.
+            You've been invited to participate in a joint property inspection as
+            the{" "}
+            <span className="font-bold">
+              {isLandlord ? "Landlord" : "Tenant"}
+            </span>
+            .
           </p>
         </div>
 
@@ -131,7 +174,9 @@ export default function PartyOnboardingPage({ token, property, onCompleteOnboard
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Your Full Name</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Your Full Name
+            </label>
             <div className="relative">
               <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -146,7 +191,9 @@ export default function PartyOnboardingPage({ token, property, onCompleteOnboard
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Create Access Password</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Create Access Password
+            </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
