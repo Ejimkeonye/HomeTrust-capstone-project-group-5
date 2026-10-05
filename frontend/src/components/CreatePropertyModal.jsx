@@ -240,7 +240,7 @@ export default function CreatePropertyModal({
                     >
                       + {suggestion}
                     </button>
-                  )
+                  ),
                 )}
               </div>
             </div>

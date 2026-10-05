@@ -1,17 +1,32 @@
-import { useState } from 'react';
-import { 
-  ArrowLeft, 
-  Printer, Lock, Check, LogOut, ShieldCheck 
-} from 'lucide-react';
+import { useState } from "react";
+import {
+  ArrowLeft,
+  Printer,
+  Lock,
+  Check,
+  LogOut,
+  ShieldCheck,
+} from "lucide-react";
 
-export default function InspectionReportPage({ property, inspectionData: initialInspectionData, signatures = {}, onBack, onFinalize }) {
-  const reportStorageKey = `hometrust_report_${property?.id || 'default'}`;
-  
+export default function InspectionReportPage({
+  property,
+  inspectionData: initialInspectionData,
+  signatures = {},
+  onBack,
+  onFinalize,
+}) {
+  const reportStorageKey = `hometrust_report_${property?.id || "default"}`;
+
   const [activeInspectionData] = useState(() => {
     try {
       const saved = localStorage.getItem(reportStorageKey);
       const parsedSaved = saved ? JSON.parse(saved) : {};
-      return parsedSaved.inspectionData || initialInspectionData || property?.inspectionData || {};
+      return (
+        parsedSaved.inspectionData ||
+        initialInspectionData ||
+        property?.inspectionData ||
+        {}
+      );
     } catch (e) {
       console.error(e);
       return initialInspectionData || property?.inspectionData || {};
@@ -25,9 +40,12 @@ export default function InspectionReportPage({ property, inspectionData: initial
   const [showSuccessScreen, setShowSuccessScreen] = useState(false);
 
   // Extract rooms data safely if passed as array or object
-  const roomsList = Array.isArray(activeInspectionData) 
-    ? activeInspectionData 
-    : Object.keys(activeInspectionData).map(k => ({ name: k, ...activeInspectionData[k] }));
+  const roomsList = Array.isArray(activeInspectionData)
+    ? activeInspectionData
+    : Object.keys(activeInspectionData).map((k) => ({
+        name: k,
+        ...activeInspectionData[k],
+      }));
 
   const handleFinalLockAndSave = () => {
     const timestamp = new Date().toLocaleString();
@@ -44,20 +62,22 @@ export default function InspectionReportPage({ property, inspectionData: initial
     localStorage.setItem(reportStorageKey, JSON.stringify(finalReport));
 
     // Update master properties list
-    const savedProps = JSON.parse(localStorage.getItem('hometrust_properties') || '[]');
+    const savedProps = JSON.parse(
+      localStorage.getItem("hometrust_properties") || "[]",
+    );
     const updatedProps = savedProps.map((p) =>
       p.id === property?.id
         ? {
             ...p,
-            status: 'READ_ONLY',
+            status: "READ_ONLY",
             progress: 100,
             signatures: { landlord: landlordSig, tenant: tenantSig },
             inspectionData: activeInspectionData,
             completedTimestamp: timestamp,
           }
-        : p
+        : p,
     );
-    localStorage.setItem('hometrust_properties', JSON.stringify(updatedProps));
+    localStorage.setItem("hometrust_properties", JSON.stringify(updatedProps));
 
     setShowSuccessScreen(true);
 
@@ -77,9 +97,12 @@ export default function InspectionReportPage({ property, inspectionData: initial
             <ShieldCheck className="w-10 h-10" />
           </div>
           <div className="space-y-3">
-            <h2 className="text-xl font-black text-slate-950">Congratulations!</h2>
+            <h2 className="text-xl font-black text-slate-950">
+              Congratulations!
+            </h2>
             <p className="text-xs text-slate-600 leading-relaxed px-2 font-medium">
-              Your evidence has been submitted for approval and acknowledgement. The inspection baseline is now sealed and locked.
+              Your evidence has been submitted for approval and acknowledgement.
+              The inspection baseline is now sealed and locked.
             </p>
           </div>
           <button
@@ -99,7 +122,6 @@ export default function InspectionReportPage({ property, inspectionData: initial
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
       <div className="w-full max-w-md bg-white min-h-screen sm:min-h-200 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative text-slate-900">
-        
         {/* Header */}
         <div className="p-4 flex items-center justify-between z-10 gap-2 bg-[#4A1E6D] text-white">
           <button
@@ -108,7 +130,9 @@ export default function InspectionReportPage({ property, inspectionData: initial
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-base font-extrabold text-white text-center truncate">Inspection Summary</h1>
+          <h1 className="text-base font-extrabold text-white text-center truncate">
+            Inspection Summary
+          </h1>
           <button
             onClick={handlePrint}
             className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
@@ -121,8 +145,12 @@ export default function InspectionReportPage({ property, inspectionData: initial
         {/* Content Area */}
         <div className="px-6 py-4 flex-1 overflow-y-auto space-y-6 bg-white">
           <div className="border-b border-slate-200 pb-4">
-            <div className="text-[10px] font-bold tracking-wider text-[#4A1E6D] uppercase mb-1">Verified Record</div>
-            <h2 className="text-lg font-extrabold text-slate-900">{property?.name || property?.address}</h2>
+            <div className="text-[10px] font-bold tracking-wider text-[#4A1E6D] uppercase mb-1">
+              Verified Record
+            </div>
+            <h2 className="text-lg font-extrabold text-slate-900">
+              {property?.name || property?.address}
+            </h2>
             <div className="mt-2">
               <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-300">
                 <Lock className="w-3 h-3" /> Signed & Locked (READ_ONLY)
@@ -132,21 +160,35 @@ export default function InspectionReportPage({ property, inspectionData: initial
 
           {/* Rooms Walkthrough List */}
           <div className="space-y-3">
-            <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">Walkthrough Breakdown</h3>
+            <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
+              Walkthrough Breakdown
+            </h3>
             {roomsList.map((room, idx) => (
-              <div key={room.id || idx} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+              <div
+                key={room.id || idx}
+                className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2"
+              >
                 <div className="flex justify-between items-center">
-                  <h4 className="text-xs font-extrabold text-slate-900">{room.name}</h4>
+                  <h4 className="text-xs font-extrabold text-slate-900">
+                    {room.name}
+                  </h4>
                   <span className="text-[10px] font-extrabold text-purple-900 bg-purple-200/60 px-2 py-0.5 rounded-md">
-                    {room.category || 'Rooms'}
+                    {room.category || "Rooms"}
                   </span>
                 </div>
-                
+
                 <div className="text-xs text-slate-600 space-y-1">
                   {room.items?.map((item, iIdx) => (
-                    <div key={item.id || iIdx} className="flex justify-between py-1 border-b border-slate-200/60 last:border-0">
-                      <span className="font-semibold text-slate-800">{item.name}</span>
-                      <span className="text-[11px] text-purple-900 font-bold capitalize">{item.condition?.replace('_', ' ')}</span>
+                    <div
+                      key={item.id || iIdx}
+                      className="flex justify-between py-1 border-b border-slate-200/60 last:border-0"
+                    >
+                      <span className="font-semibold text-slate-800">
+                        {item.name}
+                      </span>
+                      <span className="text-[11px] text-purple-900 font-bold capitalize">
+                        {item.condition?.replace("_", " ")}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -156,26 +198,48 @@ export default function InspectionReportPage({ property, inspectionData: initial
 
           {/* Display Verified Signatures (Read-Only) */}
           <div className="space-y-3 pt-4 border-t border-slate-200">
-            <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">Digital Verification</h3>
+            <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
+              Digital Verification
+            </h3>
             <div className="grid grid-cols-1 gap-3">
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Landlord Signature</span>
-                  <span className="text-xs font-extrabold text-emerald-700">Verified & Signed ✓</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">
+                    Landlord Signature
+                  </span>
+                  <span className="text-xs font-extrabold text-emerald-700">
+                    Verified & Signed ✓
+                  </span>
                 </div>
-                {landlordSig && typeof landlordSig === 'string' && landlordSig.startsWith('data:image') && (
-                  <img src={landlordSig} alt="Landlord Signature" className="h-8 object-contain" />
-                )}
+                {landlordSig &&
+                  typeof landlordSig === "string" &&
+                  landlordSig.startsWith("data:image") && (
+                    <img
+                      src={landlordSig}
+                      alt="Landlord Signature"
+                      className="h-8 object-contain"
+                    />
+                  )}
               </div>
 
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
                 <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Tenant Signature</span>
-                  <span className="text-xs font-extrabold text-emerald-700">Verified & Signed ✓</span>
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block">
+                    Tenant Signature
+                  </span>
+                  <span className="text-xs font-extrabold text-emerald-700">
+                    Verified & Signed ✓
+                  </span>
                 </div>
-                {tenantSig && typeof tenantSig === 'string' && tenantSig.startsWith('data:image') && (
-                  <img src={tenantSig} alt="Tenant Signature" className="h-8 object-contain" />
-                )}
+                {tenantSig &&
+                  typeof tenantSig === "string" &&
+                  tenantSig.startsWith("data:image") && (
+                    <img
+                      src={tenantSig}
+                      alt="Tenant Signature"
+                      className="h-8 object-contain"
+                    />
+                  )}
               </div>
             </div>
           </div>
@@ -189,7 +253,6 @@ export default function InspectionReportPage({ property, inspectionData: initial
               <Check className="w-4 h-4" /> Save & Return to Dashboard
             </button>
           </div>
-
         </div>
       </div>
     </div>

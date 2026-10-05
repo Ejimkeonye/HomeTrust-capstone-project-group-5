@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { ArrowLeft, Eye, EyeOff, CheckCircle } from "lucide-react";
 
-export default function AuthPage({ onSuccess, onAuthSuccess, onBack, inviteToken }) {
+export default function AuthPage({
+  onSuccess,
+  onAuthSuccess,
+  onBack,
+  inviteToken,
+}) {
   const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -59,18 +64,24 @@ export default function AuthPage({ onSuccess, onAuthSuccess, onBack, inviteToken
       return;
     }
 
-    const savedUsers = JSON.parse(localStorage.getItem("hometrust_users_db") || "[]");
-    const savedProps = JSON.parse(localStorage.getItem("hometrust_properties") || "[]");
+    const savedUsers = JSON.parse(
+      localStorage.getItem("hometrust_users_db") || "[]",
+    );
+    const savedProps = JSON.parse(
+      localStorage.getItem("hometrust_properties") || "[]",
+    );
 
     const cleanEmail = formData.email.trim().toLowerCase();
     const fullName = `${formData.firstName.trim()} ${formData.lastName.trim()}`;
 
     const existing = savedUsers.find(
-      (u) => u.email?.toLowerCase() === cleanEmail
+      (u) => u.email?.toLowerCase() === cleanEmail,
     );
 
     if (existing) {
-      setErrorMessage("An account with this email already exists. Please log in.");
+      setErrorMessage(
+        "An account with this email already exists. Please log in.",
+      );
       return;
     }
 
@@ -87,12 +98,15 @@ export default function AuthPage({ onSuccess, onAuthSuccess, onBack, inviteToken
             tenantId: userId,
             tenantEmail: cleanEmail,
             tenantName: fullName,
-            status: prop.status === "READ_ONLY" ? "READ_ONLY" : "Tenant Joined"
+            status: prop.status === "READ_ONLY" ? "READ_ONLY" : "Tenant Joined",
           };
         }
         return prop;
       });
-      localStorage.setItem("hometrust_properties", JSON.stringify(updatedProps));
+      localStorage.setItem(
+        "hometrust_properties",
+        JSON.stringify(updatedProps),
+      );
     } else {
       // Create a real property record using the user's actual registered address!
       const newProperty = {
@@ -100,7 +114,8 @@ export default function AuthPage({ onSuccess, onAuthSuccess, onBack, inviteToken
         name: formData.houseAddress.trim(),
         address: formData.houseAddress.trim(),
         flatNo: formData.flatRoomNo.trim() || "1",
-        image: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80",
+        image:
+          "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80",
         progress: 0,
         status: "ACTIVE",
         ownerId: userId,
@@ -121,7 +136,7 @@ export default function AuthPage({ onSuccess, onAuthSuccess, onBack, inviteToken
       flatRoomNo: formData.flatRoomNo.trim(),
       password: formData.password,
       role: formData.role,
-      activePropertyId: linkedPropertyId
+      activePropertyId: linkedPropertyId,
     };
 
     savedUsers.push(userData);
@@ -129,12 +144,15 @@ export default function AuthPage({ onSuccess, onAuthSuccess, onBack, inviteToken
 
     const sessionData = {
       ...userData,
-      activePropertyId: linkedPropertyId
+      activePropertyId: linkedPropertyId,
     };
 
     localStorage.setItem("hometrust_token", `token-${Date.now()}`);
     localStorage.setItem("hometrust_user", JSON.stringify(userData));
-    localStorage.setItem("hometrust_current_session", JSON.stringify(sessionData));
+    localStorage.setItem(
+      "hometrust_current_session",
+      JSON.stringify(sessionData),
+    );
 
     // Safely call whichever success prop App.jsx passed down
     const triggerSuccess = onSuccess || onAuthSuccess;
@@ -146,7 +164,6 @@ export default function AuthPage({ onSuccess, onAuthSuccess, onBack, inviteToken
   return (
     <div className="min-h-screen w-full bg-slate-100 flex items-center justify-center sm:p-8 p-4 font-sans">
       <div className="w-full max-w-md md:max-w-xl bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 flex flex-col">
-        
         {/* Figma Design Top Header Bar */}
         <div className="bg-purple-800 text-white p-5 flex items-center justify-between">
           <button
@@ -297,19 +314,41 @@ export default function AuthPage({ onSuccess, onAuthSuccess, onBack, inviteToken
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
 
               {/* Dynamic Rules Indicators */}
               <div className="flex flex-wrap gap-2 text-[10px] font-semibold mt-2">
-                <span className={hasEightChars ? "text-emerald-600 font-bold" : "text-slate-400"}>
+                <span
+                  className={
+                    hasEightChars
+                      ? "text-emerald-600 font-bold"
+                      : "text-slate-400"
+                  }
+                >
                   Must contain 8 characters
                 </span>
-                <span className={hasUpperCase ? "text-emerald-600 font-bold" : "text-slate-400"}>
+                <span
+                  className={
+                    hasUpperCase
+                      ? "text-emerald-600 font-bold"
+                      : "text-slate-400"
+                  }
+                >
                   One upper case
                 </span>
-                <span className={hasSpecialChar ? "text-emerald-600 font-bold" : "text-slate-400"}>
+                <span
+                  className={
+                    hasSpecialChar
+                      ? "text-emerald-600 font-bold"
+                      : "text-slate-400"
+                  }
+                >
                   One special character
                 </span>
               </div>
@@ -334,7 +373,11 @@ export default function AuthPage({ onSuccess, onAuthSuccess, onBack, inviteToken
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600"
                 >
-                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showConfirmPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -351,7 +394,9 @@ export default function AuthPage({ onSuccess, onAuthSuccess, onBack, inviteToken
                 className="w-full bg-slate-100/80 border border-slate-300 rounded-xl px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-700 cursor-pointer disabled:bg-slate-200"
               >
                 <option value="Tenant">Tenant</option>
-                <option value="Landlord / Realtor">Landlord / Realtor / Agent</option>
+                <option value="Landlord / Realtor">
+                  Landlord / Realtor / Agent
+                </option>
               </select>
             </div>
 
@@ -365,7 +410,6 @@ export default function AuthPage({ onSuccess, onAuthSuccess, onBack, inviteToken
             </div>
           </form>
         )}
-
       </div>
     </div>
   );
