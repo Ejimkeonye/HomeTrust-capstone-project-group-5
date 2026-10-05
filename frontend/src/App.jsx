@@ -8,6 +8,8 @@ import DashboardPage from './pages/DashboardPage';
 import PartyOnboardingPage from './pages/PartyOnboardingPage';
 import InspectionPage from './pages/InspectionPage';
 import InvitePartyModal from './components/InvitePartyModal';
+import InspectionReportPage from './pages/InspectionReportPage';
+import SignatureCanvas from './components/SignatureCanvas'; // <-- 1. Import your signature component (adjust path if needed)
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -35,6 +37,8 @@ export default function App() {
   };
 
   const [selectedProperty, setSelectedProperty] = useState(defaultProperty);
+  const [selectedInspectionData, setSelectedInspectionData] = useState({}); 
+  const [signatures, setSignatures] = useState({ landlord: null, tenant: null }); // <-- Track signatures here
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   const [currentView, setCurrentView] = useState(() => {
@@ -74,17 +78,16 @@ export default function App() {
     setCurrentView('inspection');
   };
 
+  // Step 1: When "Review & Lock" is clicked on InspectionPage
   const handleCompleteInspection = (updatedData) => {
-    if (selectedProperty) {
-      const saved = JSON.parse(localStorage.getItem('hometrust_properties') || '[]');
-      const updated = saved.map((p) =>
-        p.id === selectedProperty.id
-          ? { ...p, inspectionData: updatedData, status: 'READ_ONLY', progress: 100 }
-          : p
-      );
-      localStorage.setItem('hometrust_properties', JSON.stringify(updated));
-    }
-    setCurrentView('dashboard');
+    setSelectedInspectionData(updatedData);
+    setCurrentView('sign-inspection'); // <-- Redirects to Signature component first instead of locking immediately
+  };
+
+  // Step 2: When signatures are completed/saved
+  const handleSignaturesComplete = (completedSignatures) => {
+    setSignatures(completedSignatures);
+    setCurrentView('inspection-report'); // <-- Now goes to report page, which displays the signatures and is locked
   };
 
   return (
@@ -145,6 +148,7 @@ export default function App() {
           user={currentUser}
           onLogout={handleLogout}
           onStartInspection={handleStartInspection}
+          onViewReport={() => setCurrentView('inspection-report')}
           onOpenInviteModal={(prop) => {
             setSelectedProperty(prop || defaultProperty);
             setIsInviteModalOpen(true);
@@ -159,6 +163,62 @@ export default function App() {
           userRole={currentUser?.role || 'tenant'}
           onBack={() => setCurrentView('dashboard')}
           onCompleteInspection={handleCompleteInspection}
+        />
+      )}
+
+      {/* 9. Standalone Signature Component View (Inserted before locking) */}
+      {currentView === 'sign-inspection' && (
+        <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4 font-sans">
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 space-y-6">
+            <div className="flex items-center justify-between border-b pb-4">
+              <button 
+                onClick={() => setCurrentView('inspection')}
+                className="text-xs font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
+              >
+                ← Back to Inspection
+              </button>
+              <h2 className="text-sm font-extrabold text-[#4A1E6D]">Signatures Required</h2>
+            </div>
+
+            <p className="text-xs text-slate-600 font-medium">
+              Please provide digital signatures to lock and seal this inspection report.
+            </p>
+
+            {/* Your Signature Component */}
+            <div className="space-y-4">
+              <SignatureCanvas 
+                label="Landlord Signature"
+                savedSignature={signatures.landlord}
+                onSave={(sig) => setSignatures(prev => ({ ...prev, landlord: sig }))}
+              />
+              <SignatureCanvas 
+                label="Tenant Signature"
+                savedSignature={signatures.tenant}
+                onSave={(sig) => setSignatures(prev => ({ ...prev, tenant: sig }))}
+              />
+            </div>
+
+            <button
+              type="button"
+              disabled={!signatures.landlord && !signatures.tenant} // Adjust based on your signature component logic
+              onClick={() => handleSignaturesComplete(signatures)}
+              className="w-full bg-[#4A1E6D] hover:bg-purple-950 disabled:opacity-40 text-white font-extrabold py-3.5 rounded-2xl text-xs transition-colors shadow-lg cursor-pointer"
+            >
+              Lock & Proceed to Final Report →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 10. Inspection Report View (Now Locked with Signatures) */}
+      {currentView === 'inspection-report' && (
+        <InspectionReportPage
+          property={selectedProperty || defaultProperty}
+          inspectionData={selectedInspectionData}
+          signatures={signatures}
+          isLocked={true}
+          onBack={() => setCurrentView('sign-inspection')}
+          onFinalize={() => setCurrentView('dashboard')}
         />
       )}
 

@@ -448,12 +448,17 @@ export default function InspectionPage({ property, userRole = "tenant", onBack, 
             )}
 
             <button
-              type="button"
-              onClick={() => onCompleteInspection && onCompleteInspection(roomsData)}
-              className="text-xs font-extrabold text-[#4A1E6D] bg-white hover:bg-slate-100 px-3.5 py-1.5 rounded-full cursor-pointer shrink-0 transition-colors shadow-md"
-            >
-              Review & Lock
-            </button>
+  type="button"
+  onClick={() => {
+    // Pass the current rooms data up to the parent component
+    if (onCompleteInspection) {
+      onCompleteInspection(roomsData);
+    }
+  }}
+  className="text-xs font-extrabold text-[#4A1E6D] bg-white hover:bg-slate-100 px-3.5 py-1.5 rounded-full cursor-pointer shrink-0 transition-colors shadow-md"
+>
+  Review & Lock
+</button>
           </div>
         </div>
 
