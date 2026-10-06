@@ -35,21 +35,6 @@ resource "aws_dynamodb_table" "inspections" {
   }
 }
 
-resource "aws_dynamodb_table" "parties" {
-  name         = "${var.project}-${var.environment}-parties"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "inspectionId"
-  range_key    = "partyId"
-
-  attribute {
-    name = "inspectionId"
-    type = "S"
-  }
-  attribute {
-    name = "partyId"
-    type = "S"
-  }
-}
 
 resource "aws_dynamodb_table" "room_items" {
   name         = "${var.project}-${var.environment}-roomItems"
@@ -94,5 +79,27 @@ resource "aws_dynamodb_table" "evidence" {
   attribute {
     name = "evidenceId"
     type = "S"
+  }
+}
+
+resource "aws_dynamodb_table" "parties" {
+  name         = "${var.project}-${var.environment}-parties"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "userId"
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  attribute {
+    name = "email"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "emailIndex"
+    hash_key        = "email"
+    projection_type = "ALL"
   }
 }
