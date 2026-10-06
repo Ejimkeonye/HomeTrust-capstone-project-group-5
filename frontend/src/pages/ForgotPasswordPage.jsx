@@ -49,7 +49,6 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4 sm:p-6 font-sans">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 flex flex-col">
-        
         {/* Header Bar */}
         <div className="bg-purple-800 text-white px-5 py-4 flex items-center justify-between border-b border-purple-900">
           <button
@@ -67,16 +66,18 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
         </div>
 
         {/* Hero Banner */}
-        <div 
+        <div
           className="relative h-32 bg-cover bg-center flex flex-col items-center justify-center text-center p-4"
           style={{
-            backgroundImage: `linear-gradient(to bottom, rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.7)), url('https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80')`
+            backgroundImage: `linear-gradient(to bottom, rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.7)), url('https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80')`,
           }}
         >
           <div className="w-10 h-10 rounded-2xl bg-purple-700 flex items-center justify-center text-white mb-1 shadow-md">
             <Shield className="w-5 h-5" />
           </div>
-          <h2 className="text-xl font-black text-white tracking-tight">Hometrust</h2>
+          <h2 className="text-xl font-black text-white tracking-tight">
+            Hometrust
+          </h2>
         </div>
 
         {/* Form Body */}
@@ -98,9 +99,12 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
             /* STEP 1: Enter Email */
             <form onSubmit={handleSendCode} className="space-y-5">
               <div className="text-center mb-4">
-                <h3 className="text-lg font-bold text-slate-900">Reset Password</h3>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Reset Password
+                </h3>
                 <p className="text-xs text-slate-500 font-medium mt-1">
-                  Enter your registered email address and we'll send you a verification code.
+                  Enter your registered email address and we'll send you a
+                  verification code.
                 </p>
               </div>
 
@@ -132,9 +136,12 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
             /* STEP 2: Enter Code & New Password */
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div className="text-center mb-4">
-                <h3 className="text-lg font-bold text-slate-900">Enter Verification Code</h3>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Enter Verification Code
+                </h3>
                 <p className="text-xs text-slate-500 font-medium mt-1">
-                  Code sent to <span className="font-semibold text-purple-900">{email}</span>
+                  Code sent to{" "}
+                  <span className="font-semibold text-purple-900">{email}</span>
                 </p>
               </div>
 
@@ -190,7 +197,6 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
             </button>
           </div>
         </div>
-
       </div>
     </div>
   );

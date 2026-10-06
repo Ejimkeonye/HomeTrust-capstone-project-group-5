@@ -1,25 +1,21 @@
 import { ShieldCheck } from "lucide-react";
 
-export default function Frame706({ onBackHome, date = "13th May, 2025" }) {
+export default function InviteLinkSent({
+  onBackHome,
+  date = new Date().toLocaleDateString(),
+}) {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
       <div className="w-full max-w-md bg-[#501353] min-h-screen sm:min-h-210 sm:rounded-[48px] shadow-2xl flex flex-col items-center justify-between p-8 text-white relative overflow-hidden">
-        
-        {/* Status Bar Spacer / Header */}
-        <div className="w-full flex justify-between items-center text-xs font-semibold opacity-80 pt-2">
-          <span>9:41</span>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-white/40 inline-block" />
-            <span className="w-2.5 h-2.5 rounded-full bg-white/40 inline-block" />
-          </div>
-        </div>
-
         {/* Center Content */}
         <div className="flex flex-col items-center text-center space-y-6 my-auto max-w-xs">
           {/* Shield Icon Container */}
           <div className="relative flex items-center justify-center">
             <div className="w-36 h-40 border-4 border-white/90 rounded-[40px] flex items-center justify-center rotate-45 transform scale-90 shadow-lg">
-              <ShieldCheck className="w-20 h-20 text-white -rotate-45" strokeWidth={1.8} />
+              <ShieldCheck
+                className="w-20 h-20 text-white -rotate-45"
+                strokeWidth={1.8}
+              />
             </div>
           </div>
 
@@ -46,7 +42,6 @@ export default function Frame706({ onBackHome, date = "13th May, 2025" }) {
             Back home
           </button>
         </div>
-
       </div>
     </div>
   );

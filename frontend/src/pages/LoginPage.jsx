@@ -1,7 +1,18 @@
 import { useState } from "react";
-import { ArrowLeft, Eye, EyeOff, Shield, KeyRound, CheckCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  Shield,
+  KeyRound,
+  CheckCircle,
+} from "lucide-react";
 
-export default function LoginPage({ onAuthSuccess, onBack, onNavigateToSignUp }) {
+export default function LoginPage({
+  onAuthSuccess,
+  onBack,
+  onNavigateToSignUp,
+}) {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -17,14 +28,18 @@ export default function LoginPage({ onAuthSuccess, onBack, onNavigateToSignUp })
     e.preventDefault();
     setErrorMessage("");
 
-    const savedUsers = JSON.parse(localStorage.getItem("homecompa_users_db") || "[]");
-    const savedProps = JSON.parse(localStorage.getItem("homecompa_properties") || "[]");
+    const savedUsers = JSON.parse(
+      localStorage.getItem("homecompa_users_db") || "[]",
+    );
+    const savedProps = JSON.parse(
+      localStorage.getItem("homecompa_properties") || "[]",
+    );
     const cleanInput = identifier.trim().toLowerCase();
 
     const existingUser = savedUsers.find(
       (u) =>
         (u.email && u.email.toLowerCase() === cleanInput) ||
-        (u.name && u.name.toLowerCase() === cleanInput)
+        (u.name && u.name.toLowerCase() === cleanInput),
     );
 
     if (!existingUser) {
@@ -39,9 +54,11 @@ export default function LoginPage({ onAuthSuccess, onBack, onNavigateToSignUp })
 
     const userProp = savedProps.find(
       (p) =>
-        (existingUser.activePropertyId && p.id === existingUser.activePropertyId) ||
+        (existingUser.activePropertyId &&
+          p.id === existingUser.activePropertyId) ||
         (p.tenantId && p.tenantId === existingUser.id) ||
-        (p.tenantEmail && p.tenantEmail.toLowerCase() === existingUser.email?.toLowerCase())
+        (p.tenantEmail &&
+          p.tenantEmail.toLowerCase() === existingUser.email?.toLowerCase()),
     );
 
     const sessionData = {
@@ -51,7 +68,10 @@ export default function LoginPage({ onAuthSuccess, onBack, onNavigateToSignUp })
 
     localStorage.setItem("homecompa_token", `token-${Date.now()}`);
     localStorage.setItem("homecompa_user", JSON.stringify(existingUser));
-    localStorage.setItem("homecompa_current_session", JSON.stringify(sessionData));
+    localStorage.setItem(
+      "homecompa_current_session",
+      JSON.stringify(sessionData),
+    );
 
     onAuthSuccess(sessionData);
   };
@@ -62,11 +82,13 @@ export default function LoginPage({ onAuthSuccess, onBack, onNavigateToSignUp })
     setErrorMessage("");
     setResetSuccess("");
 
-    const savedUsers = JSON.parse(localStorage.getItem("homecompa_users_db") || "[]");
+    const savedUsers = JSON.parse(
+      localStorage.getItem("homecompa_users_db") || "[]",
+    );
     const cleanEmail = resetEmail.trim().toLowerCase();
 
     const userIndex = savedUsers.findIndex(
-      (u) => u.email && u.email.toLowerCase() === cleanEmail
+      (u) => u.email && u.email.toLowerCase() === cleanEmail,
     );
 
     if (userIndex === -1) {
@@ -84,7 +106,7 @@ export default function LoginPage({ onAuthSuccess, onBack, onNavigateToSignUp })
     localStorage.setItem("homecompa_users_db", JSON.stringify(savedUsers));
 
     setResetSuccess("Password updated successfully! You can now sign in.");
-    
+
     // Switch back to login form after brief delay
     setTimeout(() => {
       setIsResettingPassword(false);
@@ -96,15 +118,15 @@ export default function LoginPage({ onAuthSuccess, onBack, onNavigateToSignUp })
 
   return (
     <div className="min-h-screen w-full bg-slate-100 flex items-center justify-center p-4 sm:p-8 font-sans">
-      
       {/* Container Card */}
       <div className="w-full max-w-md md:max-w-xl bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 flex flex-col">
-        
         {/* Header Bar */}
         <div className="bg-purple-800 text-white px-5 py-4 flex items-center justify-between border-b border-purple-900">
           <button
             type="button"
-            onClick={isResettingPassword ? () => setIsResettingPassword(false) : onBack}
+            onClick={
+              isResettingPassword ? () => setIsResettingPassword(false) : onBack
+            }
             className="w-9 h-9 rounded-full bg-purple-700 hover:bg-purple-600 flex items-center justify-center transition-colors cursor-pointer border border-purple-400/30 shadow-sm"
             aria-label="Back"
           >
@@ -117,14 +139,18 @@ export default function LoginPage({ onAuthSuccess, onBack, onNavigateToSignUp })
         </div>
 
         {/* Hero Banner */}
-        <div 
+        <div
           className="relative h-36 bg-cover bg-center flex flex-col items-center justify-center text-center p-4"
           style={{
-            backgroundImage: `linear-gradient(to bottom, rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.7)), url('https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80')`
+            backgroundImage: `linear-gradient(to bottom, rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.7)), url('https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80')`,
           }}
         >
           <div className="w-10 h-10 rounded-2xl bg-purple-700 flex items-center justify-center text-white mb-1 shadow-md">
-            {isResettingPassword ? <KeyRound className="w-5 h-5" /> : <Shield className="w-5 h-5" />}
+            {isResettingPassword ? (
+              <KeyRound className="w-5 h-5" />
+            ) : (
+              <Shield className="w-5 h-5" />
+            )}
           </div>
           <h2 className="text-xl font-black text-white tracking-tight">
             Hometrust
@@ -133,7 +159,6 @@ export default function LoginPage({ onAuthSuccess, onBack, onNavigateToSignUp })
 
         {/* Form Container */}
         <div className="p-6 sm:p-8 bg-white flex-1">
-          
           {errorMessage && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl text-center">
               {errorMessage}
@@ -151,7 +176,9 @@ export default function LoginPage({ onAuthSuccess, onBack, onNavigateToSignUp })
             /* --- SIGN IN FORM --- */
             <>
               <div className="text-center mb-6">
-                <h3 className="text-xl font-bold text-slate-900">Welcome back</h3>
+                <h3 className="text-xl font-bold text-slate-900">
+                  Welcome back
+                </h3>
                 <p className="text-xs text-slate-500 font-medium mt-1">
                   Sign in to your account to continue
                 </p>
@@ -189,9 +216,15 @@ export default function LoginPage({ onAuthSuccess, onBack, onNavigateToSignUp })
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3.5 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-label={
+                        showPassword ? "Hide password" : "Show password"
+                      }
                     >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -235,7 +268,9 @@ export default function LoginPage({ onAuthSuccess, onBack, onNavigateToSignUp })
             /* --- RESET PASSWORD FORM --- */
             <>
               <div className="text-center mb-6">
-                <h3 className="text-xl font-bold text-slate-900">Reset password</h3>
+                <h3 className="text-xl font-bold text-slate-900">
+                  Reset password
+                </h3>
                 <p className="text-xs text-slate-500 font-medium mt-1">
                   Enter your registered email and a new password
                 </p>
@@ -291,9 +326,7 @@ export default function LoginPage({ onAuthSuccess, onBack, onNavigateToSignUp })
               </div>
             </>
           )}
-
         </div>
-
       </div>
     </div>
   );

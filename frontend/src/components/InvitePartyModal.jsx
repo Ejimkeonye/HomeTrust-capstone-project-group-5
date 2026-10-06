@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { X, Send, Copy, Check, Mail, UserCheck } from "lucide-react";
 
-export default function InvitePartyModal({ isOpen, onClose, property, currentUserRole, onInviteSent }) {
+export default function InvitePartyModal({
+  isOpen,
+  onClose,
+  property,
+  currentUserRole,
+  onInviteSent,
+}) {
   const [email, setEmail] = useState("");
   const [copied, setCopied] = useState(false);
   const [invitedSuccess, setInvitedSuccess] = useState(false);
@@ -11,7 +17,7 @@ export default function InvitePartyModal({ isOpen, onClose, property, currentUse
   // Standardize role comparison
   const normalizedRole = (currentUserRole || "").toLowerCase();
   const isLandlord = normalizedRole === "landlord";
-  
+
   // Dynamic target role based on who is creating/inviting
   const targetRoleName = isLandlord ? "Tenant" : "Landlord";
 
@@ -23,7 +29,7 @@ export default function InvitePartyModal({ isOpen, onClose, property, currentUse
       navigator.clipboard.writeText(shareableLink);
     }
     setCopied(true);
-    
+
     setTimeout(() => {
       setCopied(false);
       if (onClose) onClose();
@@ -36,8 +42,12 @@ export default function InvitePartyModal({ isOpen, onClose, property, currentUse
     if (!email.trim()) return;
 
     try {
-      const savedProperties = JSON.parse(localStorage.getItem("homecompa_properties") || "[]");
-      const propertyIndex = savedProperties.findIndex((p) => p.id === property.id);
+      const savedProperties = JSON.parse(
+        localStorage.getItem("homecompa_properties") || "[]",
+      );
+      const propertyIndex = savedProperties.findIndex(
+        (p) => p.id === property.id,
+      );
 
       if (propertyIndex !== -1) {
         if (isLandlord) {
@@ -47,7 +57,10 @@ export default function InvitePartyModal({ isOpen, onClose, property, currentUse
           savedProperties[propertyIndex].landlordEmail = email.trim();
           savedProperties[propertyIndex].landlordInviteStatus = "pending";
         }
-        localStorage.setItem("homecompa_properties", JSON.stringify(savedProperties));
+        localStorage.setItem(
+          "homecompa_properties",
+          JSON.stringify(savedProperties),
+        );
       }
     } catch (err) {
       console.error("Failed to save invitation state:", err);
@@ -65,12 +78,13 @@ export default function InvitePartyModal({ isOpen, onClose, property, currentUse
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in font-sans">
       <div className="bg-white rounded-4xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-200 flex flex-col">
-        
         {/* Dynamic Header */}
         <div className="bg-purple-900 text-white p-5 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <UserCheck className="w-5 h-5 text-purple-200" />
-            <h3 className="text-base font-extrabold">Invite {targetRoleName}</h3>
+            <h3 className="text-base font-extrabold">
+              Invite {targetRoleName}
+            </h3>
           </div>
           <button
             type="button"
@@ -85,7 +99,9 @@ export default function InvitePartyModal({ isOpen, onClose, property, currentUse
         <div className="p-5 space-y-4">
           <div className="bg-purple-50/80 p-3.5 rounded-2xl border border-purple-100">
             <p className="text-xs font-extrabold text-purple-950 truncate">
-              {property.address || property.name || "No 2, sunshine estate, Ikeja city, Lagos"}
+              {property.address ||
+                property.name ||
+                "No 2, sunshine estate, Ikeja city, Lagos"}
             </p>
             <p className="text-[11px] text-purple-800 font-semibold mt-0.5">
               {property.flatNo ? `Flat ${property.flatNo}` : "Inspection Unit"}
@@ -153,7 +169,11 @@ export default function InvitePartyModal({ isOpen, onClose, property, currentUse
                     onClick={handleCopyLink}
                     className="bg-purple-100 hover:bg-purple-200 text-purple-900 text-xs font-extrabold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer shrink-0"
                   >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
                     {copied ? "Copied" : "Copy"}
                   </button>
                 </div>
