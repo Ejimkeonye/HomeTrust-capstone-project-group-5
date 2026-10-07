@@ -151,13 +151,17 @@ export default function InspectionReportPage({
             <h2 className="text-lg font-extrabold text-slate-900">
               {property?.name || property?.address}
             </h2>
-            <div className="mt-2">
-              <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-300">
-                <Lock className="w-3 h-3" /> Signed & Locked (READ_ONLY)
-              </span>
-            </div>
-          </div>
 
+            <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
+      <span className="text-xs font-semibold text-slate-500">
+        Inspected on: {activeInspectionData.timestamp || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+      </span>
+      <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-300">
+        <Lock className="w-3 h-3" /> Signed & Locked (READ_ONLY)
+      </span>
+    </div>
+  </div>
+  
           {/* Rooms Walkthrough List */}
           <div className="space-y-3">
             <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">

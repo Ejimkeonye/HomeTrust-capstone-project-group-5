@@ -40,6 +40,18 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
       return;
     }
 
+    // Update password in hometrust_users_db if user exists
+    const savedUsers = JSON.parse(
+      localStorage.getItem("hometrust_users_db") || "[]"
+    );
+    const updatedUsers = savedUsers.map((u) => {
+      if (u.email?.toLowerCase() === email.trim().toLowerCase()) {
+        return { ...u, password: newPassword };
+      }
+      return u;
+    });
+    localStorage.setItem("hometrust_users_db", JSON.stringify(updatedUsers));
+
     setSuccessMessage("Password successfully reset! Redirecting to login...");
     setTimeout(() => {
       onNavigateToLogin();
