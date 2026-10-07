@@ -10,13 +10,20 @@ export default function EvidenceReviewPage({
   const [activeCategory, setActiveCategory] = useState("All");
   const [descriptiveNote, setDescriptiveNote] = useState("");
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
-  
+
+  // Generate today's date dynamically (e.g. "October 7, 2026")
+  const todaysFormattedDate = new Date().toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+
   // State for the custom "Add Evidence" form modal
   const [showAddModal, setShowAddModal] = useState(false);
   const [newRoomName, setNewRoomName] = useState("");
   const [newRoomCategory, setNewRoomCategory] = useState("Rooms");
   const [newImagePreview, setNewImagePreview] = useState(null);
-  
+
   // Dynamic checklist items for the new room
   const [newItemName, setNewItemName] = useState("");
   const [newItemCondition, setNewItemCondition] = useState("good");
@@ -40,8 +47,11 @@ export default function EvidenceReviewPage({
   // Category Filtering Logic
   const filteredRooms = roomsList.filter((room) => {
     if (activeCategory === "All") return true;
-    const nameMatch = room.name?.toLowerCase().includes(activeCategory.toLowerCase());
-    const categoryMatch = room.category?.toLowerCase() === activeCategory.toLowerCase();
+    const nameMatch = room.name
+      ?.toLowerCase()
+      .includes(activeCategory.toLowerCase());
+    const categoryMatch =
+      room.category?.toLowerCase() === activeCategory.toLowerCase();
     return nameMatch || categoryMatch;
   });
 
@@ -65,7 +75,7 @@ export default function EvidenceReviewPage({
     if (!newItemName.trim()) return;
     setChecklistItems((prev) => [
       ...prev,
-      { name: newItemName, condition: newItemCondition }
+      { name: newItemName, condition: newItemCondition },
     ]);
     setNewItemName("");
     setNewItemCondition("good");
@@ -81,7 +91,10 @@ export default function EvidenceReviewPage({
       name: newRoomName,
       category: newRoomCategory,
       imageUrl: newImagePreview,
-      items: checklistItems.length > 0 ? checklistItems : [{ name: "General Area", condition: "good" }]
+      items:
+        checklistItems.length > 0
+          ? checklistItems
+          : [{ name: "General Area", condition: "good" }],
     };
 
     setRoomsList((prev) => [customEvidenceItem, ...prev]);
@@ -98,7 +111,6 @@ export default function EvidenceReviewPage({
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
       <div className="w-full max-w-md bg-white min-h-screen sm:min-h-200 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative text-slate-900">
-        
         {/* Hidden File Input triggered inside the modal */}
         <input
           type="file"
@@ -113,8 +125,10 @@ export default function EvidenceReviewPage({
           <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-4xl max-w-sm w-full p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
               <div className="flex items-center justify-between border-b pb-3">
-                <h3 className="text-sm font-extrabold text-[#4A1E6D]">Add New Evidence Room</h3>
-                <button 
+                <h3 className="text-sm font-extrabold text-[#4A1E6D]">
+                  Add New Evidence Room
+                </h3>
+                <button
                   onClick={() => setShowAddModal(false)}
                   className="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 cursor-pointer"
                 >
@@ -125,7 +139,9 @@ export default function EvidenceReviewPage({
               <form onSubmit={handleSaveNewEvidence} className="space-y-3">
                 {/* Room Name */}
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-700">Room / Space Name</label>
+                  <label className="text-[11px] font-bold text-slate-700">
+                    Room / Space Name
+                  </label>
                   <input
                     type="text"
                     required
@@ -138,7 +154,9 @@ export default function EvidenceReviewPage({
 
                 {/* Category Selection */}
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-700">Category</label>
+                  <label className="text-[11px] font-bold text-slate-700">
+                    Category
+                  </label>
                   <select
                     value={newRoomCategory}
                     onChange={(e) => setNewRoomCategory(e.target.value)}
@@ -153,17 +171,25 @@ export default function EvidenceReviewPage({
 
                 {/* Photo Uploader */}
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-700">Evidence Photo</label>
-                  <div 
+                  <label className="text-[11px] font-bold text-slate-700">
+                    Evidence Photo
+                  </label>
+                  <div
                     onClick={() => fileInputRef.current?.click()}
                     className="w-full h-24 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center bg-slate-50 hover:bg-slate-100 cursor-pointer overflow-hidden"
                   >
                     {newImagePreview ? (
-                      <img src={newImagePreview} alt="Preview" className="w-full h-full object-cover" />
+                      <img
+                        src={newImagePreview}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       <>
                         <Upload className="w-5 h-5 text-slate-400 mb-1" />
-                        <span className="text-[10px] text-slate-500 font-medium">Click to upload photo</span>
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          Click to upload photo
+                        </span>
                       </>
                     )}
                   </div>
@@ -171,7 +197,9 @@ export default function EvidenceReviewPage({
 
                 {/* Checklist / Amenities Builder */}
                 <div className="space-y-2 pt-1 border-t">
-                  <label className="text-[11px] font-bold text-slate-700">Add Item / Amenity Checklist</label>
+                  <label className="text-[11px] font-bold text-slate-700">
+                    Add Item / Amenity Checklist
+                  </label>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -203,9 +231,14 @@ export default function EvidenceReviewPage({
                   {checklistItems.length > 0 && (
                     <div className="space-y-1 max-h-24 overflow-y-auto bg-slate-50 p-2 rounded-xl border border-slate-200">
                       {checklistItems.map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-[11px] text-slate-700">
+                        <div
+                          key={idx}
+                          className="flex justify-between text-[11px] text-slate-700"
+                        >
                           <span>{item.name}</span>
-                          <span className="font-bold capitalize text-[#4A1E6D]">{item.condition.replace("_", " ")}</span>
+                          <span className="font-bold capitalize text-[#4A1E6D]">
+                            {item.condition.replace("_", " ")}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -232,12 +265,14 @@ export default function EvidenceReviewPage({
                 <ShieldCheck className="w-10 h-10 text-emerald-400" />
               </div>
               <div className="space-y-3">
-                <h2 className="text-xl font-black text-white">Congratulations!</h2>
+                <h2 className="text-xl font-black text-white">
+                  Congratulations!
+                </h2>
                 <p className="text-xs text-purple-200 leading-relaxed font-medium">
                   Evidences have been acknowledged and approved by parties.
                 </p>
                 <div className="text-[10px] text-purple-300 font-bold uppercase tracking-wider">
-                  13th June, 2025
+                  {todaysFormattedDate}
                 </div>
               </div>
               <div className="space-y-2 pt-2">
@@ -358,7 +393,8 @@ export default function EvidenceReviewPage({
             ))
           ) : (
             <div className="text-center py-10 text-slate-400 text-xs font-medium">
-              No evidence found for "{activeCategory}". Click "+ Add evidence" to create a custom room entry.
+              No evidence found for "{activeCategory}". Click "+ Add evidence"
+              to create a custom room entry.
             </div>
           )}
 

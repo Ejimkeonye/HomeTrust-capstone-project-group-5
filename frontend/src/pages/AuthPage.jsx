@@ -17,8 +17,6 @@ export default function AuthPage({
     lastName: "",
     email: "",
     phone: "",
-    houseAddress: "",
-    flatRoomNo: "",
     password: "",
     confirmPassword: "",
     role: "Tenant",
@@ -86,7 +84,6 @@ export default function AuthPage({
     }
 
     const userId = `usr-${Date.now()}`;
-    const propertyId = `prop-${Date.now()}`;
     let linkedPropertyId = null;
 
     if (inviteToken) {
@@ -107,22 +104,6 @@ export default function AuthPage({
         "hometrust_properties",
         JSON.stringify(updatedProps),
       );
-    } else {
-      // Create a real property record using the user's actual registered address!
-      const newProperty = {
-        id: propertyId,
-        name: formData.houseAddress.trim(),
-        address: formData.houseAddress.trim(),
-        flatNo: formData.flatRoomNo.trim() || "1",
-        image:
-          "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80",
-        progress: 0,
-        status: "ACTIVE",
-        ownerId: userId,
-      };
-      savedProps.push(newProperty);
-      localStorage.setItem("hometrust_properties", JSON.stringify(savedProps));
-      linkedPropertyId = propertyId;
     }
 
     const userData = {
@@ -132,8 +113,6 @@ export default function AuthPage({
       name: fullName,
       email: cleanEmail,
       phone: formData.phone.trim(),
-      houseAddress: formData.houseAddress.trim(),
-      flatRoomNo: formData.flatRoomNo.trim(),
       password: formData.password,
       role: formData.role,
       activePropertyId: linkedPropertyId,
@@ -154,7 +133,6 @@ export default function AuthPage({
       JSON.stringify(sessionData),
     );
 
-    // Safely call whichever success prop App.jsx passed down
     const triggerSuccess = onSuccess || onAuthSuccess;
     if (triggerSuccess) {
       triggerSuccess(sessionData);
@@ -164,7 +142,7 @@ export default function AuthPage({
   return (
     <div className="min-h-screen w-full bg-slate-100 flex items-center justify-center sm:p-8 p-4 font-sans">
       <div className="w-full max-w-md md:max-w-xl bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 flex flex-col">
-        {/* Figma Design Top Header Bar */}
+        {/* Header Bar */}
         <div className="bg-purple-800 text-white p-5 flex items-center justify-between">
           <button
             type="button"
@@ -251,21 +229,6 @@ export default function AuthPage({
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-900 mb-1">
-                House Address
-              </label>
-              <input
-                type="text"
-                name="houseAddress"
-                required
-                placeholder="No 2, Peace Estate Ikeja city, Lagos"
-                value={formData.houseAddress}
-                onChange={handleChange}
-                className="w-full bg-slate-100/80 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-700"
-              />
-            </div>
-
             <div className="pt-2">
               <button
                 type="submit"
@@ -280,21 +243,6 @@ export default function AuthPage({
         {/* Step 2: Password, Role & Submission */}
         {step === 2 && (
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-900 mb-1">
-                Flat/Room No
-              </label>
-              <input
-                type="text"
-                name="flatRoomNo"
-                required
-                placeholder="2"
-                value={formData.flatRoomNo}
-                onChange={handleChange}
-                className="w-full bg-slate-100/80 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-700"
-              />
-            </div>
-
             <div>
               <label className="block text-xs font-bold text-slate-900 mb-1">
                 Password

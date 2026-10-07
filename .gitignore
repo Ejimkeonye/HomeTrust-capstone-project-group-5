@@ -7,12 +7,23 @@ npm-debug.log*
 
 # Terraform
 infra/**/.terraform/
-infra/**/.terraform.lock.hcl
-*.tfstate
-*.tfstate.*
 *.tfvars
 !*.tfvars.example
 infra/build/
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfvars.json
+
+# Lambda build artifacts
+*.zip
+
+# OS/editor files
+.DS_Store
+.vscode/
+.idea/
 
 # Build output
 dist/
@@ -21,10 +32,7 @@ build/
 out/
 
 # OS / editor
-.DS_Store
 Thumbs.db
-.vscode/
-.idea/
 
 # Logs
 *.log

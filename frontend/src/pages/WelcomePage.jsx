@@ -1,9 +1,9 @@
-import { Shield } from "lucide-react";
+import { Shield, ArrowLeft } from "lucide-react";
 
-export default function WelcomePage({ onCreateAccount, onSignIn }) {
+export default function WelcomePage({ onCreateAccount, onSignIn, onBack }) {
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 font-sans">
-      <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col border border-slate-200">
+      <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl overflow-hidden flex flex-col border border-slate-200 relative">
         {/* Top Hero Section with Background Image */}
         <div
           className="relative h-96 bg-cover bg-center flex flex-col items-center justify-start pt-8 text-center px-6"
@@ -11,6 +11,17 @@ export default function WelcomePage({ onCreateAccount, onSignIn }) {
             backgroundImage: `linear-gradient(to bottom, rgba(255,255,255,0.85), rgba(255,255,255,0.2)), url('https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80')`,
           }}
         >
+          {/* Back Button to Landing Page */}
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="absolute top-4 left-4 w-9 h-9 rounded-full bg-white/80 hover:bg-white text-purple-900 shadow-md flex items-center justify-center transition-all cursor-pointer backdrop-blur-sm z-20"
+              title="Back to Landing Page"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+
           <div className="w-10 h-10 rounded-2xl bg-purple-700 flex items-center justify-center text-white mb-2 shadow-md">
             <Shield className="w-6 h-6" />
           </div>

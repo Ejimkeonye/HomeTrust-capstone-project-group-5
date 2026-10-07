@@ -11,6 +11,7 @@ import {
   Plus,
   ChevronDown,
   Trash2,
+  Building2,
 } from "lucide-react";
 
 export default function DashboardPage({
@@ -41,7 +42,7 @@ export default function DashboardPage({
     if (!newAddress.trim()) return;
     onAddNewProperty({
       address: newAddress,
-      flatNo: newFlatNo || "Apt 1",
+      flatNo: newFlatNo || "Main House",
       image: defaultImage,
     });
     setNewAddress("");
@@ -56,7 +57,7 @@ export default function DashboardPage({
         {/* ADD PROPERTY MODAL */}
         {showAddPropertyModal && (
           <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-4xl max-w-sm w-full p-6 space-y-4 shadow-2xl">
+            <div className="bg-white rounded-4xl max-w-sm w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in duration-200">
               <h3 className="text-sm font-extrabold text-purple-900">Add New Property / Unit</h3>
               <form onSubmit={handleCreatePropertySubmit} className="space-y-3">
                 <div>
@@ -84,13 +85,13 @@ export default function DashboardPage({
                   <button
                     type="button"
                     onClick={() => setShowAddPropertyModal(false)}
-                    className="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl text-xs"
+                    className="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl text-xs cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 bg-purple-800 text-white font-bold py-2.5 rounded-xl text-xs hover:bg-purple-900"
+                    className="flex-1 bg-purple-800 text-white font-bold py-2.5 rounded-xl text-xs hover:bg-purple-900 cursor-pointer"
                   >
                     Save Property
                   </button>
@@ -120,30 +121,41 @@ export default function DashboardPage({
           
           {/* PROPERTY SWITCHER CARD */}
           <div className="relative">
-            <div 
-              onClick={() => setShowPropertyDropdown(!showPropertyDropdown)}
-              className="bg-slate-50 border border-purple-200 rounded-2xl p-3 flex gap-3.5 items-center shadow-xs cursor-pointer hover:border-purple-400 transition-all"
-            >
-              <img
-                src={activeProperty?.image || defaultImage}
-                alt={activeProperty?.address}
-                className="w-20 h-20 rounded-xl object-cover shrink-0"
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800 bg-purple-100 px-2 py-0.5 rounded-md">
-                    Active Property
-                  </span>
-                  <ChevronDown className="w-4 h-4 text-slate-500" />
+            {activeProperty ? (
+              <div 
+                onClick={() => setShowPropertyDropdown(!showPropertyDropdown)}
+                className="bg-slate-50 border border-purple-200 rounded-2xl p-3 flex gap-3.5 items-center shadow-xs cursor-pointer hover:border-purple-400 transition-all"
+              >
+                <img
+                  src={activeProperty?.image || defaultImage}
+                  alt={activeProperty?.address}
+                  className="w-20 h-20 rounded-xl object-cover shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800 bg-purple-100 px-2 py-0.5 rounded-md">
+                      Active Property
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-slate-500" />
+                  </div>
+                  <h3 className="text-xs font-bold text-slate-900 leading-tight truncate mt-1">
+                    {activeProperty?.address}
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Flat {activeProperty?.flatNo || "1"}
+                  </p>
                 </div>
-                <h3 className="text-xs font-bold text-slate-900 leading-tight truncate mt-1">
-                  {activeProperty?.address || "Select a property"}
-                </h3>
-                <p className="text-[11px] text-slate-500 font-medium">
-                  Flat {activeProperty?.flatNo || "1"}
-                </p>
               </div>
-            </div>
+            ) : (
+              <div 
+                onClick={() => setShowAddPropertyModal(true)}
+                className="bg-purple-50 border-2 border-dashed border-purple-300 rounded-2xl p-5 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-purple-100/50 transition-all"
+              >
+                <Building2 className="w-8 h-8 text-purple-800 mb-1" />
+                <h3 className="text-xs font-bold text-purple-900">No properties added yet</h3>
+                <p className="text-[11px] text-purple-700/80 mt-0.5">Click here to add your first property unit</p>
+              </div>
+            )}
 
             {/* Dropdown Menu for Properties */}
             {showPropertyDropdown && (
@@ -199,8 +211,9 @@ export default function DashboardPage({
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => onStartInspection(activeProperty)}
-                className="bg-purple-800 hover:bg-purple-900 text-white rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-all cursor-pointer shadow-sm min-h-30"
+                disabled={!activeProperty}
+                onClick={() => activeProperty && onStartInspection(activeProperty)}
+                className="bg-purple-800 hover:bg-purple-900 disabled:bg-slate-300 text-white rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-all cursor-pointer disabled:cursor-not-allowed shadow-sm min-h-30"
               >
                 <Camera className="w-6 h-6 text-white mb-2" />
                 <span className="text-xs font-bold leading-tight">
@@ -210,8 +223,9 @@ export default function DashboardPage({
 
               <button
                 type="button"
+                disabled={!activeProperty}
                 onClick={onViewReport}
-                className="bg-white border border-purple-200 hover:border-purple-300 text-purple-900 rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-all cursor-pointer shadow-xs min-h-30"
+                className="bg-white border border-purple-200 hover:border-purple-300 disabled:border-slate-200 text-purple-900 rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-all cursor-pointer disabled:cursor-not-allowed shadow-xs min-h-30"
               >
                 <LineChart className="w-6 h-6 text-purple-800 mb-2" />
                 <span className="text-xs font-bold text-slate-600 leading-tight">
@@ -226,7 +240,7 @@ export default function DashboardPage({
             <h2 className="text-sm font-extrabold text-slate-900">Inspection Progress</h2>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-                <span>{activeProperty?.address}</span>
+                <span>{activeProperty?.address || "No property selected"}</span>
                 <span>{activeProperty?.progress || 0}%</span>
               </div>
               <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
@@ -244,7 +258,7 @@ export default function DashboardPage({
           <button type="button" onClick={() => setActiveTab("home")} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "home" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
             <Home className="w-5 h-5" />
           </button>
-          <button type="button" onClick={() => { setActiveTab("inspection"); onStartInspection(activeProperty); }} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "inspection" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
+          <button type="button" onClick={() => { setActiveTab("inspection"); if(activeProperty) onStartInspection(activeProperty); }} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "inspection" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
             <Search className="w-5 h-5" />
           </button>
           <button type="button" onClick={() => { setActiveTab("evidence"); if (onViewEvidence) onViewEvidence(); }} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "evidence" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
