@@ -29,10 +29,10 @@ export default function LoginPage({
     setErrorMessage("");
 
     const savedUsers = JSON.parse(
-      localStorage.getItem("homecompa_users_db") || "[]",
+      localStorage.getItem("hometrust_users_db") || "[]",
     );
     const savedProps = JSON.parse(
-      localStorage.getItem("homecompa_properties") || "[]",
+      localStorage.getItem("hometrust_properties") || "[]",
     );
     const cleanInput = identifier.trim().toLowerCase();
 
@@ -66,10 +66,10 @@ export default function LoginPage({
       activePropertyId: userProp?.id || existingUser.activePropertyId || null,
     };
 
-    localStorage.setItem("homecompa_token", `token-${Date.now()}`);
-    localStorage.setItem("homecompa_user", JSON.stringify(existingUser));
+    localStorage.setItem("hometrust_token", `token-${Date.now()}`);
+    localStorage.setItem("hometrust_user", JSON.stringify(existingUser));
     localStorage.setItem(
-      "homecompa_current_session",
+      "hometrust_current_session",
       JSON.stringify(sessionData),
     );
 
@@ -83,7 +83,7 @@ export default function LoginPage({
     setResetSuccess("");
 
     const savedUsers = JSON.parse(
-      localStorage.getItem("homecompa_users_db") || "[]",
+      localStorage.getItem("hometrust_users_db") || "[]",
     );
     const cleanEmail = resetEmail.trim().toLowerCase();
 
@@ -103,7 +103,7 @@ export default function LoginPage({
 
     // Update user password in local storage
     savedUsers[userIndex].password = newPassword;
-    localStorage.setItem("homecompa_users_db", JSON.stringify(savedUsers));
+    localStorage.setItem("hometrust_users_db", JSON.stringify(savedUsers));
 
     setResetSuccess("Password updated successfully! You can now sign in.");
 
@@ -118,7 +118,6 @@ export default function LoginPage({
 
   return (
     <div className="min-h-screen w-full bg-slate-100 flex items-center justify-center p-4 sm:p-8 font-sans">
-      {/* Container Card */}
       <div className="w-full max-w-md md:max-w-xl bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200 flex flex-col">
         {/* Header Bar */}
         <div className="bg-purple-800 text-white px-5 py-4 flex items-center justify-between border-b border-purple-900">
@@ -173,7 +172,6 @@ export default function LoginPage({
           )}
 
           {!isResettingPassword ? (
-            /* --- SIGN IN FORM --- */
             <>
               <div className="text-center mb-6">
                 <h3 className="text-xl font-bold text-slate-900">
@@ -265,7 +263,6 @@ export default function LoginPage({
               </div>
             </>
           ) : (
-            /* --- RESET PASSWORD FORM --- */
             <>
               <div className="text-center mb-6">
                 <h3 className="text-xl font-bold text-slate-900">

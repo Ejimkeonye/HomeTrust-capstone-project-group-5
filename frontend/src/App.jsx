@@ -28,32 +28,18 @@ export default function App() {
     return params.get("propertyId") || params.get("token");
   });
 
-  // Default initial property fallback if list is empty
-  const defaultProperty = {
-    id: "prop-default-1",
-    name: "No 2, Sunshine Estate, Ikeja, Lagos",
-    address: "No 2, Sunshine Estate, Ikeja, Lagos",
-    flatNo: "Main House",
-    image: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=400&q=80",
-    progress: 0,
-    rooms: [
-      { name: "Living Room", category: "Rooms", items: [] },
-      { name: "Kitchen", category: "Kitchen", items: [] },
-    ],
-  };
-
-  // Properties State (loads from local storage or sets default)
+  // Properties State (loads from local storage or defaults to an empty array)
   const [properties, setProperties] = useState(() => {
     try {
       const saved = localStorage.getItem("hometrust_properties");
-      return saved ? JSON.parse(saved) : [defaultProperty];
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return [defaultProperty];
+      return [];
     }
   });
 
-  // Currently selected property for inspection/reports
-  const [selectedProperty, setSelectedProperty] = useState(properties[0] || defaultProperty);
+  // Currently selected property for inspection/reports (defaults to null if list is empty)
+  const [selectedProperty, setSelectedProperty] = useState(properties[0] || null);
   
   const [selectedInspectionData, setSelectedInspectionData] = useState({});
   const [signatures, setSignatures] = useState({ landlord: null, tenant: null });
@@ -74,20 +60,21 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.clear();
+    localStorage.removeItem("hometrust_current_session");
     setCurrentUser(null);
     setCurrentView("login");
   };
 
   // Add a brand new property to the portfolio
   const handleAddNewProperty = (newPropData) => {
+    const defaultImage = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=400&q=80";
     const newProperty = {
       id: `prop-${Date.now()}`,
       createdById: currentUser?.id,
       name: newPropData.address || "New Property",
       address: newPropData.address,
       flatNo: newPropData.flatNo || "1",
-      image: newPropData.image || defaultProperty.image,
+      image: newPropData.image || defaultImage,
       progress: 0,
       rooms: [
         { name: "Living Room", category: "Rooms", items: [] },
@@ -106,9 +93,9 @@ export default function App() {
   const handleDeleteProperty = (propertyId) => {
     const updatedList = properties.filter((p) => p.id !== propertyId);
     
-    // If all are deleted, revert to default property state
-    const nextList = updatedList.length > 0 ? updatedList : [defaultProperty];
-    const nextActive = selectedProperty?.id === propertyId ? nextList[0] : selectedProperty;
+    // If all are deleted, active property becomes null
+    const nextList = updatedList.length > 0 ? updatedList : [];
+    const nextActive = selectedProperty?.id === propertyId ? (nextList[0] || null) : selectedProperty;
 
     setProperties(nextList);
     setSelectedProperty(nextActive);
@@ -121,7 +108,11 @@ export default function App() {
         <LandingPage onGetStarted={() => setCurrentView("welcome")} onLogin={() => setCurrentView("login")} />
       )}
       {currentView === "welcome" && (
-        <WelcomePage onCreateAccount={() => setCurrentView("signup")} onSignIn={() => setCurrentView("login")} />
+        <WelcomePage 
+          onCreateAccount={() => setCurrentView("signup")} 
+          onSignIn={() => setCurrentView("login")} 
+          onBack={() => setCurrentView("landing")} 
+        />
       )}
       {currentView === "signup" && (
         <AuthPage onBack={() => setCurrentView("welcome")} onSuccess={handleAuthSuccess} />

@@ -20,9 +20,9 @@ export default function PartyOnboardingPage({
           invitedRole: parsed.role,
         };
       } catch {
-        // 2. Fall back to searching homecompa_properties in localStorage
+        // 2. Fall back to searching hometrust_properties in localStorage
         const saved = JSON.parse(
-          localStorage.getItem("homecompa_properties") || "[]",
+          localStorage.getItem("hometrust_properties") || "[]",
         );
         return (
           saved.find((p) => p.inviteToken === token || p.id === token) || null
@@ -61,9 +61,9 @@ export default function PartyOnboardingPage({
       activePropertyId: targetPropId,
     };
 
-    // 2. Register user in homecompa_users_db
+    // 2. Register user in hometrust_users_db
     const savedUsers = JSON.parse(
-      localStorage.getItem("homecompa_users_db") || "[]",
+      localStorage.getItem("hometrust_users_db") || "[]",
     );
     const userIndex = savedUsers.findIndex(
       (u) =>
@@ -76,11 +76,11 @@ export default function PartyOnboardingPage({
     } else {
       savedUsers.push(newUser);
     }
-    localStorage.setItem("homecompa_users_db", JSON.stringify(savedUsers));
+    localStorage.setItem("hometrust_users_db", JSON.stringify(savedUsers));
 
-    // 3. Link party to property in homecompa_properties
+    // 3. Link party to property in hometrust_properties
     const savedProps = JSON.parse(
-      localStorage.getItem("homecompa_properties") || "[]",
+      localStorage.getItem("hometrust_properties") || "[]",
     );
     const updatedProps = savedProps.map((p) => {
       if (p.inviteToken === token || p.id === targetPropId) {
@@ -102,7 +102,7 @@ export default function PartyOnboardingPage({
       }
       return p;
     });
-    localStorage.setItem("homecompa_properties", JSON.stringify(updatedProps));
+    localStorage.setItem("hometrust_properties", JSON.stringify(updatedProps));
 
     // 4. Set Session Storage & Local Storage
     const sessionData = {
@@ -110,10 +110,10 @@ export default function PartyOnboardingPage({
       activePropertyId: targetPropId,
     };
 
-    localStorage.setItem("homecompa_token", `token-${Date.now()}`);
-    localStorage.setItem("homecompa_user", JSON.stringify(newUser));
+    localStorage.setItem("hometrust_token", `token-${Date.now()}`);
+    localStorage.setItem("hometrust_user", JSON.stringify(newUser));
     localStorage.setItem(
-      "homecompa_current_session",
+      "hometrust_current_session",
       JSON.stringify(sessionData),
     );
 
