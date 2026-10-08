@@ -168,6 +168,19 @@ export default function App() {
           onBack={() => setCurrentView("dashboard")}
           onCompleteInspection={(data) => {
             setSelectedInspectionData(data);
+             if (selectedProperty) {
+        const updatedProperty = {
+          ...selectedProperty,
+          progress: 100,
+          status: "READ_ONLY",
+        };
+        const updatedProperties = properties.map((p) =>
+          p.id === selectedProperty.id ? updatedProperty : p
+        );
+        setProperties(updatedProperties);
+        localStorage.setItem("hometrust_properties", JSON.stringify(updatedProperties));
+        setSelectedProperty(updatedProperty);
+      }
             setCurrentView("evidence-review");
           }}
         />
