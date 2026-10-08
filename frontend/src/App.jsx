@@ -7,10 +7,15 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import DashboardPage from "./pages/DashboardPage";
 import PartyOnboardingPage from "./pages/PartyOnboardingPage";
 import InspectionPage from "./pages/InspectionPage";
+import MoveOutInspectionPage from "./pages/MoveOutInspectionPage";
+import MoveOutEvidencePage from "./pages/MoveoutEvidencePage";
+import MoveInOutRecordsView from "./components/MoveInOutRecordsView";
 import InvitePartyModal from "./components/InvitePartyModal";
 import InspectionReportPage from "./pages/InspectionReportPage";
 import SignInspectionPage from "./pages/SignInspectionPage";
 import EvidenceReviewPage from "./pages/EvidenceReviewPage";
+import MoveOutSignaturesPage from "./pages/MoveOutSignaturesPage";
+import MoveOutInspectionReportPage from "./pages/MoveOutInspectionReportPage";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -42,7 +47,9 @@ export default function App() {
   const [selectedProperty, setSelectedProperty] = useState(properties[0] || null);
   
   const [selectedInspectionData, setSelectedInspectionData] = useState({});
+  const [moveOutInspectionData, setMoveOutInspectionData] = useState({}); 
   const [signatures, setSignatures] = useState({ landlord: null, tenant: null });
+  const [moveOutSignatures, setMoveOutSignatures] = useState({ landlord: null, tenant: null });
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
   const [currentView, setCurrentView] = useState(() => {
@@ -141,6 +148,10 @@ export default function App() {
             setSelectedProperty(prop);
             setCurrentView("inspection");
           }}
+          onStartMoveOutInspection={(prop) => {
+            setSelectedProperty(prop);
+            setCurrentView("move-out-inspection");
+          }}
           onViewReport={() => setCurrentView("inspection-report")}
           onViewEvidence={() => setCurrentView("evidence-review")}
           onOpenInviteModal={(prop) => {
@@ -162,6 +173,75 @@ export default function App() {
         />
       )}
 
+      {/* Move-Out Inspection Route */}
+      {currentView === "move-out-inspection" && (
+        <MoveOutInspectionPage
+          property={selectedProperty}
+          userRole={currentUser?.role || "tenant"}
+          onBack={() => setCurrentView("dashboard")}
+          onCompleteMoveOutInspection={(moveOutData) => {
+            setMoveOutInspectionData(moveOutData);
+            if (selectedProperty) {
+        const updatedProperties = properties.map((prop) =>
+          prop.id === selectedProperty.id
+            ? { ...prop, moveOutProgress: 100 }
+            : prop
+        );
+        setProperties(updatedProperties);
+        localStorage.setItem("hometrust_properties", JSON.stringify(updatedProperties));
+        setSelectedProperty({ ...selectedProperty, moveOutProgress: 100 });
+      }
+            setCurrentView("move-out-evidence"); 
+          }}
+        />
+      )}
+
+      {/* Move-Out Evidence Library Route */}
+      {currentView === "move-out-evidence" && (
+        <MoveOutEvidencePage
+          property={selectedProperty}
+          inspectionData={moveOutInspectionData}
+          onBack={() => setCurrentView("move-out-inspection")}
+          onSubmitEvidence={() => setCurrentView("move-in-out-records")} 
+        />
+      )}
+
+      {/* Combined Move-In & Move-Out Side-by-Side View Route */}
+      {currentView === "move-in-out-records" && (
+        <MoveInOutRecordsView
+          property={selectedProperty}
+          moveInInspectionData={selectedInspectionData}
+          moveOutInspectionData={moveOutInspectionData}
+          onBack={() => setCurrentView("move-out-evidence")}
+          onProceedToSignatures={() => setCurrentView("move-out-signatures")}
+        />
+      )}
+
+      {/* Move-Out Signatures Route */}
+      {currentView === "move-out-signatures" && (
+        <MoveOutSignaturesPage
+          property={selectedProperty}
+          initialSignatures={moveOutSignatures}
+          onBack={() => setCurrentView("move-in-out-records")}
+          onSignaturesComplete={(sigs) => {
+            setMoveOutSignatures(sigs);
+            setCurrentView("move-out-report");
+          }}
+        />
+      )}
+
+      {/* Move-Out Final Inspection Report Route */}
+      {currentView === "move-out-report" && (
+        <MoveOutInspectionReportPage
+          property={selectedProperty}
+          moveInInspectionData={selectedInspectionData}
+          moveOutInspectionData={moveOutInspectionData}
+          signatures={moveOutSignatures}
+          onBack={() => setCurrentView("move-out-signatures")}
+          onFinalize={() => setCurrentView("dashboard")}
+        />
+      )}
+
       {currentView === "evidence-review" && (
         <EvidenceReviewPage
           property={selectedProperty}
@@ -174,7 +254,7 @@ export default function App() {
       {currentView === "sign-inspection" && (
         <SignInspectionPage
           initialSignatures={signatures}
-          onBack={() => setCurrentView("evidence-review")}
+          onBack={() => setCurrentView("move-in-out-records")}
           onSignaturesComplete={(sigs) => {
             setSignatures(sigs);
             setCurrentView("inspection-report");
@@ -185,7 +265,7 @@ export default function App() {
       {currentView === "inspection-report" && (
         <InspectionReportPage
           property={selectedProperty}
-          inspectionData={selectedInspectionData}
+          inspectionData={moveOutInspectionData}
           signatures={signatures}
           isLocked={true}
           onBack={() => setCurrentView("sign-inspection")}
