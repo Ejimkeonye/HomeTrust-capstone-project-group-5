@@ -8,7 +8,7 @@ import DashboardPage from "./pages/DashboardPage";
 import PartyOnboardingPage from "./pages/PartyOnboardingPage";
 import InspectionPage from "./pages/InspectionPage";
 import MoveOutInspectionPage from "./pages/MoveOutInspectionPage";
-import MoveOutEvidencePage from "./pages/MoveoutEvidencePage";
+import MoveOutEvidencePage from "./pages/MoveOutEvidencePage";
 import MoveInOutRecordsView from "./components/MoveInOutRecordsView";
 import InvitePartyModal from "./components/InvitePartyModal";
 import InspectionReportPage from "./pages/InspectionReportPage";
