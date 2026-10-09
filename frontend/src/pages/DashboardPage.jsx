@@ -24,6 +24,7 @@ export default function DashboardPage({
   onLogout,
   onViewReport,
   onStartInspection,
+  onStartMoveOutInspection, 
   onViewEvidence,
 }) {
   const [activeTab, setActiveTab] = useState("home");
@@ -235,9 +236,9 @@ export default function DashboardPage({
             </div>
           </div>
 
-          {/* Progress */}
+          {/* Move-In Inspection Progress */}
           <div className="space-y-3 pt-1">
-            <h2 className="text-sm font-extrabold text-slate-900">Inspection Progress</h2>
+            <h2 className="text-sm font-extrabold text-slate-900">Move-In Inspection Progress</h2>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs font-bold text-slate-800">
                 <span>{activeProperty?.address || "No property selected"}</span>
@@ -251,6 +252,46 @@ export default function DashboardPage({
               </div>
             </div>
           </div>
+
+          {/* Move-Out Compartment Card */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-xs space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xs font-extrabold text-slate-900">Move-Out Compartment</h2>
+                <p className="text-[10px] text-slate-500">Record property state upon departure.</p>
+              </div>
+              <span className="text-[10px] px-2.5 py-1 rounded-full bg-purple-100 text-purple-900 font-extrabold">
+                Ready
+              </span>
+            </div>
+
+            <button
+              type="button"
+              disabled={!activeProperty}
+              onClick={() => activeProperty && onStartMoveOutInspection && onStartMoveOutInspection(activeProperty)}
+              className="w-full bg-[#4A1E6D] hover:bg-purple-950 disabled:bg-slate-300 text-white font-extrabold text-xs py-3 rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
+            >
+              <Camera className="w-4 h-4" /> Start Move-Out Inspection
+            </button>
+          </div>
+
+          {/* Move-Out Inspection Progress */}
+          <div className="space-y-3 pt-1">
+            <h2 className="text-sm font-extrabold text-slate-900">Move-Out Inspection Progress</h2>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                <span>{activeProperty?.address || "No property selected"}</span>
+                <span>{activeProperty?.moveOutProgress || 0}%</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                <div
+                  className="bg-[#4A1E6D] h-full rounded-full transition-all duration-500"
+                  style={{ width: `${activeProperty?.moveOutProgress || 0}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
         </div>
 
         {/* Bottom Navigation */}
