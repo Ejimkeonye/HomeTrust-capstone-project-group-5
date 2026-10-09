@@ -1,45 +1,19 @@
-import express from "express";
-import multer from "multer";
-import path from "path";
-import { uploadEvidence } from "../controllers/evidenceController";
-import { protect } from "../middlewares/authMiddleware";
+import express from 'express';
+import { getPresignedUrl, confirmUpload } from '../controllers/evidenceController';
+import { protect } from '../middlewares/authMiddleware';
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination(req, file, cb) {
-    cb(null, "uploads/");
-  },
-  filename(req, file, cb) {
-    cb(
-      null,
-      `${file.fieldname}-${Date.now()}${path.extname(file.originalname)}`,
-    );
-  },
-});
+// POST /api/evidence/presigned-url
+// Step 1: Frontend requests a temporary S3 upload URL from the Lambda via this proxy.
+// Body: { file_name: string, content_type: string }
+// Returns: { upload_url: string, object_key: string, expires_in: number }
+router.post('/presigned-url', protect, getPresignedUrl);
 
-const upload = multer({
-  storage,
-  fileFilter: function (req, file, cb) {
-    const filetypes = /jpeg|jpg|png|mp4|mov/;
-    const extname = filetypes.test(
-      path.extname(file.originalname).toLowerCase(),
-    );
-    const mimetype = filetypes.test(file.mimetype);
-
-    if (extname && mimetype) {
-      return cb(null, true);
-    } else {
-      cb(new Error("Images and Videos only!"));
-    }
-  },
-});
-
-router.post(
-  "/:inspectionId/items/:itemId",
-  protect,
-  upload.single("evidence"),
-  uploadEvidence,
-);
+// POST /api/evidence/:inspectionId/items/:itemId/confirm
+// Step 2: After the frontend uploads the file directly to S3, it calls this endpoint
+// with the object_key so the backend can save the permanent S3 URL to DynamoDB.
+// Body: { object_key: string, content_type: string }
+router.post('/:inspectionId/items/:itemId/confirm', protect, confirmUpload);
 
 export default router;

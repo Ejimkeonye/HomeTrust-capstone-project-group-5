@@ -17,8 +17,9 @@ export const docClient = DynamoDBDocumentClient.from(dynamoClient, {
 });
 
 export const TABLES = {
-  USERS: process.env.DYNAMODB_USERS_TABLE || 'MoveInUsers',
-  PROPERTIES: process.env.DYNAMODB_PROPERTIES_TABLE || 'MoveInProperties',
+  USERS:       process.env.DYNAMODB_USERS_TABLE       || 'MoveInUsers',
+  PROPERTIES:  process.env.DYNAMODB_PROPERTIES_TABLE  || 'MoveInProperties',
   INSPECTIONS: process.env.DYNAMODB_INSPECTIONS_TABLE || 'MoveInInspections',
   INVITATIONS: process.env.DYNAMODB_INVITATIONS_TABLE || 'MoveInInvitations',
+  ROOM_ITEMS:  process.env.DYNAMODB_ROOM_ITEMS_TABLE  || 'MoveInRoomItems',
 } as const;

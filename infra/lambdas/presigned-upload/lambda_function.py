@@ -6,6 +6,12 @@ s3_client = boto3.client("s3")
 
 BUCKET_NAME = os.environ["BUCKET_NAME"]
 
+CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "content-type,authorization",
+    "Content-Type": "application/json",
+}
+
 
 def lambda_handler(event, context):
     body = json.loads(event.get("body", "{}"))
@@ -16,6 +22,7 @@ def lambda_handler(event, context):
     if not file_name or not content_type:
         return {
             "statusCode": 400,
+            "headers": CORS_HEADERS,
             "body": json.dumps({
                 "error": "file_name and content_type are required"
             })
@@ -35,6 +42,7 @@ def lambda_handler(event, context):
 
     return {
         "statusCode": 200,
+        "headers": CORS_HEADERS,
         "body": json.dumps({
             "upload_url": presigned_url,
             "object_key": object_key,
