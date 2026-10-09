@@ -103,3 +103,29 @@ resource "aws_dynamodb_table" "parties" {
     projection_type = "ALL"
   }
 }
+
+resource "aws_dynamodb_table" "invitations" {
+  name         = "${var.project}-${var.environment}-invitations"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "invitationId"
+
+  attribute {
+    name = "invitationId"
+    type = "S"
+  }
+
+  attribute {
+    name = "token"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "byToken"
+    hash_key        = "token"
+    projection_type = "ALL"
+  }
+}
+
+output "invitations_table_name" {
+  value = aws_dynamodb_table.invitations.name
+}
