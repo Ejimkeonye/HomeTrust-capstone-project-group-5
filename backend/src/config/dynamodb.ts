@@ -22,4 +22,5 @@ export const TABLES = {
   INSPECTIONS: process.env.DYNAMODB_INSPECTIONS_TABLE || 'MoveInInspections',
   INVITATIONS: process.env.DYNAMODB_INVITATIONS_TABLE || 'MoveInInvitations',
   ROOM_ITEMS:  process.env.DYNAMODB_ROOM_ITEMS_TABLE  || 'MoveInRoomItems',
+  EVIDENCE:    process.env.DYNAMODB_EVIDENCE_TABLE    || 'MoveInEvidence',
 } as const;
