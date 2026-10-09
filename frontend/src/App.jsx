@@ -267,7 +267,7 @@ export default function App() {
       {currentView === "sign-inspection" && (
         <SignInspectionPage
           initialSignatures={signatures}
-          onBack={() => setCurrentView("move-in-out-records")}
+          onBack={() => setCurrentView("evidence-review")}
           onSignaturesComplete={(sigs) => {
             setSignatures(sigs);
             setCurrentView("inspection-report");
