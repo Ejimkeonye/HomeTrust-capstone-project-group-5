@@ -140,7 +140,10 @@ export const confirmUpload = async (
       new UpdateCommand({
         TableName: TABLES.INSPECTIONS,
         Key: { inspectionId },
-        UpdateExpression: `SET items[${itemIndex}].evidence = list_append(if_not_exists(items[${itemIndex}].evidence, :empty), :evidence), updatedAt = :updatedAt`,
+        UpdateExpression: `SET #items[${itemIndex}].evidence = list_append(if_not_exists(#items[${itemIndex}].evidence, :empty), :evidence), updatedAt = :updatedAt`,
+        ExpressionAttributeNames: {
+          '#items': 'items'
+        },
         ExpressionAttributeValues: {
           ':evidence': [evidenceEntry],
           ':empty': [],

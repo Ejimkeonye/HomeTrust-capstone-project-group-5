@@ -166,7 +166,10 @@ export const addItemCondition = async (req: AuthRequest, res: Response, next: Ne
     const updated = await docClient.send(new UpdateCommand({
       TableName: TABLES.INSPECTIONS,
       Key: { inspectionId: req.params.id },
-      UpdateExpression: 'SET items = list_append(if_not_exists(items, :empty), :newItem), updatedAt = :updatedAt',
+      UpdateExpression: 'SET #items = list_append(if_not_exists(#items, :empty), :newItem), updatedAt = :updatedAt',
+      ExpressionAttributeNames: {
+        '#items': 'items'
+      },
       ExpressionAttributeValues: {
         ':newItem': [newItem],
         ':empty': [],
