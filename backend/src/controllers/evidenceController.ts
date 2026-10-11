@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { docClient, TABLES } from '../config/dynamodb';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { IInspection, IEvidence } from '../types';
+import { writeAuditEvent } from '../utils/auditLogger';
 
 const PRESIGNED_UPLOAD_URL = process.env.PRESIGNED_UPLOAD_URL!;
 const S3_BUCKET_NAME = 'hometrust-evidence-dev';
@@ -88,6 +89,8 @@ export const getPresignedUrl = async (
       expires_in: number;
     };
 
+    writeAuditEvent({ eventType: 'evidence.upload_url_issued', outcome: 'success', actorId: req.user!.userId, resourceType: 'evidence_upload' });
+
     res.status(200).json(data);
   } catch (error) {
     next(error);
@@ -140,7 +143,10 @@ export const confirmUpload = async (
       new UpdateCommand({
         TableName: TABLES.INSPECTIONS,
         Key: { inspectionId },
-        UpdateExpression: `SET items[${itemIndex}].evidence = list_append(if_not_exists(items[${itemIndex}].evidence, :empty), :evidence), updatedAt = :updatedAt`,
+        UpdateExpression: `SET #items[${itemIndex}].evidence = list_append(if_not_exists(#items[${itemIndex}].evidence, :empty), :evidence), updatedAt = :updatedAt`,
+        ExpressionAttributeNames: {
+          '#items': 'items'
+        },
         ExpressionAttributeValues: {
           ':evidence': [evidenceEntry],
           ':empty': [],
@@ -151,6 +157,9 @@ export const confirmUpload = async (
     );
 
     const updatedItem = (updated.Attributes as IInspection).items[itemIndex];
+
+    writeAuditEvent({ eventType: 'evidence.upload_confirmed', outcome: 'success', actorId: req.user!.userId, resourceType: 'inspection_item', resourceId: itemId as string, details: { inspectionId: inspectionId as string, evidenceId: evidenceEntry.evidenceId } });
+
     res.status(201).json(updatedItem);
   } catch (error) {
     next(error);

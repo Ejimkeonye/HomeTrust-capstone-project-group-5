@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { GetCommand } from '@aws-sdk/lib-dynamodb';
 import { docClient, TABLES } from '../config/dynamodb';
 import { IUser } from '../types';
+import { getJwtSecret } from '../config/jwt';
 
 export interface AuthRequest extends Request {
   user?: IUser;
@@ -16,7 +17,7 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
 
   try {
     const token = req.headers.authorization.split(' ')[1];
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+    const decoded: any = jwt.verify(token, getJwtSecret());
 
     // Fetch user from DynamoDB by userId
     const result = await docClient.send(new GetCommand({

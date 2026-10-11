@@ -7,6 +7,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { docClient, TABLES } from '../config/dynamodb';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { IUser, IInvitation } from '../types';
+import { getJwtSecret } from '../config/jwt';
+import { writeAuditEvent } from '../utils/auditLogger';
 
 export const createInvitation = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -55,6 +57,8 @@ export const createInvitation = async (req: AuthRequest, res: Response, next: Ne
       Item: invitation,
     }));
 
+    writeAuditEvent({ eventType: 'invitation.created', outcome: 'success', actorId: req.user!.userId, resourceType: 'inspection', resourceId: inspectionId, details: { propertyId } });
+
     // In production, send this link via email (integrate SES or SendGrid)
     const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invite?token=${token}`;
 
@@ -66,6 +70,7 @@ export const createInvitation = async (req: AuthRequest, res: Response, next: Ne
 
 export const resolveInvitation = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    const jwtSecret = getJwtSecret();
     const { token } = req.params;
     const { name, password } = req.body;
 
@@ -76,6 +81,7 @@ export const resolveInvitation = async (req: AuthRequest, res: Response, next: N
     }));
 
     if (!result.Item) {
+      writeAuditEvent({ eventType: 'invitation.resolve', outcome: 'failure', reason: 'invalid_or_expired' });
       res.status(400);
       throw new Error('Invalid or expired invitation token');
     }
@@ -83,6 +89,7 @@ export const resolveInvitation = async (req: AuthRequest, res: Response, next: N
     const invitation = result.Item as IInvitation;
 
     if (invitation.status !== 'PENDING' || new Date(invitation.expiresAt) < new Date()) {
+      writeAuditEvent({ eventType: 'invitation.resolve', outcome: 'failure', reason: invitation.status !== 'PENDING' ? 'already_resolved' : 'expired' });
       res.status(400);
       throw new Error('Invalid or expired invitation token');
     }
@@ -145,9 +152,11 @@ export const resolveInvitation = async (req: AuthRequest, res: Response, next: N
       },
     }));
 
+    writeAuditEvent({ eventType: 'invitation.accepted', outcome: 'success', actorId: user.userId, resourceType: 'inspection', resourceId: invitation.inspectionId, details: { propertyId: invitation.propertyId } });
+
     const jwtToken = jwt.sign(
       { id: user.userId },
-      process.env.JWT_SECRET || 'secret',
+      jwtSecret,
       { expiresIn: '30d' } as jwt.SignOptions
     );
 
