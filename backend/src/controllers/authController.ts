@@ -5,15 +5,18 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { docClient, TABLES } from '../config/dynamodb';
 import { IUser } from '../types';
+import { getJwtSecret } from '../config/jwt';
+import { writeAuditEvent } from '../utils/auditLogger';
 
-const generateToken = (userId: string) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET || 'secret', {
+const generateToken = (userId: string, secret: string) => {
+  return jwt.sign({ id: userId }, secret, {
     expiresIn: '30d',
   } as jwt.SignOptions);
 };
 
 export const register = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const jwtSecret = getJwtSecret();
     const { name, email, password, role, phoneNumber, houseAddress, flatRoomNumber } = req.body;
 
     // Check if email already exists via emailIndex GSI
@@ -25,6 +28,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
     }));
 
     if (existing.Items && existing.Items.length > 0) {
+      writeAuditEvent({ eventType: 'auth.register', outcome: 'failure', reason: 'duplicate_email' });
       res.status(400);
       throw new Error('User already exists');
     }
@@ -52,6 +56,8 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       Item: newUser,
     }));
 
+    writeAuditEvent({ eventType: 'auth.register', outcome: 'success', actorId: userId, resourceType: 'user', resourceId: userId });
+
     res.status(201).json({
       userId,
       name,
@@ -60,7 +66,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
       houseAddress: newUser.houseAddress,
       flatRoomNumber: newUser.flatRoomNumber,
       role: newUser.role,
-      token: generateToken(userId),
+      token: generateToken(userId, jwtSecret),
     });
   } catch (error) {
     next(error);
@@ -69,6 +75,7 @@ export const register = async (req: Request, res: Response, next: NextFunction) 
 
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const jwtSecret = getJwtSecret();
     const { email, password } = req.body;
 
     // Find user by email using emailIndex GSI
@@ -82,15 +89,19 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
     const user = result.Items?.[0] as IUser | undefined;
 
     if (!user || !user.passwordHash) {
+      writeAuditEvent({ eventType: 'auth.login', outcome: 'failure', reason: 'invalid_credentials' });
       res.status(401);
       throw new Error('Invalid email or password');
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
+      writeAuditEvent({ eventType: 'auth.login', outcome: 'failure', reason: 'invalid_credentials' });
       res.status(401);
       throw new Error('Invalid email or password');
     }
+
+    writeAuditEvent({ eventType: 'auth.login', outcome: 'success', actorId: user.userId, resourceType: 'user', resourceId: user.userId });
 
     res.json({
       userId: user.userId,
@@ -100,7 +111,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       houseAddress: user.houseAddress,
       flatRoomNumber: user.flatRoomNumber,
       role: user.role,
-      token: generateToken(user.userId),
+      token: generateToken(user.userId, jwtSecret),
     });
   } catch (error) {
     next(error);

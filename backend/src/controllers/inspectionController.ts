@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { docClient, TABLES } from '../config/dynamodb';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { IInspection, IItemCondition } from '../types';
+import { writeAuditEvent } from '../utils/auditLogger';
 
 export const createInspection = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -38,6 +39,8 @@ export const createInspection = async (req: AuthRequest, res: Response, next: Ne
       TableName: TABLES.INSPECTIONS,
       Item: newInspection,
     }));
+
+    writeAuditEvent({ eventType: 'inspection.created', outcome: 'success', actorId: req.user!.userId, resourceType: 'inspection', resourceId: inspectionId, details: { propertyId } });
 
     res.status(201).json(newInspection);
   } catch (error) {
@@ -101,6 +104,7 @@ export const updateInspectionState = async (req: AuthRequest, res: Response, nex
       throw new Error('Not authorized');
     }
 
+    const previousState = inspection.state;
     const updated = await docClient.send(new UpdateCommand({
       TableName: TABLES.INSPECTIONS,
       Key: { inspectionId: req.params.id },
@@ -112,6 +116,8 @@ export const updateInspectionState = async (req: AuthRequest, res: Response, nex
       },
       ReturnValues: 'ALL_NEW',
     }));
+
+    writeAuditEvent({ eventType: 'inspection.state_changed', outcome: 'success', actorId: req.user!.userId, resourceType: 'inspection', resourceId: req.params.id as string, details: { previousState, newState: state } });
 
     res.json(updated.Attributes);
   } catch (error) {
@@ -177,6 +183,8 @@ export const addItemCondition = async (req: AuthRequest, res: Response, next: Ne
       },
       ReturnValues: 'ALL_NEW',
     }));
+
+    writeAuditEvent({ eventType: 'inspection.item_added', outcome: 'success', actorId: req.user!.userId, resourceType: 'inspection', resourceId: req.params.id as string, details: { itemId: newItem.itemId } });
 
     res.status(201).json(updated.Attributes);
   } catch (error) {
