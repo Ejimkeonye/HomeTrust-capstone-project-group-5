@@ -27,7 +27,7 @@ export default function WelcomePage({ onCreateAccount, onSignIn, onBack }) {
           </div>
 
           <h1 className="text-3xl font-black text-purple-900 tracking-tight">
-            Hometrust
+            Home<span className="text-purple-700">Trust</span>
           </h1>
           <p className="text-sm font-bold text-slate-700 mt-0.5">
             Move In Evidence
