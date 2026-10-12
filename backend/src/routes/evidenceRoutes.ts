@@ -6,7 +6,7 @@ const router = express.Router();
 
 // POST /api/evidence/presigned-url
 // Step 1: Frontend requests a temporary S3 upload URL from the Lambda via this proxy.
-// Body: { file_name: string, content_type: string }
+// Body: { file_name, content_type, inspection_id, item_id }
 // Returns: { upload_url: string, object_key: string, expires_in: number }
 router.post('/presigned-url', protect, getPresignedUrl);
 
