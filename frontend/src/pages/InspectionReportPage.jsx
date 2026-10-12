@@ -39,13 +39,15 @@ export default function InspectionReportPage({
 
   const [showSuccessScreen, setShowSuccessScreen] = useState(false);
 
-  // Extract rooms data safely if passed as array or object
+  // FIXED: Safely parse rooms data whether it's stored as an array or an object map
   const roomsList = Array.isArray(activeInspectionData)
     ? activeInspectionData
-    : Object.keys(activeInspectionData).map((k) => ({
+    : Object.values(activeInspectionData).length > 0
+    ? Object.keys(activeInspectionData).map((k) => ({
         name: k,
         ...activeInspectionData[k],
-      }));
+      }))
+    : [];
 
   const handleFinalLockAndSave = () => {
     const timestamp = new Date().toLocaleString();
@@ -106,6 +108,7 @@ export default function InspectionReportPage({
             </p>
           </div>
           <button
+            type="button"
             onClick={() => {
               if (onBack) onBack();
               else window.location.reload();
@@ -125,6 +128,7 @@ export default function InspectionReportPage({
         {/* Header */}
         <div className="p-4 flex items-center justify-between z-10 gap-2 bg-[#4A1E6D] text-white">
           <button
+            type="button"
             onClick={onBack}
             className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 cursor-pointer transition-colors"
           >
@@ -134,6 +138,7 @@ export default function InspectionReportPage({
             Inspection Summary
           </h1>
           <button
+            type="button"
             onClick={handlePrint}
             className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
             title="Print Report"
@@ -153,51 +158,67 @@ export default function InspectionReportPage({
             </h2>
 
             <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
-      <span className="text-xs font-semibold text-slate-500">
-        Inspected on: {activeInspectionData.timestamp || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-      </span>
-      <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-300">
-        <Lock className="w-3 h-3" /> Signed & Locked (READ_ONLY)
-      </span>
-    </div>
-  </div>
-  
+              <span className="text-xs font-semibold text-slate-500">
+                {/* FIXED: Formatted Date & Time */}
+                Inspected on:{" "}
+                {activeInspectionData.timestamp ||
+                  new Date().toLocaleString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                    hour12: true,
+                  })}
+              </span>
+              <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-300">
+                <Lock className="w-3 h-3" /> Signed & Locked (READ_ONLY)
+              </span>
+            </div>
+          </div>
+
           {/* Rooms Walkthrough List */}
           <div className="space-y-3">
             <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
               Walkthrough Breakdown
             </h3>
-            {roomsList.map((room, idx) => (
-              <div
-                key={room.id || idx}
-                className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2"
-              >
-                <div className="flex justify-between items-center">
-                  <h4 className="text-xs font-extrabold text-slate-900">
-                    {room.name}
-                  </h4>
-                  <span className="text-[10px] font-extrabold text-purple-900 bg-purple-200/60 px-2 py-0.5 rounded-md">
-                    {room.category || "Rooms"}
-                  </span>
-                </div>
+            {roomsList.length > 0 ? (
+              roomsList.map((room, idx) => (
+                <div
+                  key={room.id || idx}
+                  className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2"
+                >
+                  <div className="flex justify-between items-center">
+                    <h4 className="text-xs font-extrabold text-slate-900">
+                      {room.name}
+                    </h4>
+                    <span className="text-[10px] font-extrabold text-purple-900 bg-purple-200/60 px-2 py-0.5 rounded-md">
+                      {room.category || "Rooms"}
+                    </span>
+                  </div>
 
-                <div className="text-xs text-slate-600 space-y-1">
-                  {room.items?.map((item, iIdx) => (
-                    <div
-                      key={item.id || iIdx}
-                      className="flex justify-between py-1 border-b border-slate-200/60 last:border-0"
-                    >
-                      <span className="font-semibold text-slate-800">
-                        {item.name}
-                      </span>
-                      <span className="text-[11px] text-purple-900 font-bold capitalize">
-                        {item.condition?.replace("_", " ")}
-                      </span>
-                    </div>
-                  ))}
+                  <div className="text-xs text-slate-600 space-y-1">
+                    {room.items?.map((item, iIdx) => (
+                      <div
+                        key={item.id || iIdx}
+                        className="flex justify-between py-1 border-b border-slate-200/60 last:border-0"
+                      >
+                        <span className="font-semibold text-slate-800">
+                          {item.name}
+                        </span>
+                        <span className="text-[11px] text-purple-900 font-bold capitalize">
+                          {item.condition?.replace("_", " ")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="text-center py-6 text-slate-400 text-xs font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                No walkthrough room details found.
               </div>
-            ))}
+            )}
           </div>
 
           {/* Display Verified Signatures (Read-Only) */}
@@ -251,6 +272,7 @@ export default function InspectionReportPage({
           {/* Finalize Button */}
           <div className="pt-4 border-t border-slate-200">
             <button
+              type="button"
               onClick={handleFinalLockAndSave}
               className="w-full bg-[#4A1E6D] hover:bg-purple-950 text-white font-extrabold py-3.5 rounded-2xl text-xs transition-colors shadow-lg flex items-center justify-center gap-2 cursor-pointer"
             >

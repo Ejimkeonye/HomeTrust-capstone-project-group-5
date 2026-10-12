@@ -254,7 +254,6 @@ export default function InspectionPage({
   };
 
   const handlePropertyPhotoChange = async (e) => {
-    if (isReadOnly) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -305,7 +304,6 @@ export default function InspectionPage({
 
   const handleDeleteRoom = (roomId, e) => {
     if (e) e.stopPropagation();
-    if (isReadOnly) return;
     if (
       !window.confirm(
         "Are you sure you want to delete this section and all its contents?",
@@ -359,7 +357,6 @@ export default function InspectionPage({
   };
 
   const handleDeleteItem = (roomId, itemId) => {
-    if (isReadOnly) return;
     const updated = roomsData.map((room) => {
       if (room.id === roomId) {
         return {
@@ -373,7 +370,6 @@ export default function InspectionPage({
   };
 
   const updateItemData = (roomId, itemId, fields) => {
-    if (isReadOnly) return;
     const updated = roomsData.map((room) => {
       if (room.id === roomId) {
         return {
@@ -400,7 +396,6 @@ export default function InspectionPage({
   };
 
   const handleClearDispute = (roomId, itemId) => {
-    if (isReadOnly) return;
     const updated = roomsData.map((room) => {
       if (room.id === roomId) {
         return {
@@ -425,7 +420,6 @@ export default function InspectionPage({
   };
 
   const handlePhotoUpload = async (roomId, itemId, e) => {
-    if (isReadOnly) return;
     const files = Array.from(e.target.files);
     if (!files.length) return;
 
@@ -520,12 +514,11 @@ export default function InspectionPage({
         !!i.dispute,
     ).length || 0;
 
-  // Frame 706: Success Screen View
   if (showInviteSuccess) {
     return (
       <InviteLinkSent
         onBackHome={() => setShowInviteSuccess(false)}
-        date={new Date().toLocaleDateString()} // Or use new Date().toLocaleDateString(...) if dynamic
+        date={new Date().toLocaleDateString()}
       />
     );
   }
@@ -556,42 +549,39 @@ export default function InspectionPage({
           </h1>
 
           <div className="flex items-center gap-1.5">
-            {!isReadOnly && (
-              <button
-                type="button"
-                onClick={() => setInviteModalOpen(true)}
-                className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
-                title="Invite Other Party"
-              >
-                <UserPlus className="w-4 h-4" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setInviteModalOpen(true)}
+              className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
+              title="Invite Other Party"
+            >
+              <UserPlus className="w-4 h-4" />
+            </button>
 
             <button
               type="button"
               onClick={() => {
-                // Pass the current rooms data up to the parent component
                 if (onCompleteInspection) {
                   onCompleteInspection(roomsData);
                 }
               }}
               className="text-xs font-extrabold text-[#4A1E6D] bg-white hover:bg-slate-100 px-3.5 py-1.5 rounded-full cursor-pointer shrink-0 transition-colors shadow-md"
             >
-              Review & Lock
+              Review & Sign
             </button>
           </div>
         </div>
 
-        {/* Read-Only Banner */}
+        {/* Collaborative Notice Banner */}
         {isReadOnly && (
-          <div className="bg-amber-500/20 border-b border-amber-500/30 px-4 py-2 text-center text-amber-800 text-xs font-bold backdrop-blur-md">
-            🔒 Baseline Locked (READ_ONLY)
+          <div className="bg-amber-500/20 border-b border-amber-500/30 px-4 py-2 text-center text-amber-900 text-xs font-medium backdrop-blur-md">
+            🤝 <strong>Collaborative Mode:</strong> Baseline is saved, but you can still add notes, upload photos, or dispute items.
           </div>
         )}
 
         {/* Main Content Scroll Container */}
         <div className="px-6 py-4 flex-1 flex flex-col justify-between overflow-y-auto space-y-4 bg-white">
-          {/* Main Inspection Banner Image (Updated with Custom Property Photo Picker) */}
+          {/* Main Inspection Banner Image */}
           <div className="relative w-full h-40 rounded-2xl overflow-hidden shadow-sm bg-slate-100 border border-slate-200 group">
             <img
               src={propertyImage}
@@ -601,29 +591,21 @@ export default function InspectionPage({
                 e.target.src = DEFAULT_IMAGE;
               }}
             />
-            {isReadOnly ? (
-              <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
-                <div className="w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-slate-800 shadow-md">
-                  <Camera className="w-5 h-5 text-[#4A1E6D]" />
-                </div>
+            <label className="absolute inset-0 bg-black/20 hover:bg-black/40 transition-colors flex flex-col items-center justify-center cursor-pointer text-white">
+              <div className="w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-slate-800 shadow-md mb-1">
+                <Camera className="w-5 h-5 text-[#4A1E6D]" />
               </div>
-            ) : (
-              <label className="absolute inset-0 bg-black/20 hover:bg-black/40 transition-colors flex flex-col items-center justify-center cursor-pointer text-white">
-                <div className="w-10 h-10 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-slate-800 shadow-md mb-1">
-                  <Camera className="w-5 h-5 text-[#4A1E6D]" />
-                </div>
-                <span className="text-[11px] font-bold drop-shadow-md">
-                  Change Apartment Photo
-                </span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={handlePropertyPhotoChange}
-                  className="hidden"
-                />
-              </label>
-            )}
+              <span className="text-[11px] font-bold drop-shadow-md">
+                Change Apartment Photo
+              </span>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handlePropertyPhotoChange}
+                className="hidden"
+              />
+            </label>
           </div>
 
           {/* OVERVIEW MODE */}
@@ -647,21 +629,19 @@ export default function InspectionPage({
                   ))}
                 </div>
 
-                {!isReadOnly && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAddingCustomCategory(false);
-                      setAddRoomModalOpen(true);
-                    }}
-                    className="p-2 bg-slate-100 hover:bg-slate-200 text-[#4A1E6D] border border-slate-200 rounded-xl transition-all cursor-pointer shrink-0 shadow-xs flex items-center gap-1 text-xs font-bold"
-                  >
-                    <Plus className="w-4 h-4" /> Add Section
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingCustomCategory(false);
+                    setAddRoomModalOpen(true);
+                  }}
+                  className="p-2 bg-slate-100 hover:bg-slate-200 text-[#4A1E6D] border border-slate-200 rounded-xl transition-all cursor-pointer shrink-0 shadow-xs flex items-center gap-1 text-xs font-bold"
+                >
+                  <Plus className="w-4 h-4" /> Add Section
+                </button>
               </div>
 
-              {/* Room Cards (Darker Purple tint) */}
+              {/* Room Cards */}
               <div className="space-y-3">
                 {filteredRooms.map((room) => {
                   const allPhotos = room.items.flatMap((i) => i.photos || []);
@@ -725,16 +705,14 @@ export default function InspectionPage({
                         </div>
 
                         <div className="flex items-center gap-1">
-                          {!isReadOnly && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleDeleteRoom(room.id, e)}
-                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white/60 rounded-lg transition-colors cursor-pointer"
-                              title="Delete Room"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteRoom(room.id, e)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white/60 rounded-lg transition-colors cursor-pointer"
+                            title="Delete Room"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                           <ChevronRight className="w-5 h-5 text-purple-900/60 group-hover:translate-x-0.5 transition-transform" />
                         </div>
                       </div>
@@ -769,19 +747,17 @@ export default function InspectionPage({
                       <h2 className="text-sm font-extrabold text-slate-900">
                         {activeRoom?.name}
                       </h2>
-                      {!isReadOnly && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditedRoomName(activeRoom.name);
-                            setIsEditingRoomName(true);
-                          }}
-                          className="text-slate-400 hover:text-[#4A1E6D] p-1 cursor-pointer"
-                          title="Rename Room"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditedRoomName(activeRoom.name);
+                          setIsEditingRoomName(true);
+                        }}
+                        className="text-slate-400 hover:text-[#4A1E6D] p-1 cursor-pointer"
+                        title="Rename Room"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   )}
                   <p className="text-[11px] text-slate-500 font-medium mt-0.5">
@@ -793,26 +769,22 @@ export default function InspectionPage({
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  {!isReadOnly && (
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteRoom(activeRoom.id)}
-                      className="p-1.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-xl cursor-pointer transition-colors"
-                      title="Delete whole room"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteRoom(activeRoom.id)}
+                    className="p-1.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-xl cursor-pointer transition-colors"
+                    title="Delete whole room"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
 
-                  {!isReadOnly && (
-                    <button
-                      type="button"
-                      onClick={() => setAddItemModalOpen(true)}
-                      className="inline-flex items-center gap-1 text-xs font-bold bg-[#4A1E6D] text-white px-3 py-1.5 rounded-xl hover:bg-purple-950 cursor-pointer shadow-xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Add Amenity
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setAddItemModalOpen(true)}
+                    className="inline-flex items-center gap-1 text-xs font-bold bg-[#4A1E6D] text-white px-3 py-1.5 rounded-xl hover:bg-purple-950 cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Amenity
+                  </button>
                 </div>
               </div>
 
@@ -881,18 +853,16 @@ export default function InspectionPage({
                                   : "Flagged Issue"}
                               </span>
                             )}
-                            {!isReadOnly && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleDeleteItem(activeRoom.id, item.id)
-                                }
-                                className="text-slate-400 hover:text-red-600 p-1 cursor-pointer"
-                                title="Remove item"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleDeleteItem(activeRoom.id, item.id)
+                              }
+                              className="text-slate-400 hover:text-red-600 p-1 cursor-pointer"
+                              title="Remove item"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
 
@@ -903,7 +873,7 @@ export default function InspectionPage({
                               <div className="flex items-center gap-1.5">
                                 <ShieldAlert className="w-4 h-4 text-amber-600" />
                                 <span className="text-xs font-extrabold text-amber-900">
-                                  Active Dispute Record
+                                  Active Dispute Record ({item.dispute.raisedBy})
                                 </span>
                               </div>
                               {activeSeverityObj && (
@@ -922,17 +892,15 @@ export default function InspectionPage({
                                 By: {item.dispute.raisedBy || userRole} •{" "}
                                 {item.dispute.timestamp}
                               </span>
-                              {!isReadOnly && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleClearDispute(activeRoom.id, item.id)
-                                  }
-                                  className="text-red-600 hover:underline cursor-pointer font-bold flex items-center gap-0.5"
-                                >
-                                  <X className="w-3 h-3" /> Clear Dispute
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleClearDispute(activeRoom.id, item.id)
+                                }
+                                className="text-red-600 hover:underline cursor-pointer font-bold flex items-center gap-0.5"
+                              >
+                                <X className="w-3 h-3" /> Clear Dispute
+                              </button>
                             </div>
                           </div>
                         )}
@@ -948,23 +916,21 @@ export default function InspectionPage({
                             />
                           ))}
 
-                          {!isReadOnly && (
-                            <label className="w-full h-20 rounded-xl border-2 border-dashed border-slate-300 bg-white flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-colors">
-                              <Plus className="w-4 h-4 text-[#4A1E6D]" />
-                              <span className="text-[10px] font-bold text-[#4A1E6D] mt-0.5">
-                                Photo
-                              </span>
-                              <input
-                                type="file"
-                                multiple
-                                accept="image/*"
-                                onChange={(e) =>
-                                  handlePhotoUpload(activeRoom.id, item.id, e)
-                                }
-                                className="hidden"
-                              />
-                            </label>
-                          )}
+                          <label className="w-full h-20 rounded-xl border-2 border-dashed border-slate-300 bg-white flex flex-col items-center justify-center cursor-pointer hover:bg-slate-100 transition-colors">
+                            <Plus className="w-4 h-4 text-[#4A1E6D]" />
+                            <span className="text-[10px] font-bold text-[#4A1E6D] mt-0.5">
+                              Photo
+                            </span>
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/*"
+                              onChange={(e) =>
+                                handlePhotoUpload(activeRoom.id, item.id, e)
+                              }
+                              className="hidden"
+                            />
+                          </label>
                         </div>
 
                         {/* Condition Selection */}
@@ -979,7 +945,6 @@ export default function InspectionPage({
                                 <button
                                   key={option.id}
                                   type="button"
-                                  disabled={isReadOnly}
                                   onClick={() =>
                                     updateItemData(activeRoom.id, item.id, {
                                       condition: option.id,
@@ -1017,7 +982,6 @@ export default function InspectionPage({
                             Note / Description
                           </label>
                           <textarea
-                            disabled={isReadOnly}
                             rows={2}
                             value={item.notes || ""}
                             onChange={(e) =>
@@ -1031,32 +995,30 @@ export default function InspectionPage({
                         </div>
 
                         {/* Dispute Trigger Button */}
-                        {!isReadOnly && (
-                          <div className="pt-1 flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setDisputeTarget({
-                                  roomId: activeRoom.id,
-                                  itemId: item.id,
-                                });
-                                setDisputeNote(
-                                  item.dispute?.description || item.notes || "",
-                                );
-                                setDisputeSeverity(
-                                  item.dispute?.severity || "Minor",
-                                );
-                                setDisputeModalOpen(true);
-                              }}
-                              className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg hover:bg-amber-100 cursor-pointer"
-                            >
-                              <MessageSquare className="w-3 h-3 text-amber-600" />
-                              {item.dispute
-                                ? "Edit Dispute Details"
-                                : "Dispute Item"}
-                            </button>
-                          </div>
-                        )}
+                        <div className="pt-1 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDisputeTarget({
+                                roomId: activeRoom.id,
+                                itemId: item.id,
+                              });
+                              setDisputeNote(
+                                item.dispute?.description || item.notes || "",
+                              );
+                              setDisputeSeverity(
+                                item.dispute?.severity || "Minor",
+                              );
+                              setDisputeModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg hover:bg-amber-100 cursor-pointer"
+                          >
+                            <MessageSquare className="w-3 h-3 text-amber-600" />
+                            {item.dispute
+                              ? "Edit Dispute / Add Comment"
+                              : "Dispute Item / Comment"}
+                          </button>
+                        </div>
                       </div>
                     );
                   })
@@ -1226,12 +1188,12 @@ export default function InspectionPage({
             className="bg-white p-6 rounded-3xl max-w-md w-full space-y-4 shadow-2xl border border-slate-200"
           >
             <h3 className="font-extrabold text-base text-slate-900">
-              Dispute Item Condition
+              Dispute / Comment on Item ({userRole})
             </h3>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Damage Severity Level
+                Severity Level / Concern Level
               </label>
               <div className="grid grid-cols-4 gap-2">
                 {SEVERITIES.map((s) => (
@@ -1253,14 +1215,14 @@ export default function InspectionPage({
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Dispute / Condition Notes
+                Your Comment / Objection
               </label>
               <textarea
                 required
                 rows={3}
                 value={disputeNote}
                 onChange={(e) => setDisputeNote(e.target.value)}
-                placeholder="Describe pre-existing damage or condition disagreement..."
+                placeholder="State your perspective or condition disagreement..."
                 className="w-full border border-slate-300 rounded-2xl p-3 text-xs focus:outline-none focus:ring-2 focus:ring-purple-800 text-slate-800 bg-white"
               />
             </div>
@@ -1277,14 +1239,13 @@ export default function InspectionPage({
                 type="submit"
                 className="px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl cursor-pointer shadow-sm"
               >
-                Save Dispute
+                Post Comment / Dispute
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Invite Party Modal */}
       <InvitePartyModal
         isOpen={inviteModalOpen}
         onClose={() => setInviteModalOpen(false)}

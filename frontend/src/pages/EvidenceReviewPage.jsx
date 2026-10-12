@@ -11,7 +11,7 @@ export default function EvidenceReviewPage({
   const [descriptiveNote, setDescriptiveNote] = useState("");
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
 
-  // Generate today's date dynamically (e.g. "October 7, 2026")
+  // Generate today's date dynamically (e.g. "October 12, 2026")
   const todaysFormattedDate = new Date().toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
@@ -129,6 +129,7 @@ export default function EvidenceReviewPage({
                   Add New Evidence Room
                 </h3>
                 <button
+                  type="button"
                   onClick={() => setShowAddModal(false)}
                   className="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 cursor-pointer"
                 >
@@ -277,6 +278,7 @@ export default function EvidenceReviewPage({
               </div>
               <div className="space-y-2 pt-2">
                 <button
+                  type="button"
                   onClick={() => {
                     setShowConfirmationModal(false);
                     if (onSubmitEvidence) onSubmitEvidence();
@@ -286,6 +288,7 @@ export default function EvidenceReviewPage({
                   Proceed to Signatures
                 </button>
                 <button
+                  type="button"
                   onClick={() => setShowConfirmationModal(false)}
                   className="w-full bg-transparent hover:bg-white/10 text-white font-bold py-2.5 rounded-2xl text-xs transition-colors border border-white/20 cursor-pointer"
                 >
@@ -299,6 +302,7 @@ export default function EvidenceReviewPage({
         {/* Header */}
         <div className="p-4 flex items-center justify-between z-10 gap-2 bg-[#4A1E6D] text-white">
           <button
+            type="button"
             onClick={onBack}
             className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 cursor-pointer transition-colors"
           >
@@ -312,10 +316,14 @@ export default function EvidenceReviewPage({
 
         {/* Action Bar */}
         <div className="px-6 pt-4 flex gap-2">
-          <button className="flex-1 bg-purple-50 text-[#4A1E6D] border border-purple-200 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer">
+          <button
+            type="button"
+            className="flex-1 bg-purple-50 text-[#4A1E6D] border border-purple-200 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+          >
             View evidence
           </button>
           <button
+            type="button"
             onClick={() => setShowAddModal(true)}
             className="flex-1 bg-[#4A1E6D] hover:bg-purple-900 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
           >
@@ -332,6 +340,7 @@ export default function EvidenceReviewPage({
             {categories.map((cat) => (
               <button
                 key={cat}
+                type="button"
                 onClick={() => setActiveCategory(cat)}
                 className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${
                   activeCategory === cat
@@ -348,49 +357,56 @@ export default function EvidenceReviewPage({
         {/* Content / Evidence Scroll Area */}
         <div className="px-6 py-4 flex-1 overflow-y-auto space-y-4 bg-white">
           {filteredRooms.length > 0 ? (
-            filteredRooms.map((room, idx) => (
-              <div
-                key={room.id || idx}
-                className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-16 h-16 bg-slate-200 rounded-xl overflow-hidden shrink-0 flex items-center justify-center text-slate-400">
-                    {room.imageUrl ? (
-                      <img
-                        src={room.imageUrl}
-                        alt={room.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Camera className="w-6 h-6" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start">
-                      <h4 className="text-xs font-extrabold text-slate-900">
-                        {room.name}
-                      </h4>
-                      <span className="text-[10px] bg-purple-100 text-[#4A1E6D] px-2 py-0.5 rounded-md font-bold">
-                        {room.category || "Rooms"}
-                      </span>
+            filteredRooms.map((room, idx) => {
+              // Pull photo from custom imageUrl OR dynamically look inside the inspection items array
+              const roomPhoto =
+                room.imageUrl ||
+                room.items?.flatMap((i) => i.photos || [])?.[0]?.url;
+
+              return (
+                <div
+                  key={room.id || idx}
+                  className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-16 h-16 bg-slate-200 rounded-xl overflow-hidden shrink-0 flex items-center justify-center text-slate-400">
+                      {roomPhoto ? (
+                        <img
+                          src={roomPhoto}
+                          alt={room.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Camera className="w-6 h-6" />
+                      )}
                     </div>
-                    <div className="text-[11px] text-slate-600 mt-1 space-y-0.5">
-                      <div className="font-semibold text-purple-900">
-                        Condition Checklist:
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start">
+                        <h4 className="text-xs font-extrabold text-slate-900">
+                          {room.name}
+                        </h4>
+                        <span className="text-[10px] bg-purple-100 text-[#4A1E6D] px-2 py-0.5 rounded-md font-bold">
+                          {room.category || "Rooms"}
+                        </span>
                       </div>
-                      {room.items?.map((item, iIdx) => (
-                        <div key={iIdx} className="flex justify-between">
-                          <span>{item.name}:</span>
-                          <span className="font-bold capitalize">
-                            {item.condition?.replace("_", " ")}
-                          </span>
+                      <div className="text-[11px] text-slate-600 mt-1 space-y-0.5">
+                        <div className="font-semibold text-purple-900">
+                          Condition Checklist:
                         </div>
-                      ))}
+                        {room.items?.map((item, iIdx) => (
+                          <div key={iIdx} className="flex justify-between">
+                            <span>{item.name}:</span>
+                            <span className="font-bold capitalize">
+                              {(item.condition || "good").replace("_", " ")}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="text-center py-10 text-slate-400 text-xs font-medium">
               No evidence found for "{activeCategory}". Click "+ Add evidence"
@@ -415,6 +431,7 @@ export default function EvidenceReviewPage({
         {/* Submit Button */}
         <div className="p-4 border-t border-slate-200 bg-white">
           <button
+            type="button"
             onClick={handleInitialSubmitClick}
             className="w-full bg-[#4A1E6D] hover:bg-purple-950 text-white font-extrabold py-3.5 rounded-2xl text-xs transition-colors shadow-lg flex items-center justify-center gap-2 cursor-pointer"
           >

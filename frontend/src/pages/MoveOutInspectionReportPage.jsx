@@ -136,6 +136,7 @@ export default function MoveOutInspectionReportPage({
             </p>
           </div>
           <button
+            type="button"
             onClick={() => {
               if (onBack) onBack();
               else window.location.reload();
@@ -156,6 +157,7 @@ export default function MoveOutInspectionReportPage({
         {/* Header */}
         <div className="p-4 flex items-center justify-between z-10 gap-2 bg-[#4A1E6D] text-white">
           <button
+            type="button"
             onClick={onBack}
             className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 cursor-pointer transition-colors"
           >
@@ -165,6 +167,7 @@ export default function MoveOutInspectionReportPage({
             Final Move-Out Report
           </h1>
           <button
+            type="button"
             onClick={handlePrint}
             className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
             title="Print Report"
@@ -185,7 +188,16 @@ export default function MoveOutInspectionReportPage({
 
             <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
               <span className="text-xs font-semibold text-slate-500">
-                Processed on: {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                {/* Formatted Date & Time */}
+                Processed on:{" "}
+                {new Date().toLocaleString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  hour12: true,
+                })}
               </span>
               <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-300">
                 <Lock className="w-3 h-3" /> Signed & Locked (READ_ONLY)
@@ -204,6 +216,15 @@ export default function MoveOutInspectionReportPage({
               allRoomNames.map((roomName, idx) => {
                 const moveInRoom = moveInRooms.find((r) => r.name === roomName);
                 const moveOutRoom = moveOutRooms.find((r) => r.name === roomName);
+
+                // Dynamically extract photos from custom imageUrl or item photos array
+                const moveInPhoto =
+                  moveInRoom?.imageUrl ||
+                  moveInRoom?.items?.flatMap((i) => i.photos || [])?.[0]?.url;
+
+                const moveOutPhoto =
+                  moveOutRoom?.imageUrl ||
+                  moveOutRoom?.items?.flatMap((i) => i.photos || [])?.[0]?.url;
 
                 return (
                   <div
@@ -224,8 +245,8 @@ export default function MoveOutInspectionReportPage({
                       <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5">
                         <span className="text-[9px] font-extrabold text-[#4A1E6D] uppercase block">Move-In State</span>
                         <div className="w-full h-12 bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center">
-                          {moveInRoom?.imageUrl ? (
-                            <img src={moveInRoom.imageUrl} alt="Move-In" className="w-full h-full object-cover" />
+                          {moveInPhoto ? (
+                            <img src={moveInPhoto} alt="Move-In" className="w-full h-full object-cover" />
                           ) : (
                             <Camera className="w-4 h-4 text-slate-300" />
                           )}
@@ -242,8 +263,8 @@ export default function MoveOutInspectionReportPage({
                       <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5">
                         <span className="text-[9px] font-extrabold text-purple-900 uppercase block">Move-Out State</span>
                         <div className="w-full h-12 bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center">
-                          {moveOutRoom?.imageUrl ? (
-                            <img src={moveOutRoom.imageUrl} alt="Move-Out" className="w-full h-full object-cover" />
+                          {moveOutPhoto ? (
+                            <img src={moveOutPhoto} alt="Move-Out" className="w-full h-full object-cover" />
                           ) : (
                             <Camera className="w-4 h-4 text-slate-300" />
                           )}
@@ -313,6 +334,7 @@ export default function MoveOutInspectionReportPage({
           {/* Finalize Button */}
           <div className="pt-4 border-t border-slate-200">
             <button
+              type="button"
               onClick={handleFinalLockAndSave}
               className="w-full bg-[#4A1E6D] hover:bg-purple-950 text-white font-extrabold py-3.5 rounded-2xl text-xs transition-colors shadow-lg flex items-center justify-center gap-2 cursor-pointer"
             >

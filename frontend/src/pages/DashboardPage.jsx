@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Trash2,
   Building2,
+  Bell
 } from "lucide-react";
 
 export default function DashboardPage({
@@ -26,6 +27,7 @@ export default function DashboardPage({
   onStartInspection,
   onStartMoveOutInspection, 
   onViewEvidence,
+  onOpenNotifications,
 }) {
   const [activeTab, setActiveTab] = useState("home");
   const [showPropertyDropdown, setShowPropertyDropdown] = useState(false);
@@ -102,15 +104,34 @@ export default function DashboardPage({
           </div>
         )}
 
-        {/* Header */}
+{/* Header */}
         <div className="p-6 pt-10 pb-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+            <h1 className="text-2xl font-extrabold text-slate-950 tracking-tight">
               Good morning, {firstName}
             </h1>
-            <button onClick={onLogout} className="p-2 text-slate-400 hover:text-red-500 transition-colors cursor-pointer" title="Sign out">
-              <LogOut className="w-4 h-4" />
-            </button>
+            
+            {/* 2. Notification Bell & Logout group */}
+            <div className="flex items-center gap-1">
+              <button 
+                type="button"
+                onClick={onOpenNotifications} 
+                className="p-2 text-slate-600 hover:text-purple-900 transition-colors relative cursor-pointer"
+                title="Notifications"
+              >
+                <Bell className="w-5 h-5" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+              </button>
+
+              <button 
+                type="button" 
+                onClick={onLogout} 
+                className="p-2 text-slate-400 hover:text-red-500 transition-colors cursor-pointer" 
+                title="Sign out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
           </div>
           <p className="text-xs text-slate-600 font-medium mt-1 leading-snug">
             Manage your rental portfolio & document inspections seamlessly.
