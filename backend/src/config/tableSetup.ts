@@ -13,24 +13,29 @@ import { dynamoClient, TABLES } from './dynamodb';
 type TableDefinition = {
   name: string;
   partitionKey: string;
+  sortKey?: string;
   indexes?: Array<{ name: string; partitionKey: string }>;
 };
 
 const tables: TableDefinition[] = [
   { name: TABLES.USERS, partitionKey: 'userId', indexes: [{ name: 'emailIndex', partitionKey: 'email' }] },
   { name: TABLES.PROPERTIES, partitionKey: 'propertyId', indexes: [{ name: 'ownerIndex', partitionKey: 'ownerId' }] },
-  { name: TABLES.INSPECTIONS, partitionKey: 'inspectionId' },
+  { name: TABLES.INSPECTIONS, partitionKey: 'inspectionId', indexes: [{ name: 'byProperty', partitionKey: 'propertyId' }] },
+  { name: TABLES.ROOM_ITEMS, partitionKey: 'inspectionId', sortKey: 'roomItemId' },
+  { name: TABLES.EVIDENCE, partitionKey: 'inspectionId', sortKey: 'evidenceId' },
   { name: TABLES.INVITATIONS, partitionKey: 'token' },
 ];
 
 export async function setupTables(): Promise<void> {
-  if (process.env.DYNAMODB_AUTO_CREATE_TABLES === 'false') return;
+  if (process.env.DYNAMODB_AUTO_CREATE_TABLES === 'false' || process.env.NODE_ENV === 'production') return;
 
   for (const table of tables) {
     const attributes = new Map<string, ScalarAttributeType>([[table.partitionKey, 'S']]);
+    if (table.sortKey) attributes.set(table.sortKey, 'S');
     for (const index of table.indexes || []) attributes.set(index.partitionKey, 'S');
 
     const keySchema: KeySchemaElement[] = [{ AttributeName: table.partitionKey, KeyType: 'HASH' }];
+    if (table.sortKey) keySchema.push({ AttributeName: table.sortKey, KeyType: 'RANGE' });
     const globalSecondaryIndexes: GlobalSecondaryIndex[] | undefined = table.indexes?.map(index => ({
       IndexName: index.name,
       KeySchema: [{ AttributeName: index.partitionKey, KeyType: 'HASH' }],

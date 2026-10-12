@@ -25,21 +25,29 @@ export interface IProperty {
 }
 
 export interface IEvidence {
+  inspectionId: string;
   evidenceId: string;
+  roomItemId: string;
+  objectKey: string;
   url: string;
   type: 'image' | 'video';
   uploadedBy: string;
   clientMetadata?: Record<string, unknown>;
   createdAt: string;
 }
+export type InspectionCondition = 'no_issue' | 'stains' | 'cracks' | 'broken';
 export interface IItemCondition {
+  inspectionId: string;
+  roomItemId: string;
   itemId: string;
   roomId: string;
   itemName: string;
-  condition: 'Good' | 'Fair' | 'Damaged' | 'N/A';
+  condition: InspectionCondition;
   notes?: string;
   evidence: IEvidence[];
   disputed?: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 export interface IInspection {
   inspectionId: string;
@@ -51,6 +59,7 @@ export interface IInspection {
   items: IItemCondition[];
   createdAt: string;
   updatedAt: string;
+  submittedAt?: string;
 }
 
 export interface IInvitation {
