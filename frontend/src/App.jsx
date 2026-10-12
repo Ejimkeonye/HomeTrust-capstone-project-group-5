@@ -16,6 +16,7 @@ import SignInspectionPage from "./pages/SignInspectionPage";
 import EvidenceReviewPage from "./pages/EvidenceReviewPage";
 import MoveOutSignaturesPage from "./pages/MoveOutSignaturesPage";
 import MoveOutInspectionReportPage from "./pages/MoveOutInspectionReportPage";
+import NotificationsPage from "./pages/NotificationsPage";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -130,8 +131,29 @@ export default function App() {
       {currentView === "forgot-password" && (
         <ForgotPasswordPage onBack={() => setCurrentView("login")} onNavigateToLogin={() => setCurrentView("login")} />
       )}
+      
       {currentView === "onboarding" && (
-        <PartyOnboardingPage token={inviteToken} onCompleteOnboarding={(user) => { setCurrentUser(user); setCurrentView("dashboard"); }} />
+        <PartyOnboardingPage 
+          token={inviteToken} 
+          onCompleteOnboarding={(user) => { 
+            setCurrentUser(user);
+            localStorage.setItem("hometrust_current_session", JSON.stringify(user));
+
+            // Automatically sync the invited property into this user's local state!
+            if (inviteToken) {
+              const allProperties = JSON.parse(localStorage.getItem("hometrust_properties") || "[]");
+              const targetProperty = allProperties.find(p => p.id === inviteToken || p.inviteToken === inviteToken);
+              
+              if (targetProperty) {
+                setProperties([targetProperty]);
+                setSelectedProperty(targetProperty);
+                localStorage.setItem("hometrust_properties", JSON.stringify([targetProperty]));
+              }
+            }
+
+            setCurrentView("dashboard"); 
+          }} 
+        />
       )}
 
       {/* Dashboard View with Multi-Property Support */}
@@ -158,8 +180,15 @@ export default function App() {
             setSelectedProperty(prop || selectedProperty);
             setIsInviteModalOpen(true);
           }}
+          onOpenNotifications={() => setCurrentView("notifications")}
         />
       )}
+
+      {currentView === "notifications" && (
+  <NotificationsPage
+    onBack={() => setCurrentView("dashboard")}
+  />
+)}
 
       {currentView === "inspection" && (
         <InspectionPage
@@ -172,7 +201,6 @@ export default function App() {
         const updatedProperty = {
           ...selectedProperty,
           progress: 100,
-          status: "READ_ONLY",
         };
         const updatedProperties = properties.map((p) =>
           p.id === selectedProperty.id ? updatedProperty : p
@@ -197,12 +225,12 @@ export default function App() {
             if (selectedProperty) {
         const updatedProperties = properties.map((prop) =>
           prop.id === selectedProperty.id
-            ? { ...prop, moveOutProgress: 100 }
+            ? { ...prop, moveOutProgress: 100, moveOutStatus: "ACTIVE" }
             : prop
         );
         setProperties(updatedProperties);
         localStorage.setItem("hometrust_properties", JSON.stringify(updatedProperties));
-        setSelectedProperty({ ...selectedProperty, moveOutProgress: 100 });
+        setSelectedProperty({ ...selectedProperty, moveOutProgress: 100, moveOutStatus: "ACTIVE" });
       }
             setCurrentView("move-out-evidence"); 
           }}
@@ -270,6 +298,13 @@ export default function App() {
           onBack={() => setCurrentView("evidence-review")}
           onSignaturesComplete={(sigs) => {
             setSignatures(sigs);
+            if (selectedProperty) {
+              const lockedProp = { ...selectedProperty, status: "READ_ONLY" };
+              setSelectedProperty(lockedProp);
+              const updatedList = properties.map(p => p.id === lockedProp.id ? lockedProp : p);
+              setProperties(updatedList);
+              localStorage.setItem("hometrust_properties", JSON.stringify(updatedList));
+            }
             setCurrentView("inspection-report");
           }}
         />
@@ -278,7 +313,7 @@ export default function App() {
       {currentView === "inspection-report" && (
         <InspectionReportPage
           property={selectedProperty}
-          inspectionData={moveOutInspectionData}
+          inspectionData={selectedInspectionData}
           signatures={signatures}
           isLocked={true}
           onBack={() => setCurrentView("sign-inspection")}

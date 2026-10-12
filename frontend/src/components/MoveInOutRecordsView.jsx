@@ -34,6 +34,7 @@ export default function MoveInOutRecordsView({
         {/* Header */}
         <div className="p-4 flex items-center justify-between z-10 gap-2 bg-[#4A1E6D] text-white">
           <button
+            type="button"
             onClick={onBack}
             className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 cursor-pointer transition-colors"
           >
@@ -68,6 +69,15 @@ export default function MoveInOutRecordsView({
               const moveInRoom = moveInRooms.find((r) => r.name === roomName);
               const moveOutRoom = moveOutRooms.find((r) => r.name === roomName);
 
+              // Dynamically extract photos from room items or top-level imageUrl
+              const moveInPhoto =
+                moveInRoom?.imageUrl ||
+                moveInRoom?.items?.flatMap((i) => i.photos || [])?.[0]?.url;
+
+              const moveOutPhoto =
+                moveOutRoom?.imageUrl ||
+                moveOutRoom?.items?.flatMap((i) => i.photos || [])?.[0]?.url;
+
               return (
                 <div key={idx} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-2xs">
                   <div className="flex items-center justify-between border-b pb-2">
@@ -84,8 +94,8 @@ export default function MoveInOutRecordsView({
                         Move-In State
                       </div>
                       <div className="w-full h-16 bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center text-slate-400">
-                        {moveInRoom?.imageUrl ? (
-                          <img src={moveInRoom.imageUrl} alt="Move-In" className="w-full h-full object-cover" />
+                        {moveInPhoto ? (
+                          <img src={moveInPhoto} alt="Move-In" className="w-full h-full object-cover" />
                         ) : (
                           <Camera className="w-5 h-5 text-slate-300" />
                         )}
@@ -112,8 +122,8 @@ export default function MoveInOutRecordsView({
                         Move-Out State
                       </div>
                       <div className="w-full h-16 bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center text-slate-400">
-                        {moveOutRoom?.imageUrl ? (
-                          <img src={moveOutRoom.imageUrl} alt="Move-Out" className="w-full h-full object-cover" />
+                        {moveOutPhoto ? (
+                          <img src={moveOutPhoto} alt="Move-Out" className="w-full h-full object-cover" />
                         ) : (
                           <Camera className="w-5 h-5 text-slate-300" />
                         )}
@@ -143,6 +153,7 @@ export default function MoveInOutRecordsView({
         {/* Footer Action */}
         <div className="p-4 border-t border-slate-200 bg-white">
           <button
+            type="button"
             onClick={onProceedToSignatures}
             className="w-full bg-[#4A1E6D] hover:bg-purple-950 text-white font-extrabold py-3.5 rounded-2xl text-xs transition-colors shadow-lg flex items-center justify-center gap-2 cursor-pointer"
           >

@@ -114,7 +114,7 @@ export default function AuthPage({
       email: cleanEmail,
       phone: formData.phone.trim(),
       password: formData.password,
-      role: formData.role,
+      role: formData.role.toLowerCase().includes("landlord") ? "landlord" : "tenant",
       activePropertyId: linkedPropertyId,
     };
 
