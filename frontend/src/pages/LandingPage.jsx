@@ -23,9 +23,9 @@ export default function LandingPage({ onGetStarted, onLogin }) {
             <div className="w-10 h-10 rounded-2xl bg-purple-700 flex items-center justify-center text-white mb-2 shadow-md">
               <Shield className="w-6 h-6" />
             </div>
-            <h1 className="text-3xl font-bold text-purple-900 tracking-tight">
-              Hometrust
-            </h1>
+            <span className="text-xl font-black text-slate-900 tracking-tight">
+            Home<span className="text-purple-700">Trust</span>
+          </span>
             <p className="text-sm font-semibold text-slate-500 mt-0.5">
               Move In Evidence
             </p>
@@ -223,7 +223,7 @@ export default function LandingPage({ onGetStarted, onLogin }) {
                 Simple 3-Step Process
               </h2>
               <p className="text-3xl font-extrabold text-slate-900 tracking-tight sm:text-4xl">
-                How HomeTrust Works
+                How Home<span className="text-purple-700">Trust</span> Works
               </p>
               <p className="text-slate-600 text-base">
                 A seamless digital workflow connecting landlords and tenants for

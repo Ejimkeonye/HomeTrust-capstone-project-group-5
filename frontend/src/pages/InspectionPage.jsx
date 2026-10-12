@@ -548,14 +548,15 @@ export default function InspectionPage({
             {activeRoom ? activeRoom.name : "Inspection"}
           </h1>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setInviteModalOpen(true)}
-              className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
-              title="Invite Other Party"
+              className="inline-flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1.5 rounded-full text-[11px] font-black shadow-md transition-all cursor-pointer animate-pulse"
+              title="Invite Tenant/Landlord"
             >
-              <UserPlus className="w-4 h-4" />
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Invite</span>
             </button>
 
             <button

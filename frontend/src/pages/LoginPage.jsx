@@ -152,7 +152,7 @@ export default function LoginPage({
             )}
           </div>
           <h2 className="text-xl font-black text-white tracking-tight">
-            Hometrust
+            Home<span className="text-purple-700">Trust</span>
           </h2>
         </div>
 
