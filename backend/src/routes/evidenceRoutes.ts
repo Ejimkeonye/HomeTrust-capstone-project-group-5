@@ -1,5 +1,5 @@
 import express from 'express';
-import { getPresignedUrl, confirmUpload } from '../controllers/evidenceController';
+import { getPresignedUrl, confirmUpload, getEvidenceDownloadUrl } from '../controllers/evidenceController';
 import { protect } from '../middlewares/authMiddleware';
 
 const router = express.Router();
@@ -9,10 +9,11 @@ const router = express.Router();
 // Body: { file_name, content_type, inspection_id, item_id }
 // Returns: { upload_url: string, object_key: string, expires_in: number }
 router.post('/presigned-url', protect, getPresignedUrl);
+router.get('/:inspectionId/:evidenceId/download-url', protect, getEvidenceDownloadUrl);
 
 // POST /api/evidence/:inspectionId/items/:itemId/confirm
 // Step 2: After the frontend uploads the file directly to S3, it calls this endpoint
-// with the object_key so the backend can save the permanent S3 URL to DynamoDB.
+// with the object_key so the backend can save the private object reference to DynamoDB.
 // Body: { object_key: string, content_type: string }
 router.post('/:inspectionId/items/:itemId/confirm', protect, confirmUpload);
 
