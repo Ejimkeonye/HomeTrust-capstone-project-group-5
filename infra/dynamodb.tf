@@ -7,6 +7,17 @@ resource "aws_dynamodb_table" "properties" {
     name = "propertyId"
     type = "S"
   }
+
+  attribute {
+    name = "ownerId"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "ownerIndex"
+    hash_key        = "ownerId"
+    projection_type = "ALL"
+  }
 }
 
 resource "aws_dynamodb_table" "inspections" {
@@ -104,28 +115,18 @@ resource "aws_dynamodb_table" "parties" {
   }
 }
 
+
+output "invitations_table_name" {
+  value = aws_dynamodb_table.invitations.name
+}
+
 resource "aws_dynamodb_table" "invitations" {
   name         = "${var.project}-${var.environment}-invitations"
   billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "invitationId"
-
-  attribute {
-    name = "invitationId"
-    type = "S"
-  }
+  hash_key     = "token"
 
   attribute {
     name = "token"
     type = "S"
   }
-
-  global_secondary_index {
-    name            = "byToken"
-    hash_key        = "token"
-    projection_type = "ALL"
-  }
-}
-
-output "invitations_table_name" {
-  value = aws_dynamodb_table.invitations.name
 }
