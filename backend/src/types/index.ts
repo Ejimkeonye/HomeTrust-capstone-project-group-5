@@ -29,7 +29,9 @@ export interface IEvidence {
   evidenceId: string;
   roomItemId: string;
   objectKey: string;
-  url: string;
+  /** Short-lived signed S3 link in API responses; never save a public bucket URL. */
+  url?: string;
+  downloadUrl?: string;
   type: 'image' | 'video';
   uploadedBy: string;
   clientMetadata?: Record<string, unknown>;
@@ -46,6 +48,10 @@ export interface IItemCondition {
   notes?: string;
   evidence: IEvidence[];
   disputed?: boolean;
+  reviewStatus?: 'ACCEPTED' | 'DISPUTED';
+  reviewedBy?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,6 +60,10 @@ export interface IInspection {
   propertyId: string;
   landlordId: string;
   tenantId?: string;
+  participantIds?: string[];
+  approvedBy?: string[];
+  approvals?: Array<{ userId: string; approvedAt: string }>;
+  approvalCount?: number;
   mode: 'Full' | 'Damaged Sections Only';
   state: 'DRAFT' | 'IN_PROGRESS' | 'UNDER_REVIEW' | 'READ_ONLY';
   items: IItemCondition[];

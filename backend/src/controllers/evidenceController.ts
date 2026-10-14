@@ -1,20 +1,16 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import { GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { docClient, TABLES } from '../config/dynamodb';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { IInspection, IEvidence } from '../types';
 import { writeAuditEvent } from '../utils/auditLogger';
+import { presignEvidenceGet } from '../utils/s3Presigner';
 
 const PRESIGNED_UPLOAD_URL = process.env.PRESIGNED_UPLOAD_URL!;
-const S3_BUCKET_NAME = 'hometrust-evidence-dev';
-const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+const S3_BUCKET_NAME = process.env.EVIDENCE_BUCKET_NAME || 'hometrust-evidence-dev';
 
 // ─── Helper: build public S3 URL from an object key ───────────────────────────
-function buildS3Url(objectKey: string): string {
-  return `https://${S3_BUCKET_NAME}.s3.${AWS_REGION}.amazonaws.com/${objectKey}`;
-}
-
 // ─── Helper: verify the caller is a participant of the inspection ──────────────
 async function getInspectionOrThrow(
   inspectionId: string,
@@ -33,8 +29,7 @@ async function getInspectionOrThrow(
   }
 
   const inspection = result.Item as IInspection;
-  const isParticipant =
-    inspection.landlordId === userId || inspection.tenantId === userId;
+  const isParticipant = inspection.landlordId === userId || inspection.tenantId === userId || inspection.participantIds?.includes(userId) === true;
 
   if (!isParticipant) {
     res.status(403);
@@ -116,7 +111,7 @@ export const getPresignedUrl = async (
 // Body: { object_key: string, content_type: string }
 //
 // Called AFTER the frontend has uploaded the file directly to S3.
-// Builds the permanent S3 URL and saves the evidence entry to DynamoDB.
+// Saves the S3 object key to DynamoDB and returns a short-lived signed URL.
 // ─────────────────────────────────────────────────────────────────────────────
 export const confirmUpload = async (
   req: AuthRequest,
@@ -154,7 +149,6 @@ export const confirmUpload = async (
       evidenceId: uuidv4(),
       roomItemId: itemId as string,
       objectKey: object_key,
-      url: buildS3Url(object_key),
       type: content_type.startsWith('video') ? 'video' : 'image',
       uploadedBy: req.user!.userId,
       clientMetadata: req.body.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {},
@@ -171,8 +165,35 @@ export const confirmUpload = async (
 
     writeAuditEvent({ eventType: 'evidence.upload_confirmed', outcome: 'success', actorId: req.user!.userId, resourceType: 'inspection_item', resourceId: itemId as string, details: { inspectionId: inspectionId as string, evidenceId: evidenceEntry.evidenceId } });
 
-    res.status(201).json(evidenceEntry);
+    const downloadUrl = `/api/evidence/${encodeURIComponent(inspectionId as string)}/${encodeURIComponent(evidenceEntry.evidenceId)}/download-url`;
+    const signedUrl = await presignEvidenceGet(S3_BUCKET_NAME, evidenceEntry.objectKey, 900);
+    res.status(201).json({
+      ...evidenceEntry,
+      url: signedUrl,
+      downloadUrl,
+    });
   } catch (error) {
     next(error);
   }
+};
+
+/** A private, short-lived download URL for a participant to display an evidence file. */
+export const getEvidenceDownloadUrl = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { inspectionId, evidenceId } = req.params;
+    const [inspectionResult, evidenceResult] = await Promise.all([
+      docClient.send(new GetCommand({ TableName: TABLES.INSPECTIONS, Key: { inspectionId } })),
+      docClient.send(new GetCommand({ TableName: TABLES.EVIDENCE, Key: { inspectionId, evidenceId } })),
+    ]);
+    if (!inspectionResult.Item) return res.status(404).json({ message: 'Inspection not found' });
+    const inspection = inspectionResult.Item as IInspection;
+    const userId = req.user!.userId;
+    if (inspection.landlordId !== userId && inspection.tenantId !== userId && !inspection.participantIds?.includes(userId)) {
+      return res.status(403).json({ message: 'Not authorized to view this evidence' });
+    }
+    const evidence = evidenceResult.Item as IEvidence | undefined;
+    if (!evidence) return res.status(404).json({ message: 'Evidence not found' });
+    const url = await presignEvidenceGet(S3_BUCKET_NAME, evidence.objectKey, 900);
+    return res.json({ url, expiresIn: 900 });
+  } catch (error) { return next(error); }
 };
