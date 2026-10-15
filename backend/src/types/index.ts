@@ -12,7 +12,7 @@ export interface IUser {
   updatedAt: string;
 }
 
-export interface IRoom { roomId: string; name: string }
+export interface IRoom { roomId: string; name: string; category?: string }
 export interface IProperty {
   propertyId: string;
   name: string;

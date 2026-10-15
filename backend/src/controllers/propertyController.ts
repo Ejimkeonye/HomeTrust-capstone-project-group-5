@@ -11,11 +11,27 @@ export const createProperty = async (req: AuthRequest, res: Response, next: Next
     const now = new Date().toISOString();
     const propertyId = uuidv4();
 
-    // Give each room a unique ID
-    const mappedRooms: IRoom[] = (rooms || []).map((r: { name: string }) => ({
-      roomId: uuidv4(),
-      name: r.name,
-    }));
+    if (rooms !== undefined && !Array.isArray(rooms)) {
+      return res.status(400).json({ message: 'rooms must be an array' });
+    }
+    const mappedRooms: IRoom[] = [];
+    const roomIds = new Set<string>();
+    const roomNames = new Set<string>();
+    for (const roomInput of (rooms || [])) {
+      const room = typeof roomInput === 'string' ? { name: roomInput } : roomInput;
+      if (!room || typeof room !== 'object' || typeof room.name !== 'string' || !room.name.trim()) {
+        return res.status(400).json({ message: 'Each room must be a name string or an object with a non-empty name' });
+      }
+      const name = room.name.trim();
+      const normalizedName = name.toLowerCase();
+      const roomId = typeof room.roomId === 'string' ? room.roomId : typeof room.id === 'string' ? room.id : uuidv4();
+      if (roomIds.has(roomId)) return res.status(400).json({ message: `Duplicate room ID: ${roomId}` });
+      if (roomNames.has(normalizedName)) return res.status(400).json({ message: `Duplicate room name: ${name}` });
+      roomIds.add(roomId);
+      roomNames.add(normalizedName);
+      const category = typeof room.category === 'string' ? room.category.trim() : undefined;
+      mappedRooms.push({ roomId, name, ...(category ? { category } : {}) });
+    }
 
     const newProperty: IProperty = {
       propertyId,
@@ -80,35 +96,76 @@ export const getPropertyById = async (req: AuthRequest, res: Response, next: Nex
 
 export const updateProperty = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    const propertyId = req.params.id as string;
     const result = await docClient.send(new GetCommand({
       TableName: TABLES.PROPERTIES,
-      Key: { propertyId: req.params.id },
+      Key: { propertyId },
     }));
 
-    if (!result.Item) {
-      res.status(404);
-      throw new Error('Property not found');
-    }
-
+    if (!result.Item) return res.status(404).json({ message: 'Property not found' });
     const property = result.Item as IProperty;
     if (property.ownerId !== req.user!.userId) {
-      res.status(403);
-      throw new Error('Not authorized to update this property');
+      return res.status(403).json({ message: 'Not authorized to update this property' });
     }
 
-    const { name, address, type } = req.body;
+    const { name, address, type, rooms } = req.body;
+    if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
+      return res.status(400).json({ message: 'name must be a non-empty string' });
+    }
+    if (address !== undefined && typeof address !== 'string') {
+      return res.status(400).json({ message: 'address must be a string' });
+    }
+    if (type !== undefined && (typeof type !== 'string' || !type.trim())) {
+      return res.status(400).json({ message: 'type must be a non-empty string' });
+    }
+
+    let updatedRooms: IRoom[] | undefined;
+    if (rooms !== undefined) {
+      if (!Array.isArray(rooms)) return res.status(400).json({ message: 'rooms must be an array' });
+      const existingRooms = (property.rooms || []).filter((room): room is IRoom => Boolean(room) && typeof room === 'object' && typeof room.roomId === 'string' && typeof room.name === 'string');
+      const existingById = new Map(existingRooms.map(room => [room.roomId, room]));
+      const existingByName = new Map(existingRooms.map(room => [room.name.trim().toLowerCase(), room]));
+      const usedIds = new Set<string>();
+      const usedNames = new Set<string>();
+      updatedRooms = [];
+
+      for (const roomInput of rooms) {
+        const room = typeof roomInput === 'string' ? { name: roomInput } : roomInput;
+        if (!room || typeof room !== 'object' || typeof room.name !== 'string' || !room.name.trim()) {
+          return res.status(400).json({ message: 'Each room must be a name string or an object with a non-empty name' });
+        }
+        const roomName = room.name.trim();
+        const normalizedName = roomName.toLowerCase();
+        if (usedNames.has(normalizedName)) {
+          return res.status(400).json({ message: `Duplicate room name: ${roomName}` });
+        }
+        const suppliedId = typeof room.roomId === 'string' ? room.roomId : typeof room.id === 'string' ? room.id : undefined;
+        const previousRoom = (suppliedId ? existingById.get(suppliedId) : undefined) || existingByName.get(normalizedName);
+        const roomId = previousRoom?.roomId || suppliedId || uuidv4();
+        if (usedIds.has(roomId)) return res.status(400).json({ message: `Duplicate room ID: ${roomId}` });
+        usedIds.add(roomId);
+        usedNames.add(normalizedName);
+        const category = typeof room.category === 'string' ? room.category.trim() : previousRoom?.category;
+        updatedRooms.push({ roomId, name: roomName, ...(category ? { category } : {}) });
+      }
+    }
+
+    const names: Record<string, string> = { '#updatedAt': 'updatedAt' };
+    const values: Record<string, unknown> = { ':updatedAt': new Date().toISOString(), ':ownerId': req.user!.userId };
+    const updates = ['#updatedAt = :updatedAt'];
+    if (name !== undefined) { names['#name'] = 'name'; values[':name'] = name.trim(); updates.push('#name = :name'); }
+    if (address !== undefined) { values[':address'] = address.trim(); updates.push('address = :address'); }
+    if (type !== undefined) { names['#type'] = 'type'; values[':type'] = type.trim(); updates.push('#type = :type'); }
+    if (updatedRooms !== undefined) { values[':rooms'] = updatedRooms; updates.push('rooms = :rooms'); }
+    if (updates.length === 1) return res.status(400).json({ message: 'Provide at least one property field to update' });
 
     const updated = await docClient.send(new UpdateCommand({
       TableName: TABLES.PROPERTIES,
-      Key: { propertyId: req.params.id },
-      UpdateExpression: 'SET #n = :name, address = :address, #t = :type, updatedAt = :updatedAt',
-      ExpressionAttributeNames: { '#n': 'name', '#t': 'type' }, // 'name' and 'type' are reserved words in DynamoDB
-      ExpressionAttributeValues: {
-        ':name': name,
-        ':address': address,
-        ':type': type,
-        ':updatedAt': new Date().toISOString(),
-      },
+      Key: { propertyId },
+      UpdateExpression: `SET ${updates.join(', ')}`,
+      ExpressionAttributeNames: names,
+      ExpressionAttributeValues: values,
+      ConditionExpression: 'ownerId = :ownerId',
       ReturnValues: 'ALL_NEW',
     }));
 
