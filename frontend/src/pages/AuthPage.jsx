@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ArrowLeft, Eye, EyeOff, CheckCircle } from "lucide-react";
+import api from "../api/client";
 
 export default function AuthPage({
   onSuccess,
@@ -9,8 +10,8 @@ export default function AuthPage({
 }) {
   const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -18,7 +19,6 @@ export default function AuthPage({
     email: "",
     phone: "",
     password: "",
-    confirmPassword: "",
     role: "Tenant",
   });
 
@@ -48,7 +48,7 @@ export default function AuthPage({
     setStep(2);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage("");
 
@@ -57,85 +57,41 @@ export default function AuthPage({
       return;
     }
 
-    if (formData.password !== formData.confirmPassword) {
-      setErrorMessage("Passwords do not match.");
-      return;
-    }
-
-    const savedUsers = JSON.parse(
-      localStorage.getItem("hometrust_users_db") || "[]",
-    );
-    const savedProps = JSON.parse(
-      localStorage.getItem("hometrust_properties") || "[]",
-    );
-
     const cleanEmail = formData.email.trim().toLowerCase();
-    const fullName = `${formData.firstName.trim()} ${formData.lastName.trim()}`;
+    const fullName = `${formData.firstName.trim()}${formData.lastName.trim()}`;
+    const backendRole = formData.role.toLowerCase().includes("landlord") ? "Landlord" : "Tenant";
 
-    const existing = savedUsers.find(
-      (u) => u.email?.toLowerCase() === cleanEmail,
-    );
+    try {
+      setIsLoading(true);
 
-    if (existing) {
-      setErrorMessage(
-        "An account with this email already exists. Please log in.",
-      );
-      return;
-    }
-
-    const userId = `usr-${Date.now()}`;
-    let linkedPropertyId = null;
-
-    if (inviteToken) {
-      const updatedProps = savedProps.map((prop) => {
-        if (prop.inviteToken === inviteToken || prop.id === inviteToken) {
-          linkedPropertyId = prop.id;
-          return {
-            ...prop,
-            tenantId: userId,
-            tenantEmail: cleanEmail,
-            tenantName: fullName,
-            status: prop.status === "READ_ONLY" ? "READ_ONLY" : "Tenant Joined",
-          };
-        }
-        return prop;
+      const response = await api.post("/auth/register", {
+        name: fullName,
+        email: cleanEmail,
+        password: formData.password,
+        role: backendRole,
+        phoneNumber: formData.phone.trim(),
       });
-      localStorage.setItem(
-        "hometrust_properties",
-        JSON.stringify(updatedProps),
-      );
-    }
 
-    const userData = {
-      id: userId,
-      firstName: formData.firstName.trim(),
-      lastName: formData.lastName.trim(),
-      name: fullName,
-      email: cleanEmail,
-      phone: formData.phone.trim(),
-      password: formData.password,
-      role: formData.role.toLowerCase().includes("landlord") ? "landlord" : "tenant",
-      activePropertyId: linkedPropertyId,
-    };
+      const { token, ...userData } = response.data;
 
-    savedUsers.push(userData);
-    localStorage.setItem("hometrust_users_db", JSON.stringify(savedUsers));
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(userData));
 
-    const sessionData = {
-      ...userData,
-      activePropertyId: linkedPropertyId,
-    };
+      const sessionData = {
+        ...userData,
+        token,
+      };
 
-    localStorage.setItem("hometrust_token", `token-${Date.now()}`);
-    localStorage.setItem("hometrust_user", JSON.stringify(userData));
-    localStorage.setItem(
-      "hometrust_current_session",
-      JSON.stringify(sessionData),
-    );
-
-    const triggerSuccess = onSuccess || onAuthSuccess;
-    if (triggerSuccess) {
-      triggerSuccess(sessionData);
+      const triggerSuccess = onSuccess || onAuthSuccess;
+      if (triggerSuccess) {
+        triggerSuccess(sessionData);
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      const errorMsg = error.response?.data?.message || "Registration failed. Please check your network or details.";
+      setErrorMessage(errorMsg);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -304,34 +260,6 @@ export default function AuthPage({
 
             <div>
               <label className="block text-xs font-bold text-slate-900 mb-1">
-                Confirm password
-              </label>
-              <div className="relative">
-                <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  name="confirmPassword"
-                  required
-                  placeholder="••••••••"
-                  value={formData.confirmPassword}
-                  onChange={handleChange}
-                  className="w-full bg-slate-100/80 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-700 pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600"
-                >
-                  {showConfirmPassword ? (
-                    <EyeOff className="w-4 h-4" />
-                  ) : (
-                    <Eye className="w-4 h-4" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-900 mb-1">
                 Role
               </label>
               <select
@@ -351,9 +279,10 @@ export default function AuthPage({
             <div className="pt-2">
               <button
                 type="submit"
-                className="w-full bg-purple-800 hover:bg-purple-900 text-white font-bold text-base py-3.5 rounded-2xl shadow-md transition-all cursor-pointer"
+                disabled={isLoading}
+                className="w-full bg-purple-800 hover:bg-purple-900 text-white font-bold text-base py-3.5 rounded-2xl shadow-md transition-all cursor-pointer disabled:opacity-50"
               >
-                Submit
+                {isLoading ? "Creating account..." : "Submit"}
               </button>
             </div>
           </form>

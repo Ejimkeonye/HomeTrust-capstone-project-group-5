@@ -7,6 +7,7 @@ import {
   KeyRound,
   CheckCircle,
 } from "lucide-react";
+import api from "../api/client"; // <-- 1. Import your central API client
 
 export default function LoginPage({
   onAuthSuccess,
@@ -17,6 +18,7 @@ export default function LoginPage({
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false); // <-- Loading state
 
   // Forgot Password State
   const [isResettingPassword, setIsResettingPassword] = useState(false);
@@ -24,96 +26,52 @@ export default function LoginPage({
   const [newPassword, setNewPassword] = useState("");
   const [resetSuccess, setResetSuccess] = useState("");
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMessage("");
 
-    const savedUsers = JSON.parse(
-      localStorage.getItem("hometrust_users_db") || "[]",
-    );
-    const savedProps = JSON.parse(
-      localStorage.getItem("hometrust_properties") || "[]",
-    );
-    const cleanInput = identifier.trim().toLowerCase();
+    const cleanIdentifier = identifier.trim().toLowerCase();
 
-    const existingUser = savedUsers.find(
-      (u) =>
-        (u.email && u.email.toLowerCase() === cleanInput) ||
-        (u.name && u.name.toLowerCase() === cleanInput),
-    );
+    try {
+      setIsLoading(true);
 
-    if (!existingUser) {
-      setErrorMessage("No account found with that email or name.");
-      return;
+      // 2. Call the live backend login endpoint
+      const response = await api.post("/auth/login", {
+        email: cleanIdentifier,
+        password: password,
+      });
+
+      // Backend returns user profile data + the JWT token
+      const { token, ...userData } = response.data;
+
+      // Save real JWT token and user session data
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(userData));
+
+      const sessionData = {
+        ...userData,
+        token,
+      };
+
+      if (onAuthSuccess) {
+        onAuthSuccess(sessionData);
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      const errorMsg = error.response?.data?.message || "Invalid email or password. Please try again.";
+      setErrorMessage(errorMsg);
+    } finally {
+      setIsLoading(false);
     }
-
-    if (existingUser.password !== password) {
-      setErrorMessage("Incorrect password. Please try again.");
-      return;
-    }
-
-    const userProp = savedProps.find(
-      (p) =>
-        (existingUser.activePropertyId &&
-          p.id === existingUser.activePropertyId) ||
-        (p.tenantId && p.tenantId === existingUser.id) ||
-        (p.tenantEmail &&
-          p.tenantEmail.toLowerCase() === existingUser.email?.toLowerCase()),
-    );
-
-    const sessionData = {
-      ...existingUser,
-      activePropertyId: userProp?.id || existingUser.activePropertyId || null,
-    };
-
-    localStorage.setItem("hometrust_token", `token-${Date.now()}`);
-    localStorage.setItem("hometrust_user", JSON.stringify(existingUser));
-    localStorage.setItem(
-      "hometrust_current_session",
-      JSON.stringify(sessionData),
-    );
-
-    onAuthSuccess(sessionData);
   };
 
-  // Reset Password Handler
+  // Reset Password Handler (Keep as-is or connect to backend if available later)
   const handleResetSubmit = (e) => {
     e.preventDefault();
     setErrorMessage("");
     setResetSuccess("");
-
-    const savedUsers = JSON.parse(
-      localStorage.getItem("hometrust_users_db") || "[]",
-    );
-    const cleanEmail = resetEmail.trim().toLowerCase();
-
-    const userIndex = savedUsers.findIndex(
-      (u) => u.email && u.email.toLowerCase() === cleanEmail,
-    );
-
-    if (userIndex === -1) {
-      setErrorMessage("No account found with this email address.");
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      setErrorMessage("New password must be at least 6 characters long.");
-      return;
-    }
-
-    // Update user password in local storage
-    savedUsers[userIndex].password = newPassword;
-    localStorage.setItem("hometrust_users_db", JSON.stringify(savedUsers));
-
-    setResetSuccess("Password updated successfully! You can now sign in.");
-
-    // Switch back to login form after brief delay
-    setTimeout(() => {
-      setIsResettingPassword(false);
-      setIdentifier(resetEmail);
-      setPassword("");
-      setResetSuccess("");
-    }, 1800);
+    // (If your backend has a password reset route, you can hook it up here later)
+    setResetSuccess("Password reset feature coming soon via backend.");
   };
 
   return (
@@ -244,9 +202,10 @@ export default function LoginPage({
                 <div className="pt-2">
                   <button
                     type="submit"
-                    className="w-full bg-purple-800 hover:bg-purple-900 text-white font-bold text-sm py-3.5 rounded-xl shadow-md transition-all cursor-pointer active:scale-[0.99]"
+                    disabled={isLoading}
+                    className="w-full bg-purple-800 hover:bg-purple-900 text-white font-bold text-sm py-3.5 rounded-xl shadow-md transition-all cursor-pointer active:scale-[0.99] disabled:opacity-50"
                   >
-                    Sign in
+                    {isLoading ? "Signing in..." : "Sign in"}
                   </button>
                 </div>
               </form>

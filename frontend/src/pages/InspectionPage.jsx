@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ArrowLeft,
   Camera,
@@ -16,58 +16,27 @@ import {
   X,
   UserPlus,
 } from "lucide-react";
+import api from "../api/client"; // Live API client connected to Render backend
 import InvitePartyModal from "../components/InvitePartyModal";
 import InviteLinkSent from "../components/InviteLinkSent";
 
 const INITIAL_CATEGORIES = ["All", "Rooms", "Kitchen", "Bathrooms"];
 
 const CONDITION_OPTIONS = [
-  {
-    id: "no_issue",
-    label: "No issue",
-    icon: CheckCircle2,
-    color: "text-emerald-600",
-  },
-  {
-    id: "stains",
-    label: "Stains",
-    icon: AlertTriangle,
-    color: "text-amber-600",
-  },
-  {
-    id: "cracks",
-    label: "Cracks",
-    icon: AlertTriangle,
-    color: "text-orange-600",
-  },
+  { id: "no_issue", label: "No issue", icon: CheckCircle2, color: "text-emerald-600" },
+  { id: "stains", label: "Stains", icon: AlertTriangle, color: "text-amber-600" },
+  { id: "cracks", label: "Cracks", icon: AlertTriangle, color: "text-orange-600" },
   { id: "broken", label: "Broken", icon: XCircle, color: "text-red-600" },
 ];
 
 const SEVERITIES = [
-  {
-    id: "Minor",
-    label: "Minor",
-    style: "bg-blue-50 text-blue-700 border-blue-200",
-  },
-  {
-    id: "Moderate",
-    label: "Moderate",
-    style: "bg-amber-50 text-amber-700 border-amber-200",
-  },
-  {
-    id: "Major",
-    label: "Major",
-    style: "bg-orange-50 text-orange-700 border-orange-200",
-  },
-  {
-    id: "Critical",
-    label: "Critical",
-    style: "bg-red-50 text-red-700 border-red-200",
-  },
+  { id: "Minor", label: "Minor", style: "bg-blue-50 text-blue-700 border-blue-200" },
+  { id: "Moderate", label: "Moderate", style: "bg-amber-50 text-amber-700 border-amber-200" },
+  { id: "Major", label: "Major", style: "bg-orange-50 text-orange-700 border-orange-200" },
+  { id: "Critical", label: "Critical", style: "bg-red-50 text-red-700 border-red-200" },
 ];
 
-const DEFAULT_IMAGE =
-  "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80";
+const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80";
 
 const compressImage = (file) => {
   return new Promise((resolve) => {
@@ -82,8 +51,7 @@ const compressImage = (file) => {
         const scaleFactor = MAX_WIDTH / img.width;
 
         canvas.width = img.width > MAX_WIDTH ? MAX_WIDTH : img.width;
-        canvas.height =
-          img.width > MAX_WIDTH ? img.height * scaleFactor : img.height;
+        canvas.height = img.width > MAX_WIDTH ? img.height * scaleFactor : img.height;
 
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -109,13 +77,12 @@ export default function InspectionPage({
   const isReadOnly = safeProperty?.status === "READ_ONLY";
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedRoomId, setSelectedRoomId] = useState(null);
+  const [inspectionId, setInspectionId] = useState(null);
 
   // Property Custom Banner Photo State
   const [propertyImage, setPropertyImage] = useState(() => {
     try {
-      const saved = localStorage.getItem(
-        `hometrust_property_image_${safeProperty?.id}`,
-      );
+      const saved = localStorage.getItem(`hometrust_property_image_${safeProperty?.propertyId || safeProperty?.id}`);
       if (saved) return saved;
     } catch (e) {
       console.error(e);
@@ -151,12 +118,11 @@ export default function InspectionPage({
   const [disputeNote, setDisputeNote] = useState("");
   const [disputeSeverity, setDisputeSeverity] = useState("Minor");
 
-  // Main Inspection Data State
+  // Main Inspection Data State (Initialized from LocalStorage for instant UI, then synced with backend)
   const [roomsData, setRoomsData] = useState(() => {
     try {
-      const saved = localStorage.getItem(
-        `hometrust_inspection_v5_${safeProperty?.id}`,
-      );
+      const propIdKey = safeProperty?.propertyId || safeProperty?.id;
+      const saved = localStorage.getItem(`hometrust_inspection_v5_${propIdKey}`);
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.error(e);
@@ -165,31 +131,10 @@ export default function InspectionPage({
     return [
       {
         id: "room-1",
-        name: "Main Bedroom",
+        name: "Living Room",
         category: "Rooms",
         items: [
-          {
-            id: "item-101",
-            name: "Curtains",
-            condition: "no_issue",
-            notes: "",
-            photos: [],
-            status: "Normal",
-          },
-          {
-            id: "item-102",
-            name: "Cabinet",
-            condition: "broken",
-            notes: "Hinge is completely broken",
-            photos: [],
-            status: "Under Review",
-            dispute: {
-              severity: "Major",
-              description: "Door hinge detached from side wall",
-              raisedBy: "tenant",
-              timestamp: new Date().toLocaleDateString(),
-            },
-          },
+          { id: "item-101", name: "Main Area", condition: "no_issue", notes: "", photos: [], status: "Normal" },
         ],
       },
       {
@@ -197,22 +142,7 @@ export default function InspectionPage({
         name: "Kitchen",
         category: "Kitchen",
         items: [
-          {
-            id: "item-201",
-            name: "Kitchen Sink & Cabinets",
-            condition: "no_issue",
-            notes: "",
-            photos: [],
-            status: "Normal",
-          },
-          {
-            id: "item-202",
-            name: "Gas Stove & Extractor",
-            condition: "stains",
-            notes: "Burn marks near back burner",
-            photos: [],
-            status: "Under Review",
-          },
+          { id: "item-201", name: "Kitchen Sink & Cabinets", condition: "no_issue", notes: "", photos: [], status: "Normal" },
         ],
       },
       {
@@ -220,34 +150,45 @@ export default function InspectionPage({
         name: "Main Bathroom",
         category: "Bathrooms",
         items: [
-          {
-            id: "item-301",
-            name: "Shower & Tub",
-            condition: "no_issue",
-            notes: "",
-            photos: [],
-            status: "Normal",
-          },
-          {
-            id: "item-302",
-            name: "Vanity Cabinet",
-            condition: "no_issue",
-            notes: "",
-            photos: [],
-            status: "Normal",
-          },
+          { id: "item-301", name: "Shower & Tub", condition: "no_issue", notes: "", photos: [], status: "Normal" },
         ],
       },
     ];
   });
 
+  // Background Backend Sync Initialization
+  useEffect(() => {
+    const initInspectionBackend = async () => {
+      const targetPropId = safeProperty?.propertyId || safeProperty?.id;
+      if (!targetPropId) return;
+
+      try {
+        const res = await api.get(`/inspections/property/${targetPropId}`);
+        const inspections = res.data?.inspections || res.data || [];
+        
+        if (inspections.length > 0) {
+          setInspectionId(inspections[0].inspectionId || inspections[0].id);
+        } else {
+          const createRes = await api.post("/inspections", {
+            propertyId: targetPropId,
+            mode: "Full",
+          });
+          const newInsp = createRes.data?.inspection || createRes.data;
+          setInspectionId(newInsp.inspectionId || newInsp.id);
+        }
+      } catch (err) {
+        console.warn("Backend sync notice (running offline/local mode):", err?.message);
+      }
+    };
+
+    initInspectionBackend();
+  }, [safeProperty?.propertyId, safeProperty?.id]);
+
   const saveRooms = (updatedData) => {
     setRoomsData(updatedData);
     try {
-      localStorage.setItem(
-        `hometrust_inspection_v5_${safeProperty?.id}`,
-        JSON.stringify(updatedData),
-      );
+      const propIdKey = safeProperty?.propertyId || safeProperty?.id;
+      localStorage.setItem(`hometrust_inspection_v5_${propIdKey}`, JSON.stringify(updatedData));
     } catch (e) {
       console.error(e);
     }
@@ -260,16 +201,14 @@ export default function InspectionPage({
     const compressedUrl = await compressImage(file);
     setPropertyImage(compressedUrl);
     try {
-      localStorage.setItem(
-        `hometrust_property_image_${safeProperty?.id}`,
-        compressedUrl,
-      );
+      const propIdKey = safeProperty?.propertyId || safeProperty?.id;
+      localStorage.setItem(`hometrust_property_image_${propIdKey}`, compressedUrl);
     } catch (err) {
       console.error(err);
     }
   };
 
-  const handleAddRoom = (e) => {
+  const handleAddRoom = async (e) => {
     e.preventDefault();
     if (!newRoomName.trim()) return;
 
@@ -278,9 +217,13 @@ export default function InspectionPage({
         ? customCategory.trim()
         : newRoomCategory;
 
+    const roomNameTrimmed = newRoomName.trim();
+    const newRoomId = `room-${Date.now()}`;
+    
     const newRoom = {
-      id: `room-${Date.now()}`,
-      name: newRoomName.trim(),
+      id: newRoomId,
+      roomId: newRoomId, // 🛠️ Ensure roomId matches backend property schema expectations
+      name: roomNameTrimmed,
       category: finalCategory,
       items: [
         {
@@ -300,9 +243,32 @@ export default function InspectionPage({
     setCustomCategory("");
     setIsAddingCustomCategory(false);
     setAddRoomModalOpen(false);
+
+    // 🛠️ IMMEDIATELY REGISTER THE CUSTOM ROOM ON THE BACKEND PROPERTY SCHEMA
+    const targetPropId = safeProperty?.propertyId || safeProperty?.id;
+    if (targetPropId) {
+      try {
+        const currentRoomsList = updated.map((r) => ({ 
+          roomId: r.id || r.roomId, 
+          name: r.name, 
+          category: r.category 
+        }));
+        
+        await api.put(`/properties/${targetPropId}`, {
+          name: safeProperty.name || "Property",
+          address: safeProperty.address,
+          type: safeProperty.type || "Apartment",
+          flatNo: safeProperty.flatNo || "1",
+          image: safeProperty.image || DEFAULT_IMAGE,
+          rooms: currentRoomsList,
+        });
+      } catch (err) {
+        console.warn("Failed to register custom room on backend property:", err?.response?.data || err?.message);
+      }
+    }
   };
 
-  const handleDeleteRoom = (roomId, e) => {
+  const handleDeleteRoom = async (roomId, e) => {
     if (e) e.stopPropagation();
     if (
       !window.confirm(
@@ -316,6 +282,22 @@ export default function InspectionPage({
     if (selectedRoomId === roomId) {
       setSelectedRoomId(null);
     }
+
+    // Background Backend Sync for Deletion
+    const targetPropId = safeProperty?.propertyId || safeProperty?.id;
+    if (targetPropId) {
+      try {
+        const currentRoomsList = updated.map((r) => ({ roomId: r.id, name: r.name, category: r.category }));
+        await api.put(`/properties/${targetPropId}`, {
+          name: safeProperty.name || "Property",
+          address: safeProperty.address,
+          type: safeProperty.type || "Apartment",
+          rooms: currentRoomsList,
+        });
+      } catch (err) {
+        console.warn("Backend deletion sync note:", err?.message);
+      }
+    }
   };
 
   const handleSaveRoomName = (roomId) => {
@@ -327,9 +309,12 @@ export default function InspectionPage({
     setIsEditingRoomName(false);
   };
 
-  const handleAddItem = (e) => {
+  const handleAddItem = async (e) => {
     e.preventDefault();
     if (!newItemName.trim() || !selectedRoomId) return;
+
+    const targetRoom = roomsData.find((r) => r.id === selectedRoomId);
+    const newItemId = `item-${Date.now()}`;
 
     const updated = roomsData.map((room) => {
       if (room.id === selectedRoomId) {
@@ -338,7 +323,8 @@ export default function InspectionPage({
           items: [
             ...room.items,
             {
-              id: `item-${Date.now()}`,
+              id: newItemId,
+              roomItemId: newItemId,
               name: newItemName.trim(),
               condition: "no_issue",
               notes: "",
@@ -354,6 +340,20 @@ export default function InspectionPage({
     saveRooms(updated);
     setNewItemName("");
     setAddItemModalOpen(false);
+
+    // Background Backend Sync for Item Creation
+    if (inspectionId) {
+      try {
+        await api.post(`/inspections/${inspectionId}/items`, {
+          roomId: targetRoom?.name || "General Area",
+          itemName: newItemName.trim(),
+          condition: "no_issue",
+          notes: "",
+        });
+      } catch (err) {
+        console.warn("Backend item sync note:", err?.message);
+      }
+    }
   };
 
   const handleDeleteItem = (roomId, itemId) => {
@@ -361,7 +361,7 @@ export default function InspectionPage({
       if (room.id === roomId) {
         return {
           ...room,
-          items: room.items.filter((i) => i.id !== itemId),
+          items: room.items.filter((i) => i.id !== itemId && i.roomItemId !== itemId),
         };
       }
       return room;
@@ -369,13 +369,14 @@ export default function InspectionPage({
     saveRooms(updated);
   };
 
-  const updateItemData = (roomId, itemId, fields) => {
+  const updateItemData = async (roomId, itemId, fields) => {
+    // 1. Update local state immediately for snappy UI
     const updated = roomsData.map((room) => {
       if (room.id === roomId) {
         return {
           ...room,
           items: room.items.map((item) => {
-            if (item.id === itemId) {
+            if (item.id === itemId || item.roomItemId === itemId) {
               const updatedItem = { ...item, ...fields };
 
               if (fields.condition === "no_issue") {
@@ -393,30 +394,46 @@ export default function InspectionPage({
       return room;
     });
     saveRooms(updated);
+
+    // 2. Sync cleanly to backend without 404ing
+    if (inspectionId) {
+      try {
+        const targetRoom = roomsData.find((r) => r.id === roomId);
+        const targetItem = targetRoom?.items.find((i) => i.id === itemId || i.roomItemId === itemId);
+        
+        let backendRoomItemId = targetItem?.roomItemId;
+
+        // If it's a local-only item or default template item that hasn't been created on the backend yet, create it first!
+        if (!backendRoomItemId || String(backendRoomItemId).startsWith("item-")) {
+          const createRes = await api.post(`/inspections/${inspectionId}/items`, {
+            roomId: targetRoom?.name || "Living Room",
+            itemName: targetItem?.name || "General Amenity",
+            condition: fields.condition || targetItem?.condition || "no_issue",
+            notes: fields.notes !== undefined ? fields.notes : targetItem?.notes || "",
+          });
+          
+          backendRoomItemId = createRes.data?.roomItemId;
+          
+          // Save the real backend ID back into local state so future patches work instantly
+          if (backendRoomItemId) {
+            targetItem.roomItemId = backendRoomItemId;
+          }
+          return; // Creation handled the condition/notes, so we can return here
+        }
+
+        // If it already exists on the backend, patch it normally
+        await api.patch(`/inspections/${inspectionId}/items/${backendRoomItemId}`, {
+          condition: fields.condition !== undefined ? fields.condition : undefined,
+          notes: fields.notes !== undefined ? fields.notes : undefined,
+        });
+      } catch (err) {
+        console.warn("Backend sync notice:", err?.response?.data || err?.message);
+      }
+    }
   };
 
   const handleClearDispute = (roomId, itemId) => {
-    const updated = roomsData.map((room) => {
-      if (room.id === roomId) {
-        return {
-          ...room,
-          items: room.items.map((item) => {
-            if (item.id === itemId) {
-              const updatedItem = {
-                ...item,
-                condition: "no_issue",
-                status: "Normal",
-              };
-              delete updatedItem.dispute;
-              return updatedItem;
-            }
-            return item;
-          }),
-        };
-      }
-      return room;
-    });
-    saveRooms(updated);
+    updateItemData(roomId, itemId, { condition: "no_issue", notes: "" });
   };
 
   const handlePhotoUpload = async (roomId, itemId, e) => {
@@ -438,7 +455,7 @@ export default function InspectionPage({
         return {
           ...room,
           items: room.items.map((item) => {
-            if (item.id === itemId) {
+            if (item.id === itemId || item.roomItemId === itemId) {
               return {
                 ...item,
                 photos: [...(item.photos || []), ...compressedPhotos],
@@ -460,7 +477,7 @@ export default function InspectionPage({
 
     const targetRoom = roomsData.find((r) => r.id === disputeTarget.roomId);
     const targetItem = targetRoom?.items.find(
-      (i) => i.id === disputeTarget.itemId,
+      (i) => i.id === disputeTarget.itemId || i.roomItemId === disputeTarget.itemId,
     );
 
     const newCondition =
@@ -561,7 +578,10 @@ export default function InspectionPage({
 
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
+                if (inspectionId) {
+                  try { await api.post(`/inspections/${inspectionId}/submit`); } catch (err) { console.error(err); }
+                }
                 if (onCompleteInspection) {
                   onCompleteInspection(roomsData);
                 }

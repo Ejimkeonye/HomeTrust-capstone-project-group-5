@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import LandingPage from "./pages/LandingPage";
 import WelcomePage from "./pages/WelcomePage";
 import AuthPage from "./pages/AuthPage";
@@ -17,6 +17,8 @@ import EvidenceReviewPage from "./pages/EvidenceReviewPage";
 import MoveOutSignaturesPage from "./pages/MoveOutSignaturesPage";
 import MoveOutInspectionReportPage from "./pages/MoveOutInspectionReportPage";
 import NotificationsPage from "./pages/NotificationsPage";
+import ProfilePage from "./pages/ProfilePage";
+import api from "./api/client"; // Live API client connected to Render backend
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -29,29 +31,18 @@ export default function App() {
     }
   });
 
-  const [inviteToken] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("propertyId") || params.get("token");
-  });
-
-  // Properties State (loads from local storage or defaults to an empty array)
-  const [properties, setProperties] = useState(() => {
-    try {
-      const saved = localStorage.getItem("hometrust_properties");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  // Currently selected property for inspection/reports (defaults to null if list is empty)
-  const [selectedProperty, setSelectedProperty] = useState(properties[0] || null);
-  
+  const [properties, setProperties] = useState([]);
+  const [selectedProperty, setSelectedProperty] = useState(null);
   const [selectedInspectionData, setSelectedInspectionData] = useState({});
   const [moveOutInspectionData, setMoveOutInspectionData] = useState({}); 
   const [signatures, setSignatures] = useState({ landlord: null, tenant: null });
   const [moveOutSignatures, setMoveOutSignatures] = useState({ landlord: null, tenant: null });
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+
+  const [inviteToken] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("propertyId") || params.get("token");
+  });
 
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -60,6 +51,30 @@ export default function App() {
     const activeSession = localStorage.getItem("hometrust_current_session");
     return activeSession ? "dashboard" : "landing";
   });
+
+  // Fetch properties from the backend database whenever currentUser changes (logging in)
+  useEffect(() => {
+    const fetchCloudProperties = async () => {
+      if (!currentUser) {
+        setProperties([]);
+        setSelectedProperty(null);
+        return;
+      }
+
+      try {
+        const response = await api.get("/properties");
+        const cloudProps = response.data?.properties || response.data || [];
+        setProperties(cloudProps);
+        if (cloudProps.length > 0) {
+          setSelectedProperty(cloudProps[0]);
+        }
+      } catch (err) {
+        console.error("Failed to load properties from backend:", err);
+      }
+    };
+
+    fetchCloudProperties();
+  }, [currentUser]);
 
   const handleAuthSuccess = (userData) => {
     setCurrentUser(userData);
@@ -70,44 +85,37 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem("hometrust_current_session");
     setCurrentUser(null);
+    setProperties([]);
+    setSelectedProperty(null);
     setCurrentView("login");
   };
 
-  // Add a brand new property to the portfolio
   const handleAddNewProperty = (newPropData) => {
-    const defaultImage = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=400&q=80";
-    const newProperty = {
-      id: `prop-${Date.now()}`,
-      createdById: currentUser?.id,
-      name: newPropData.address || "New Property",
-      address: newPropData.address,
-      flatNo: newPropData.flatNo || "1",
-      image: newPropData.image || defaultImage,
-      progress: 0,
-      rooms: [
-        { name: "Living Room", category: "Rooms", items: [] },
-        { name: "Master Bedroom", category: "Rooms", items: [] },
-      ],
-      ...newPropData,
-    };
-
-    const updatedList = [newProperty, ...properties];
+    // When a property is successfully created via modal, append it locally or refetch
+    const updatedList = [newPropData, ...properties];
     setProperties(updatedList);
-    localStorage.setItem("hometrust_properties", JSON.stringify(updatedList));
-    setSelectedProperty(newProperty);
+    setSelectedProperty(newPropData);
   };
 
-  // Delete a property from state, local storage, and handle active selection fallback
-  const handleDeleteProperty = (propertyId) => {
-    const updatedList = properties.filter((p) => p.id !== propertyId);
-    
-    // If all are deleted, active property becomes null
+  const handleDeleteProperty = async (propertyId) => {
+    try {
+      // 1. Permanently delete from backend database
+      await api.delete(`/properties/${propertyId}`);
+
+      // 2. Clear local browser storage caches for this property
+      localStorage.removeItem(`hometrust_inspection_v5_${propertyId}`);
+      localStorage.removeItem(`hometrust_property_image_${propertyId}`);
+      sessionStorage.removeItem(`active_rooms_${propertyId}`);
+    const updatedList = properties.filter((p) => p.propertyId !== propertyId && p.id !== propertyId);
     const nextList = updatedList.length > 0 ? updatedList : [];
-    const nextActive = selectedProperty?.id === propertyId ? (nextList[0] || null) : selectedProperty;
+    const nextActive = selectedProperty?.propertyId === propertyId || selectedProperty?.id === propertyId ? (nextList[0] || null) : selectedProperty;
 
     setProperties(nextList);
     setSelectedProperty(nextActive);
-    localStorage.setItem("hometrust_properties", JSON.stringify(nextList));
+  } catch (err) {
+      console.error("Failed to delete property from backend:", err.response?.data || err.message);
+      alert("Failed to delete property from server. Please try again.");
+    }
   };
 
   return (
@@ -138,25 +146,12 @@ export default function App() {
           onCompleteOnboarding={(user) => { 
             setCurrentUser(user);
             localStorage.setItem("hometrust_current_session", JSON.stringify(user));
-
-            // Automatically sync the invited property into this user's local state!
-            if (inviteToken) {
-              const allProperties = JSON.parse(localStorage.getItem("hometrust_properties") || "[]");
-              const targetProperty = allProperties.find(p => p.id === inviteToken || p.inviteToken === inviteToken);
-              
-              if (targetProperty) {
-                setProperties([targetProperty]);
-                setSelectedProperty(targetProperty);
-                localStorage.setItem("hometrust_properties", JSON.stringify([targetProperty]));
-              }
-            }
-
             setCurrentView("dashboard"); 
           }} 
         />
       )}
 
-      {/* Dashboard View with Multi-Property Support */}
+      {/* Dashboard View */}
       {currentView === "dashboard" && (
         <DashboardPage
           user={currentUser}
@@ -181,14 +176,21 @@ export default function App() {
             setIsInviteModalOpen(true);
           }}
           onOpenNotifications={() => setCurrentView("notifications")}
+          onOpenProfile={() => setCurrentView("profile")}
         />
       )}
 
       {currentView === "notifications" && (
-  <NotificationsPage
-    onBack={() => setCurrentView("dashboard")}
-  />
-)}
+        <NotificationsPage onBack={() => setCurrentView("dashboard")} />
+      )}
+
+      {currentView === "profile" && (
+        <ProfilePage 
+          user={currentUser} 
+          onBack={() => setCurrentView("dashboard")} 
+          onLogout={handleLogout} 
+        />
+      )}
 
       {currentView === "inspection" && (
         <InspectionPage
@@ -198,23 +200,18 @@ export default function App() {
           onCompleteInspection={(data) => {
             setSelectedInspectionData(data);
              if (selectedProperty) {
-        const updatedProperty = {
-          ...selectedProperty,
-          progress: 100,
-        };
-        const updatedProperties = properties.map((p) =>
-          p.id === selectedProperty.id ? updatedProperty : p
-        );
-        setProperties(updatedProperties);
-        localStorage.setItem("hometrust_properties", JSON.stringify(updatedProperties));
-        setSelectedProperty(updatedProperty);
-      }
+              const updatedProperty = { ...selectedProperty, progress: 100 };
+              const updatedProperties = properties.map((p) =>
+                (p.propertyId === selectedProperty.propertyId || p.id === selectedProperty.id) ? updatedProperty : p
+              );
+              setProperties(updatedProperties);
+              setSelectedProperty(updatedProperty);
+            }
             setCurrentView("evidence-review");
           }}
         />
       )}
 
-      {/* Move-Out Inspection Route */}
       {currentView === "move-out-inspection" && (
         <MoveOutInspectionPage
           property={selectedProperty}
@@ -223,21 +220,19 @@ export default function App() {
           onCompleteMoveOutInspection={(moveOutData) => {
             setMoveOutInspectionData(moveOutData);
             if (selectedProperty) {
-        const updatedProperties = properties.map((prop) =>
-          prop.id === selectedProperty.id
-            ? { ...prop, moveOutProgress: 100, moveOutStatus: "ACTIVE" }
-            : prop
-        );
-        setProperties(updatedProperties);
-        localStorage.setItem("hometrust_properties", JSON.stringify(updatedProperties));
-        setSelectedProperty({ ...selectedProperty, moveOutProgress: 100, moveOutStatus: "ACTIVE" });
-      }
+              const updatedProperties = properties.map((prop) =>
+                (prop.propertyId === selectedProperty.propertyId || prop.id === selectedProperty.id)
+                  ? { ...prop, moveOutProgress: 100, moveOutStatus: "ACTIVE" }
+                  : prop
+              );
+              setProperties(updatedProperties);
+              setSelectedProperty({ ...selectedProperty, moveOutProgress: 100, moveOutStatus: "ACTIVE" });
+            }
             setCurrentView("move-out-evidence"); 
           }}
         />
       )}
 
-      {/* Move-Out Evidence Library Route */}
       {currentView === "move-out-evidence" && (
         <MoveOutEvidencePage
           property={selectedProperty}
@@ -247,7 +242,6 @@ export default function App() {
         />
       )}
 
-      {/* Combined Move-In & Move-Out Side-by-Side View Route */}
       {currentView === "move-in-out-records" && (
         <MoveInOutRecordsView
           property={selectedProperty}
@@ -258,7 +252,6 @@ export default function App() {
         />
       )}
 
-      {/* Move-Out Signatures Route */}
       {currentView === "move-out-signatures" && (
         <MoveOutSignaturesPage
           property={selectedProperty}
@@ -271,7 +264,6 @@ export default function App() {
         />
       )}
 
-      {/* Move-Out Final Inspection Report Route */}
       {currentView === "move-out-report" && (
         <MoveOutInspectionReportPage
           property={selectedProperty}
@@ -301,9 +293,8 @@ export default function App() {
             if (selectedProperty) {
               const lockedProp = { ...selectedProperty, status: "READ_ONLY" };
               setSelectedProperty(lockedProp);
-              const updatedList = properties.map(p => p.id === lockedProp.id ? lockedProp : p);
+              const updatedList = properties.map(p => (p.propertyId === lockedProp.propertyId || p.id === lockedProp.id) ? lockedProp : p);
               setProperties(updatedList);
-              localStorage.setItem("hometrust_properties", JSON.stringify(updatedList));
             }
             setCurrentView("inspection-report");
           }}
