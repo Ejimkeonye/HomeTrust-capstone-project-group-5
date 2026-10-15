@@ -12,12 +12,16 @@ export interface IUser {
   updatedAt: string;
 }
 
-export interface IRoom { roomId: string; name: string }
+export interface IRoom { roomId: string; name: string; category?: string }
 export interface IProperty {
   propertyId: string;
   name: string;
   address: string;
   type: string;
+  /** Unit or flat number within the property. */
+  flatNo?: string;
+  /** Property image URL or S3 object key. */
+  image?: string;
   ownerId: string;
   rooms: IRoom[];
   createdAt: string;

@@ -59,7 +59,7 @@ Registration defaults role to `Landlord`; frontend should send the intended role
 | POST | `/api/properties` | Yes; all roles including Tenant | Create property: `{ "name": "Sunshine Estate", "address": "Ikeja, Lagos", "type": "Apartment", "rooms": [{ "name": "Kitchen" }, { "name": "Bedroom" }] }`. |
 | GET | `/api/properties` | Yes | List properties owned by the signed-in user; returns `{ properties, total }`. |
 | GET | `/api/properties/:id` | Yes | Get property details by ID. |
-| PUT | `/api/properties/:id` | Yes; all roles including Tenant | Update `{ "name": "...", "address": "...", "type": "..." }`; only owner may update. |
+| PUT | `/api/properties/:id` | Yes; all roles including Tenant | Update any subset of `name`, `address`, `type`, and `rooms`. `rooms` accepts names or objects with `name` and optional `roomId`/`id`/`category`; the backend preserves known room IDs by ID or matching name. Only the owner may update. |
 | DELETE | `/api/properties/:id` | Yes; owner only | Delete the property. Returns `{ "message": "Property deleted", "propertyId": "..." }`. Existing inspection/evidence records are not deleted by this operation. |
 
 Property records include generated `propertyId`, `ownerId`, timestamps, and `rooms` with generated `roomId` values.
