@@ -1,4 +1,4 @@
-﻿# HomeTrust Backend API
+# HomeTrust Backend API
 
 Express and TypeScript API for the HomeTrust move-in/move-out inspection app. DynamoDB stores users, properties, inspections, room items, evidence metadata, and invitations. Evidence files are uploaded directly to a private S3 bucket using a presigned-upload Lambda.
 
@@ -56,10 +56,10 @@ Registration defaults role to `Landlord`; frontend should send the intended role
 
 | Method | Path | Auth | Purpose / request |
 | --- | --- | --- | --- |
-| POST | `/api/properties` | Yes; Landlord/Realtor/Property Manager | Create property: `{ "name": "Sunshine Estate", "address": "Ikeja, Lagos", "type": "Apartment", "rooms": [{ "name": "Kitchen" }, { "name": "Bedroom" }] }`. |
+| POST | `/api/properties` | Yes; all roles including Tenant | Create property: `{ "name": "Sunshine Estate", "address": "Ikeja, Lagos", "type": "Apartment", "rooms": [{ "name": "Kitchen" }, { "name": "Bedroom" }] }`. |
 | GET | `/api/properties` | Yes | List properties owned by the signed-in user; returns `{ properties, total }`. |
 | GET | `/api/properties/:id` | Yes | Get property details by ID. |
-| PUT | `/api/properties/:id` | Yes; Landlord/Realtor/Property Manager | Update `{ "name": "...", "address": "...", "type": "..." }`; only owner may update. |
+| PUT | `/api/properties/:id` | Yes; all roles including Tenant | Update `{ "name": "...", "address": "...", "type": "..." }`; only owner may update. |
 
 Property records include generated `propertyId`, `ownerId`, timestamps, and `rooms` with generated `roomId` values.
 
@@ -67,16 +67,16 @@ Property records include generated `propertyId`, `ownerId`, timestamps, and `roo
 
 | Method | Path | Auth | Purpose / request |
 | --- | --- | --- | --- |
-| POST | `/api/invitations` | Yes; Landlord/Realtor/Property Manager | Create invite: `{ "propertyId": "...", "inspectionId": "...", "email": "tenant@example.com" }`. Returns the invitation and `inviteLink`; link expires in 7 days. |
-| POST | `/api/invitations/resolve/:token` | No | Accept invite: `{ "name": "Tenant Name", "password": "..." }`. Returns user details, JWT, propertyId, and inspectionId. |
+| POST | `/api/invitations` | Yes; Landlord/Realtor/Property Manager/Tenant | Create invite: `{ "propertyId": "...", "inspectionId": "...", "email": "other-party@example.com" }`. Returns the invitation and `inviteLink`; link expires in 7 days. |
+| POST | `/api/invitations/resolve/:token` | No | Accept invite: `{ "name": "Invitee Name", "password": "at-least-8-characters" }` for a new account. If a matching account exists, its role must match the invitation. Returns user details, JWT, propertyId, and inspectionId. |
 
-The backend creates the invitation and link; email delivery is not wired in, so the frontend/product must deliver or share the link.
+Invitations work in both directions: a Tenant inviting someone creates a Landlord invitation; a Landlord, Realtor, or Property Manager inviting someone creates a Tenant invitation. The invited person is linked to the inspection when the token is accepted. The backend creates the invitation and link; email delivery is not wired in, so the frontend/product must deliver or share the link.
 
 ### Inspections
 
 | Method | Path | Auth | Purpose / request |
 | --- | --- | --- | --- |
-| POST | `/api/inspections` | Yes; Landlord/Realtor/Property Manager | Create: `{ "propertyId": "...", "mode": "Full", "participantIds": ["user-id"] }`. Modes: `Full`, `Damaged Sections Only`; mode defaults to `Full`. |
+| POST | `/api/inspections` | Yes; Landlord/Realtor/Property Manager/Tenant | Create: `{ "propertyId": "...", "mode": "Full", "participantIds": ["user-id"] }`. Modes: `Full`, `Damaged Sections Only`; mode defaults to `Full`. |
 | GET | `/api/inspections/property/:propertyId` | Yes | List inspections the caller may access for a property. |
 | GET | `/api/inspections/:id` | Yes | Get inspection, room items, evidence metadata, approval summary. |
 | PUT | `/api/inspections/:id/state` | Yes | Set `{ "state": "IN_PROGRESS" }`; states: `DRAFT`, `IN_PROGRESS`, `UNDER_REVIEW`, `READ_ONLY`. |
@@ -88,7 +88,7 @@ The backend creates the invitation and link; email delivery is not wired in, so 
 | POST | `/api/inspections/:id/approvals` | Yes; inspection participant | Acknowledge an `UNDER_REVIEW` inspection; no request body. Each party can acknowledge once. Response includes approval count and whether everyone acknowledged. |
 | GET | `/api/inspections/:id/report.pdf` | Yes; inspection participant | Download the inspection PDF summary. It reports evidence metadata/counts; photo/video bytes are not embedded. |
 
-Inspection access is limited to the owner, tenant, and IDs in `participantIds`. When all configured parties acknowledge, the inspection is finalized as `READ_ONLY`. The inspection response contains each evidence entry's `downloadUrl` API path, not a public S3 URL.
+Inspection access is limited to the landlord, tenant, creator, and IDs in `participantIds`. Tenants can create inspections for properties they own; their ID is initially saved as `tenantId`, and the invited landlord is linked as `landlordId` when the invite is accepted. The inspection creator submits it. Both landlord and tenant must be linked before acknowledgement. When all configured parties acknowledge, the inspection is finalized as `READ_ONLY`. The inspection response contains each evidence entry's `downloadUrl` API path, not a public S3 URL.
 
 ### Evidence upload and display
 

@@ -58,7 +58,8 @@ export interface IItemCondition {
 export interface IInspection {
   inspectionId: string;
   propertyId: string;
-  landlordId: string;
+  landlordId?: string;
+  createdBy?: string;
   tenantId?: string;
   participantIds?: string[];
   approvedBy?: string[];
@@ -77,6 +78,8 @@ export interface IInvitation {
   propertyId: string;
   inspectionId: string;
   inviterId: string;
+  inviterRole?: UserRole;
+  inviteeRole?: UserRole;
   email: string;
   expiresAt: string;
   status: 'PENDING' | 'ACCEPTED' | 'REVOKED';

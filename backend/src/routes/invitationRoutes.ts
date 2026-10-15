@@ -10,7 +10,7 @@ const router = express.Router();
 router.post(
   "/",
   protect,
-  authorize("Landlord", "Realtor", "Property Manager"),
+  authorize("Landlord", "Realtor", "Property Manager", "Tenant"),
   createInvitation,
 );
 router.post("/resolve/:token", resolveInvitation);
