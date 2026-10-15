@@ -4,6 +4,7 @@ import {
   getProperties,
   updateProperty,
   getPropertyById,
+  deleteProperty,
 } from "../controllers/propertyController";
 import { protect, authorize } from "../middlewares/authMiddleware";
 
@@ -25,6 +26,11 @@ router
     protect,
     authorize("Landlord", "Realtor", "Property Manager", "Tenant"),
     updateProperty,
+  )
+  .delete(
+    protect,
+    authorize("Landlord", "Realtor", "Property Manager", "Tenant"),
+    deleteProperty,
   );
 
 export default router;

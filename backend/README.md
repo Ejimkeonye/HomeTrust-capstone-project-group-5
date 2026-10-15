@@ -60,6 +60,7 @@ Registration defaults role to `Landlord`; frontend should send the intended role
 | GET | `/api/properties` | Yes | List properties owned by the signed-in user; returns `{ properties, total }`. |
 | GET | `/api/properties/:id` | Yes | Get property details by ID. |
 | PUT | `/api/properties/:id` | Yes; all roles including Tenant | Update `{ "name": "...", "address": "...", "type": "..." }`; only owner may update. |
+| DELETE | `/api/properties/:id` | Yes; owner only | Delete the property. Returns `{ "message": "Property deleted", "propertyId": "..." }`. Existing inspection/evidence records are not deleted by this operation. |
 
 Property records include generated `propertyId`, `ownerId`, timestamps, and `rooms` with generated `roomId` values.
 
