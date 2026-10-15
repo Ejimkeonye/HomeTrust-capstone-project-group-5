@@ -13,7 +13,7 @@ router
   .route("/")
   .post(
     protect,
-    authorize("Landlord", "Realtor", "Property Manager"),
+    authorize("Landlord", "Realtor", "Property Manager", "Tenant"),
     createProperty,
   )
   .get(protect, getProperties);
@@ -23,7 +23,7 @@ router
   .get(protect, getPropertyById)
   .put(
     protect,
-    authorize("Landlord", "Realtor", "Property Manager"),
+    authorize("Landlord", "Realtor", "Property Manager", "Tenant"),
     updateProperty,
   );
 

@@ -100,7 +100,8 @@ export const createInspection = async (req: AuthRequest, res: Response, next: Ne
     const newInspection: IInspection = {
       inspectionId,
       propertyId,
-      landlordId: req.user!.userId,
+      ...(req.user!.role === 'Tenant' ? { tenantId: req.user!.userId } : { landlordId: req.user!.userId }),
+      createdBy: req.user!.userId,
       participantIds: selectedParticipantIds,
       mode: mode || 'Full',
       state: 'DRAFT',
@@ -170,7 +171,7 @@ export const updateInspectionState = async (req: AuthRequest, res: Response, nex
     if (!inspection) return res.status(404).json({ message: 'Inspection not found' });
     if (!canAccess(inspection, req.user!.userId)) return res.status(403).json({ message: 'Not authorized' });
     if (inspection.state === 'READ_ONLY') return res.status(409).json({ message: 'Inspection is already read-only' });
-    if (state === 'READ_ONLY' && inspection.landlordId !== req.user!.userId) return res.status(403).json({ message: 'Only the inspection owner can finalize it' });
+    if (state === 'READ_ONLY' && (inspection.createdBy || inspection.landlordId) !== req.user!.userId) return res.status(403).json({ message: 'Only the inspection creator can finalize it' });
 
     const previousState = inspection.state;
     const updated = await docClient.send(new UpdateCommand({
@@ -269,7 +270,7 @@ export const submitInspection = async (req: AuthRequest, res: Response, next: Ne
     const inspectionId = req.params.id as string;
     const inspection = await loadInspection(inspectionId);
     if (!inspection) return res.status(404).json({ message: 'Inspection not found' });
-    if (inspection.landlordId !== req.user!.userId) return res.status(403).json({ message: 'Only the inspection owner can submit it' });
+    if ((inspection.createdBy || inspection.landlordId) !== req.user!.userId) return res.status(403).json({ message: 'Only the inspection creator can submit it' });
     if (inspection.state === 'READ_ONLY') return res.status(409).json({ message: 'Inspection is already finalized' });
     if (inspection.items.length === 0) return res.status(400).json({ message: 'Add at least one room item before submitting' });
     const now = new Date().toISOString();
@@ -351,6 +352,7 @@ export const approveInspection = async (req: AuthRequest, res: Response, next: N
     if (!inspection) return res.status(404).json({ message: 'Inspection not found' });
     if (!canAccess(inspection, req.user!.userId)) return res.status(403).json({ message: 'Not authorized to acknowledge this inspection' });
     if (inspection.state !== 'UNDER_REVIEW') return res.status(409).json({ message: 'Only inspections under review can be acknowledged' });
+    if (!inspection.landlordId || !inspection.tenantId) return res.status(409).json({ message: 'Both landlord and tenant must be linked before acknowledgement' });
     if (inspection.approvedBy?.includes(req.user!.userId)) return res.status(409).json({ message: 'You already acknowledged this inspection' });
     const approvedAt = new Date().toISOString();
     const result = await docClient.send(new UpdateCommand({

@@ -19,7 +19,7 @@ const router = express.Router();
 router.post(
   "/",
   protect,
-  authorize("Landlord", "Realtor", "Property Manager"),
+  authorize("Landlord", "Realtor", "Property Manager", "Tenant"),
   createInspection,
 );
 router.get("/property/:propertyId", protect, getPropertyInspections);
