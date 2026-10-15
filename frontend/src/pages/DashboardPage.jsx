@@ -14,6 +14,7 @@ import {
   Building2,
   Bell
 } from "lucide-react";
+import api from "../api/client"; // Live API client connected to Render backend
 
 export default function DashboardPage({
   user,
@@ -28,6 +29,8 @@ export default function DashboardPage({
   onStartMoveOutInspection, 
   onViewEvidence,
   onOpenNotifications,
+  onOpenProfile,
+  hasUnreadNotifications = true,
 }) {
   const [activeTab, setActiveTab] = useState("home");
   const [showPropertyDropdown, setShowPropertyDropdown] = useState(false);
@@ -37,17 +40,58 @@ export default function DashboardPage({
   const [newAddress, setNewAddress] = useState("");
   const [newFlatNo, setNewFlatNo] = useState("");
 
-  const firstName = user?.name ? user.name.split(" ")[0] : user?.firstName || "Clement";
+  const getFirstName = () => {
+    if (!user) return "User";
+    const rawName = user.name || user.firstName || "Clement John";
+    const formattedName = rawName.includes(" ") 
+      ? rawName 
+      : rawName.replace(/([a-z])([A-Z])/g, '$1 $2');
+    return formattedName.trim().split(" ")[0];
+  };
+
+  const firstName = getFirstName();
   const defaultImage = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=400&q=80";
 
-  const handleCreatePropertySubmit = (e) => {
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 18) return "Good afternoon";
+    return "Good evening";
+  };
+
+  const handleCreatePropertySubmit = async (e) => {
     e.preventDefault();
     if (!newAddress.trim()) return;
-    onAddNewProperty({
+
+    const propertyPayload = {
+      name: newAddress,
       address: newAddress,
-      flatNo: newFlatNo || "Main House",
+      type: "Apartment",
+      flatNo: newFlatNo || "1",
       image: defaultImage,
-    });
+      rooms: [
+        { roomId: `room-${Date.now()}-1`, name: "Living Room", category: "Rooms", items: [] },
+        { roomId: `room-${Date.now()}-2`, name: "Master Bedroom", category: "Rooms", items: [] },
+        { roomId: `room-${Date.now()}-3`, name: "Kitchen", category: "Kitchen", items: [] },
+      ],
+    };
+
+    try {
+      // 1. Post directly to your live backend endpoint
+      const response = await api.post("/properties", propertyPayload);
+      const createdProperty = response.data.property || response.data;
+
+      // 2. Pass the successfully created backend property up to App.jsx
+      onAddNewProperty(createdProperty);
+    } catch (err) {
+      console.error("Failed to create property on backend:", err);
+      // Fallback local creation if offline or testing
+      onAddNewProperty({
+        propertyId: `prop-${Date.now()}`,
+        ...propertyPayload
+      });
+    }
+
     setNewAddress("");
     setNewFlatNo("");
     setShowAddPropertyModal(false);
@@ -104,14 +148,13 @@ export default function DashboardPage({
           </div>
         )}
 
-{/* Header */}
+        {/* Header */}
         <div className="p-6 pt-10 pb-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-extrabold text-slate-950 tracking-tight">
-              Good morning, {firstName}
+              {getGreeting()}, {firstName}!
             </h1>
             
-            {/* 2. Notification Bell & Logout group */}
             <div className="flex items-center gap-1">
               <button 
                 type="button"
@@ -120,7 +163,9 @@ export default function DashboardPage({
                 title="Notifications"
               >
                 <Bell className="w-5 h-5" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                {hasUnreadNotifications && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                )}
               </button>
 
               <button 
@@ -179,12 +224,11 @@ export default function DashboardPage({
               </div>
             )}
 
-            {/* Dropdown Menu for Properties */}
             {showPropertyDropdown && (
               <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-30 max-h-48 overflow-y-auto p-2 space-y-1">
                 {properties.map((prop) => (
                   <div
-                    key={prop.id}
+                    key={prop.propertyId || prop.id}
                     className="p-2.5 rounded-xl hover:bg-purple-50 flex items-center justify-between text-xs font-bold text-slate-800 group"
                   >
                     <div 
@@ -198,13 +242,12 @@ export default function DashboardPage({
                       <span className="text-[10px] text-slate-400 font-normal">Flat {prop.flatNo}</span>
                     </div>
 
-                    {/* Delete property button */}
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         if (window.confirm(`Are you sure you want to delete "${prop.address}"?`)) {
-                          onDeleteProperty(prop.id);
+                          onDeleteProperty(prop.propertyId || prop.id);
                         }
                       }}
                       className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer shrink-0"
@@ -317,19 +360,53 @@ export default function DashboardPage({
 
         {/* Bottom Navigation */}
         <div className="absolute bottom-5 left-5 right-5 bg-white rounded-full border border-slate-200 shadow-xl p-2 flex items-center justify-around z-10">
-          <button type="button" onClick={() => setActiveTab("home")} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "home" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
+          <button 
+            type="button" 
+            onClick={() => setActiveTab("home")} 
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "home" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}
+          >
             <Home className="w-5 h-5" />
           </button>
-          <button type="button" onClick={() => { setActiveTab("inspection"); if(activeProperty) onStartInspection(activeProperty); }} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "inspection" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
+
+          <button 
+            type="button" 
+            onClick={() => { 
+              setActiveTab("inspection"); 
+              if (activeProperty && onStartInspection) {
+                onStartInspection(activeProperty); 
+              } else {
+                alert("Please add or select a property unit first to inspect.");
+              }
+            }} 
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "inspection" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}
+          >
             <Search className="w-5 h-5" />
           </button>
-          <button type="button" onClick={() => { setActiveTab("evidence"); if (onViewEvidence) onViewEvidence(); }} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "evidence" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
+
+          <button 
+            type="button" 
+            onClick={() => { setActiveTab("evidence"); if (onViewEvidence) onViewEvidence(); }} 
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "evidence" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}
+          >
             <ShieldCheck className="w-5 h-5" />
           </button>
-          <button type="button" onClick={() => { setActiveTab("report"); if (onViewReport) onViewReport(); }} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "report" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
+
+          <button 
+            type="button" 
+            onClick={() => { setActiveTab("report"); if (onViewReport) onViewReport(); }} 
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "report" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}
+          >
             <FileText className="w-5 h-5" />
           </button>
-          <button type="button" onClick={() => setActiveTab("profile")} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "profile" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}>
+
+          <button 
+            type="button" 
+            onClick={() => { 
+              setActiveTab("profile"); 
+              if (onOpenProfile) onOpenProfile(); 
+            }} 
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "profile" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}
+          >
             <User className="w-5 h-5" />
           </button>
         </div>

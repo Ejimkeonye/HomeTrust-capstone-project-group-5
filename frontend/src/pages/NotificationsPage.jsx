@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft, Bell, CheckCircle2, ShieldAlert, UserPlus, Clock } from "lucide-react";
 
 export default function NotificationsPage({ onBack, onSelectNotification }) {
@@ -11,14 +11,13 @@ export default function NotificationsPage({ onBack, onSelectNotification }) {
     return dateObj.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
   };
 
-  const [notifications, setNotifications] = useState([
+  const initialNotifications = [
     {
       id: "notif-1",
       type: "dispute",
       title: "New Dispute / Comment Raised",
       description: "A party added a note or dispute on the property inspection.",
       timestamp: `Today, ${formatTime(now)}`,
-      read: false,
     },
     {
       id: "notif-2",
@@ -26,7 +25,6 @@ export default function NotificationsPage({ onBack, onSelectNotification }) {
       title: "Party Invite Accepted",
       description: "Your invited participant successfully joined the inspection flow.",
       timestamp: `Yesterday, ${formatTime(yesterday)}`,
-      read: true,
     },
     {
       id: "notif-3",
@@ -34,12 +32,29 @@ export default function NotificationsPage({ onBack, onSelectNotification }) {
       title: "Baseline Inspection Locked",
       description: "Property inspection report has been verified and sealed.",
       timestamp: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      read: true,
     },
-  ]);
+  ];
+
+  // Load read status from localStorage so it persists permanently
+  const [readIds, setReadIds] = useState(() => {
+    return JSON.parse(localStorage.getItem("hometrust_read_notifications") || "[]");
+  });
+
+  // Save to localStorage whenever readIds changes
+  useEffect(() => {
+    localStorage.setItem("hometrust_read_notifications", JSON.stringify(readIds));
+  }, [readIds]);
 
   const markAllAsRead = () => {
-    setNotifications(notifications.map((n) => ({ ...n, read: true })));
+    const allIds = initialNotifications.map((n) => n.id);
+    setReadIds(allIds);
+  };
+
+  const handleNotificationClick = (notif) => {
+    if (!readIds.includes(notif.id)) {
+      setReadIds([...readIds, notif.id]);
+    }
+    if (onSelectNotification) onSelectNotification(notif);
   };
 
   const getIcon = (type) => {
@@ -52,6 +67,14 @@ export default function NotificationsPage({ onBack, onSelectNotification }) {
         return <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
     }
   };
+
+  // Map state to include dynamic read property based on saved IDs
+  const notifications = initialNotifications.map((n) => ({
+    ...n,
+    read: readIds.includes(n.id),
+  }));
+
+  const hasUnread = notifications.some((n) => !n.read);
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
@@ -69,13 +92,15 @@ export default function NotificationsPage({ onBack, onSelectNotification }) {
           <h1 className="text-base font-extrabold text-white text-center truncate">
             Notifications
           </h1>
-          <button
-            type="button"
-            onClick={markAllAsRead}
-            className="text-[10px] font-bold text-purple-200 hover:text-white transition-colors cursor-pointer"
-          >
-            Mark all read
-          </button>
+          {hasUnread && (
+            <button
+              type="button"
+              onClick={markAllAsRead}
+              className="text-[10px] font-bold text-purple-200 hover:text-white transition-colors cursor-pointer"
+            >
+              Mark all read
+            </button>
+          )}
         </div>
 
         {/* Content Scroll Area */}
@@ -89,12 +114,7 @@ export default function NotificationsPage({ onBack, onSelectNotification }) {
             notifications.map((notif) => (
               <div
                 key={notif.id}
-                onClick={() => {
-                  setNotifications(
-                    notifications.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
-                  );
-                  if (onSelectNotification) onSelectNotification(notif);
-                }}
+                onClick={() => handleNotificationClick(notif)}
                 className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
                   notif.read
                     ? "bg-slate-50 border-slate-200 text-slate-700"
