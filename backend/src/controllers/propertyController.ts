@@ -7,7 +7,7 @@ import { IProperty, IRoom } from '../types';
 
 export const createProperty = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { name, address, type, rooms } = req.body;
+    const { name, address, type, flatNo, image, rooms } = req.body;
     const now = new Date().toISOString();
     const propertyId = uuidv4();
 
@@ -33,11 +33,20 @@ export const createProperty = async (req: AuthRequest, res: Response, next: Next
       mappedRooms.push({ roomId, name, ...(category ? { category } : {}) });
     }
 
+    if (flatNo !== undefined && typeof flatNo !== 'string' && typeof flatNo !== 'number') {
+      return res.status(400).json({ message: 'flatNo must be a string or number' });
+    }
+    if (image !== undefined && (typeof image !== 'string' || !image.trim())) {
+      return res.status(400).json({ message: 'image must be a non-empty string' });
+    }
+
     const newProperty: IProperty = {
       propertyId,
       name,
       address,
       type,
+      ...(flatNo !== undefined ? { flatNo: String(flatNo).trim() } : {}),
+      ...(image !== undefined ? { image: image.trim() } : {}),
       ownerId: req.user!.userId,
       rooms: mappedRooms,
       createdAt: now,
@@ -108,7 +117,7 @@ export const updateProperty = async (req: AuthRequest, res: Response, next: Next
       return res.status(403).json({ message: 'Not authorized to update this property' });
     }
 
-    const { name, address, type, rooms } = req.body;
+    const { name, address, type, flatNo, image, rooms } = req.body;
     if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
       return res.status(400).json({ message: 'name must be a non-empty string' });
     }
@@ -117,6 +126,12 @@ export const updateProperty = async (req: AuthRequest, res: Response, next: Next
     }
     if (type !== undefined && (typeof type !== 'string' || !type.trim())) {
       return res.status(400).json({ message: 'type must be a non-empty string' });
+    }
+    if (flatNo !== undefined && typeof flatNo !== 'string' && typeof flatNo !== 'number') {
+      return res.status(400).json({ message: 'flatNo must be a string or number' });
+    }
+    if (image !== undefined && (typeof image !== 'string' || !image.trim())) {
+      return res.status(400).json({ message: 'image must be a non-empty string' });
     }
 
     let updatedRooms: IRoom[] | undefined;
@@ -156,6 +171,8 @@ export const updateProperty = async (req: AuthRequest, res: Response, next: Next
     if (name !== undefined) { names['#name'] = 'name'; values[':name'] = name.trim(); updates.push('#name = :name'); }
     if (address !== undefined) { values[':address'] = address.trim(); updates.push('address = :address'); }
     if (type !== undefined) { names['#type'] = 'type'; values[':type'] = type.trim(); updates.push('#type = :type'); }
+    if (flatNo !== undefined) { names['#flatNo'] = 'flatNo'; values[':flatNo'] = String(flatNo).trim(); updates.push('#flatNo = :flatNo'); }
+    if (image !== undefined) { names['#image'] = 'image'; values[':image'] = image.trim(); updates.push('#image = :image'); }
     if (updatedRooms !== undefined) { values[':rooms'] = updatedRooms; updates.push('rooms = :rooms'); }
     if (updates.length === 1) return res.status(400).json({ message: 'Provide at least one property field to update' });
 
