@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { PutCommand, GetCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, GetCommand, QueryCommand, UpdateCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { docClient, TABLES } from '../config/dynamodb';
 import { AuthRequest } from '../middlewares/authMiddleware';
@@ -115,5 +115,31 @@ export const updateProperty = async (req: AuthRequest, res: Response, next: Next
     res.json(updated.Attributes);
   } catch (error) {
     next(error);
+  }
+};
+export const deleteProperty = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const propertyId = req.params.id as string;
+    const result = await docClient.send(new GetCommand({
+      TableName: TABLES.PROPERTIES,
+      Key: { propertyId },
+    }));
+
+    if (!result.Item) return res.status(404).json({ message: 'Property not found' });
+    const property = result.Item as IProperty;
+    if (property.ownerId !== req.user!.userId) {
+      return res.status(403).json({ message: 'Not authorized to delete this property' });
+    }
+
+    await docClient.send(new DeleteCommand({
+      TableName: TABLES.PROPERTIES,
+      Key: { propertyId },
+      ConditionExpression: 'ownerId = :ownerId',
+      ExpressionAttributeValues: { ':ownerId': req.user!.userId },
+    }));
+
+    return res.status(200).json({ message: 'Property deleted', propertyId });
+  } catch (error) {
+    return next(error);
   }
 };
