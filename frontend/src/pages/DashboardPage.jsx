@@ -40,6 +40,9 @@ export default function DashboardPage({
   const [newAddress, setNewAddress] = useState("");
   const [newFlatNo, setNewFlatNo] = useState("");
 
+  // Check if user joined via an invitation link
+  const isInvitedParticipant = Boolean(user?.isInvitedParticipant);
+
   const getFirstName = () => {
     if (!user) return "User";
     const rawName = user.name || user.firstName || "Clement John";
@@ -101,8 +104,8 @@ export default function DashboardPage({
     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
       <div className="w-full max-w-md bg-white min-h-screen sm:min-h-211 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative pb-24">
         
-        {/* ADD PROPERTY MODAL */}
-        {showAddPropertyModal && (
+        {/* ADD PROPERTY MODAL (Restricted for invited participants) */}
+        {!isInvitedParticipant && showAddPropertyModal && (
           <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-4xl max-w-sm w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in duration-200">
               <h3 className="text-sm font-extrabold text-purple-900">Add New Property / Unit</h3>
@@ -201,7 +204,7 @@ export default function DashboardPage({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800 bg-purple-100 px-2 py-0.5 rounded-md">
-                      Active Property
+                      Active Property {isInvitedParticipant ? "(Shared Workspace)" : ""}
                     </span>
                     <ChevronDown className="w-4 h-4 text-slate-500" />
                   </div>
@@ -215,12 +218,14 @@ export default function DashboardPage({
               </div>
             ) : (
               <div 
-                onClick={() => setShowAddPropertyModal(true)}
-                className="bg-purple-50 border-2 border-dashed border-purple-300 rounded-2xl p-5 flex flex-col items-center justify-center text-center cursor-pointer hover:bg-purple-100/50 transition-all"
+                onClick={() => !isInvitedParticipant && setShowAddPropertyModal(true)}
+                className={`bg-purple-50 border-2 border-dashed border-purple-300 rounded-2xl p-5 flex flex-col items-center justify-center text-center transition-all ${!isInvitedParticipant ? "cursor-pointer hover:bg-purple-100/50" : "cursor-default"}`}
               >
                 <Building2 className="w-8 h-8 text-purple-800 mb-1" />
-                <h3 className="text-xs font-bold text-purple-900">No properties added yet</h3>
-                <p className="text-[11px] text-purple-700/80 mt-0.5">Click here to add your first property unit</p>
+                <h3 className="text-xs font-bold text-purple-900">No properties assigned yet</h3>
+                <p className="text-[11px] text-purple-700/80 mt-0.5">
+                  {!isInvitedParticipant ? "Click here to add your first property unit" : "Waiting for property assignment"}
+                </p>
               </div>
             )}
 
@@ -242,30 +247,35 @@ export default function DashboardPage({
                       <span className="text-[10px] text-slate-400 font-normal">Flat {prop.flatNo}</span>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm(`Are you sure you want to delete "${prop.address}"?`)) {
-                          onDeleteProperty(prop.propertyId || prop.id);
-                        }
-                      }}
-                      className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer shrink-0"
-                      title="Delete Property"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {!isInvitedParticipant && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Are you sure you want to delete "${prop.address}"?`)) {
+                            onDeleteProperty(prop.propertyId || prop.id);
+                          }
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors cursor-pointer shrink-0"
+                        title="Delete Property"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 ))}
-                <button
-                  onClick={() => {
-                    setShowPropertyDropdown(false);
-                    setShowAddPropertyModal(true);
-                  }}
-                  className="w-full mt-1 bg-purple-50 text-purple-900 hover:bg-purple-100 p-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" /> Add New Property
-                </button>
+                
+                {!isInvitedParticipant && (
+                  <button
+                    onClick={() => {
+                      setShowPropertyDropdown(false);
+                      setShowAddPropertyModal(true);
+                    }}
+                    className="w-full mt-1 bg-purple-50 text-purple-900 hover:bg-purple-100 p-2.5 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Add New Property
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -375,7 +385,7 @@ export default function DashboardPage({
               if (activeProperty && onStartInspection) {
                 onStartInspection(activeProperty); 
               } else {
-                alert("Please add or select a property unit first to inspect.");
+                alert("Please select a property unit first to inspect.");
               }
             }} 
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "inspection" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}

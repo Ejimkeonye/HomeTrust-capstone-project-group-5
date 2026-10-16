@@ -1,127 +1,65 @@
 import { useState } from "react";
 import { Building2, CheckCircle, Lock, User, ArrowRight } from "lucide-react";
+import api from "../api/client"; // Live API client connected to Render backend
 
 export default function PartyOnboardingPage({
   token,
-  property,
   onCompleteOnboarding,
 }) {
-  // Resolve property data safely from props or localStorage
-  const activeProperty =
-    property ||
-    (() => {
-      if (!token) return null;
-      try {
-        // 1. Try Base64 decoding fallback
-        const parsed = JSON.parse(atob(token));
-        return {
-          id: parsed.propId,
-          name: parsed.propName,
-          invitedRole: parsed.role,
-        };
-      } catch {
-        // 2. Fall back to searching hometrust_properties in localStorage
-        const saved = JSON.parse(
-          localStorage.getItem("hometrust_properties") || "[]",
-        );
-        return (
-          saved.find((p) => p.inviteToken === token || p.id === token) || null
-        );
-      }
-    })();
-
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // Determine invited role dynamically (defaults to 'tenant' if unspecified)
-  const invitedRole = activeProperty?.invitedRole || "tenant";
-  const isLandlord = invitedRole === "landlord";
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!fullName.trim() || password.length < 6) {
-      setError(
-        "Please provide your full name and a password with at least 6 characters.",
-      );
+    if (!fullName.trim() || password.length < 8) {
+      setError("Please provide your full name and a password with at least 8 characters.");
       return;
     }
 
-    const cleanName = fullName.trim();
-    const cleanEmail = `${cleanName.toLowerCase().replace(/\s+/g, "")}@${invitedRole}.local`;
-    const targetPropId = activeProperty?.id || token;
-
-    // 1. Create user object
-    const newUser = {
-      id: `usr-${Date.now()}`,
-      name: cleanName,
-      email: cleanEmail,
-      password: password,
-      role: invitedRole,
-      activePropertyId: targetPropId,
-    };
-
-    // 2. Register user in hometrust_users_db
-    const savedUsers = JSON.parse(
-      localStorage.getItem("hometrust_users_db") || "[]",
-    );
-    const userIndex = savedUsers.findIndex(
-      (u) =>
-        u.name?.toLowerCase() === cleanName.toLowerCase() &&
-        u.role === invitedRole,
-    );
-
-    if (userIndex >= 0) {
-      savedUsers[userIndex] = newUser;
-    } else {
-      savedUsers.push(newUser);
+    if (!token) {
+      setError("Invalid or missing invitation token.");
+      return;
     }
-    localStorage.setItem("hometrust_users_db", JSON.stringify(savedUsers));
 
-    // 3. Link party to property in hometrust_properties
-    const savedProps = JSON.parse(
-      localStorage.getItem("hometrust_properties") || "[]",
-    );
-    const updatedProps = savedProps.map((p) => {
-      if (p.inviteToken === token || p.id === targetPropId) {
-        return {
-          ...p,
-          ...(isLandlord
-            ? {
-                landlordId: newUser.id,
-                landlordName: cleanName,
-                landlordEmail: cleanEmail,
-              }
-            : {
-                tenantId: newUser.id,
-                tenantName: cleanName,
-                tenantEmail: cleanEmail,
-              }),
-          status: "Party Joined",
-        };
+    setLoading(true);
+    setError("");
+
+    try {
+      // 🛠️ CALL YOUR REAL BACKEND RESOLVE INVITATION CONTROLLER
+      const res = await api.post(`/invitations/resolve/${token}`, {
+        name: fullName.trim(),
+        password: password,
+      });
+
+      const { token: jwtToken, user, propertyId, inspectionId } = res.data;
+
+      // Save valid backend credentials and session data with invitation flag
+      localStorage.setItem("hometrust_token", jwtToken);
+      localStorage.setItem("hometrust_user", JSON.stringify(user));
+      
+      const sessionData = {
+        ...user,
+        activePropertyId: propertyId,
+        activeInspectionId: inspectionId,
+        isInvitedParticipant: true, // 🛠️ Flags them as joining via invite link
+      };
+      localStorage.setItem("hometrust_current_session", JSON.stringify(sessionData));
+
+      // Complete onboarding and pass session data up to App.jsx
+      if (onCompleteOnboarding) {
+        onCompleteOnboarding(sessionData);
       }
-      return p;
-    });
-    localStorage.setItem("hometrust_properties", JSON.stringify(updatedProps));
-
-    // 4. Set Session Storage & Local Storage
-    const sessionData = {
-      ...newUser,
-      activePropertyId: targetPropId,
-    };
-
-    localStorage.setItem("hometrust_token", `token-${Date.now()}`);
-    localStorage.setItem("hometrust_user", JSON.stringify(newUser));
-    localStorage.setItem(
-      "hometrust_current_session",
-      JSON.stringify(sessionData),
-    );
-
-    // 5. Complete onboarding
-    onCompleteOnboarding(sessionData);
+    } catch (err) {
+      console.error("Failed to resolve invitation on backend:", err);
+      setError(err?.response?.data?.message || "Failed to accept invitation. Token may be expired.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (!activeProperty && !token) {
+  if (!token) {
     return (
       <div className="max-w-md mx-auto my-16 p-8 bg-white border border-red-200 rounded-2xl shadow-sm text-center space-y-4 font-sans">
         <p className="text-red-600 font-semibold text-sm">
@@ -139,18 +77,13 @@ export default function PartyOnboardingPage({
       <div className="bg-white border border-slate-200 rounded-2xl shadow-xl p-8 space-y-6">
         <div className="text-center space-y-2">
           <span className="inline-block px-3 py-1 bg-purple-50 text-purple-800 text-xs font-semibold rounded-full border border-purple-200">
-            {isLandlord ? "Landlord" : "Tenant"} Joint Inspection Invitation
+            Joint Property Inspection Invitation
           </span>
           <h2 className="text-2xl font-extrabold text-slate-900">
             Welcome to Hometrust
           </h2>
           <p className="text-xs text-slate-600">
-            You've been invited to participate in a joint property inspection as
-            the{" "}
-            <span className="font-bold">
-              {isLandlord ? "Landlord" : "Tenant"}
-            </span>
-            .
+            You've been invited to participate in a collaborative property inspection workspace.
           </p>
         </div>
 
@@ -158,16 +91,16 @@ export default function PartyOnboardingPage({
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
           <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
             <Building2 className="w-4 h-4 text-purple-800" />
-            {activeProperty?.name || "Assigned Property"}
+            Inspection Workspace
           </div>
           <p className="text-xs text-slate-500 flex items-center gap-1">
             <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-            Property record verified & ready for walkthrough
+            Secure token verified & ready for walkthrough
           </p>
         </div>
 
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg">
+          <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg font-semibold">
             {error}
           </div>
         )}
@@ -199,6 +132,7 @@ export default function PartyOnboardingPage({
               <input
                 type="password"
                 required
+                minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
@@ -206,15 +140,17 @@ export default function PartyOnboardingPage({
               />
             </div>
             <p className="text-[11px] text-slate-400 mt-1">
-              Minimum 6 characters to secure your digital signatures.
+              Minimum 8 characters to secure your digital signatures.
             </p>
           </div>
 
           <button
             type="submit"
-            className="w-full bg-purple-800 hover:bg-purple-900 text-white font-semibold py-3 rounded-lg text-sm transition-colors shadow flex items-center justify-center gap-2 cursor-pointer"
+            disabled={loading}
+            className="w-full bg-purple-800 hover:bg-purple-900 text-white font-semibold py-3 rounded-lg text-sm transition-colors shadow flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            Access Property Inspection <ArrowRight className="w-4 h-4" />
+            <span>{loading ? "Joining Workspace..." : "Access Property Inspection"}</span>
+            <ArrowRight className="w-4 h-4" />
           </button>
         </form>
       </div>
