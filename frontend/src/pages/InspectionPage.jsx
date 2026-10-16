@@ -1275,6 +1275,7 @@ export default function InspectionPage({
           setShowInviteSuccess(true);
         }}
         property={safeProperty}
+        inspectionId={inspectionId}
         currentUserRole={userRole}
       />
     </div>

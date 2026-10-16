@@ -41,18 +41,20 @@ export default function App() {
 
   const [inviteToken] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    return params.get("propertyId") || params.get("token");
+    return params.get("token") || params.get("propertyId");
   });
 
   const [currentView, setCurrentView] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    const token = params.get("propertyId") || params.get("token");
-    if (token || window.location.pathname.includes("/join")) return "onboarding";
+    const token = params.get("token") || params.get("propertyId");
+    if (token || window.location.pathname.includes("/join") || window.location.pathname.includes("/invite")) {
+      return "onboarding";
+    }
     const activeSession = localStorage.getItem("hometrust_current_session");
     return activeSession ? "dashboard" : "landing";
   });
 
-  // Fetch properties from the backend database whenever currentUser changes (logging in)
+ // Fetch properties from the backend database whenever currentUser changes (logging in)
   useEffect(() => {
     const fetchCloudProperties = async () => {
       if (!currentUser) {
@@ -65,8 +67,12 @@ export default function App() {
         const response = await api.get("/properties");
         const cloudProps = response.data?.properties || response.data || [];
         setProperties(cloudProps);
+        
         if (cloudProps.length > 0) {
-          setSelectedProperty(cloudProps[0]);
+          // 🛠️ Intelligently look for the property tied to the invited session or fallback to first
+          const targetId = currentUser.activePropertyId;
+          const matchedProp = cloudProps.find(p => p.propertyId === targetId || p.id === targetId) || cloudProps[0];
+          setSelectedProperty(matchedProp);
         }
       } catch (err) {
         console.error("Failed to load properties from backend:", err);
@@ -91,7 +97,6 @@ export default function App() {
   };
 
   const handleAddNewProperty = (newPropData) => {
-    // When a property is successfully created via modal, append it locally or refetch
     const updatedList = [newPropData, ...properties];
     setProperties(updatedList);
     setSelectedProperty(newPropData);
@@ -99,20 +104,19 @@ export default function App() {
 
   const handleDeleteProperty = async (propertyId) => {
     try {
-      // 1. Permanently delete from backend database
       await api.delete(`/properties/${propertyId}`);
 
-      // 2. Clear local browser storage caches for this property
       localStorage.removeItem(`hometrust_inspection_v5_${propertyId}`);
       localStorage.removeItem(`hometrust_property_image_${propertyId}`);
       sessionStorage.removeItem(`active_rooms_${propertyId}`);
-    const updatedList = properties.filter((p) => p.propertyId !== propertyId && p.id !== propertyId);
-    const nextList = updatedList.length > 0 ? updatedList : [];
-    const nextActive = selectedProperty?.propertyId === propertyId || selectedProperty?.id === propertyId ? (nextList[0] || null) : selectedProperty;
 
-    setProperties(nextList);
-    setSelectedProperty(nextActive);
-  } catch (err) {
+      const updatedList = properties.filter((p) => p.propertyId !== propertyId && p.id !== propertyId);
+      const nextList = updatedList.length > 0 ? updatedList : [];
+      const nextActive = selectedProperty?.propertyId === propertyId || selectedProperty?.id === propertyId ? (nextList[0] || null) : selectedProperty;
+
+      setProperties(nextList);
+      setSelectedProperty(nextActive);
+    } catch (err) {
       console.error("Failed to delete property from backend:", err.response?.data || err.message);
       alert("Failed to delete property from server. Please try again.");
     }
@@ -143,9 +147,28 @@ export default function App() {
       {currentView === "onboarding" && (
         <PartyOnboardingPage 
           token={inviteToken} 
-          onCompleteOnboarding={(user) => { 
-            setCurrentUser(user);
-            localStorage.setItem("hometrust_current_session", JSON.stringify(user));
+          onCompleteOnboarding={async (sessionData) => { 
+            // 1. Save user session
+            setCurrentUser(sessionData);
+            localStorage.setItem("hometrust_current_session", JSON.stringify(sessionData));
+            
+            // 2. Fetch properties and automatically select the invited property!
+            try {
+              const response = await api.get("/properties");
+              const cloudProps = response.data?.properties || response.data || [];
+              setProperties(cloudProps);
+              
+              // Find the specific property tied to this invitation if available
+              const targetProp = cloudProps.find(p => p.propertyId === sessionData.activePropertyId || p.id === sessionData.activePropertyId) || cloudProps[0];
+              if (targetProp) {
+                setSelectedProperty(targetProp);
+              }
+            } catch (err) {
+              console.error("Failed to fetch properties post-onboarding:", err);
+            }
+
+            // 3. Clean up URL and navigate to dashboard
+            window.history.replaceState({}, document.title, window.location.pathname);
             setCurrentView("dashboard"); 
           }} 
         />
