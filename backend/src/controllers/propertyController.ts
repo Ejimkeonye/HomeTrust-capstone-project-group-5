@@ -135,17 +135,24 @@ export const getProperties = async (req: AuthRequest, res: Response, next: NextF
     // so scan it and follow those links to their properties.
     const linkedInspections: IInspection[] = [];
     let lastEvaluatedKey: Record<string, any> | undefined;
-    do {
-      const inspectionResult = await docClient.send(new ScanCommand({
-        TableName: TABLES.INSPECTIONS,
-        ConsistentRead: true,
-        FilterExpression: 'landlordId = :userId OR tenantId = :userId OR contains(participantIds, :userId)',
-        ExpressionAttributeValues: { ':userId': userId },
-        ...(lastEvaluatedKey ? { ExclusiveStartKey: lastEvaluatedKey } : {}),
-      }));
-      linkedInspections.push(...((inspectionResult.Items || []) as IInspection[]));
-      lastEvaluatedKey = inspectionResult.LastEvaluatedKey;
-    } while (lastEvaluatedKey);
+    try {
+      do {
+        const inspectionResult = await docClient.send(new ScanCommand({
+          TableName: TABLES.INSPECTIONS,
+          ConsistentRead: true,
+          FilterExpression: 'landlordId = :userId OR tenantId = :userId OR contains(participantIds, :userId)',
+          ExpressionAttributeValues: { ':userId': userId },
+          ...(lastEvaluatedKey ? { ExclusiveStartKey: lastEvaluatedKey } : {}),
+        }));
+        linkedInspections.push(...((inspectionResult.Items || []) as IInspection[]));
+        lastEvaluatedKey = inspectionResult.LastEvaluatedKey;
+      } while (lastEvaluatedKey);
+    } catch (scanError) {
+      // A scan failure must not hide properties the owner query already found.
+      // Invited properties may be absent until the inspection lookup is available.
+      console.warn('Could not load inspection-linked properties; returning owned properties only.', scanError);
+      linkedInspections.length = 0;
+    }
 
     const propertyIds = [...new Set(linkedInspections
       .map((inspection) => inspection.propertyId)
