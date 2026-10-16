@@ -4,10 +4,10 @@ variable "environment" {
 
 variable "cors_allowed_origins" {
   type    = list(string)
-  default = ["*"]
+  default = ["https://hometrust-6ecy.onrender.com"] # replace with Production site URL only
 }
 
 variable "api_auth_type" {
   type    = string
-  default = "NONE"
+  default = "AWS_IAM" # replace with your desired auth type for production
 }
