@@ -15,7 +15,7 @@ export default function InspectionReportPage({
   onBack,
   onFinalize,
 }) {
-  const reportStorageKey = `hometrust_report_${property?.id || "default"}`;
+  const reportStorageKey = `hometrust_report_${property?.id || property?.propertyId || "default"}`;
 
   const [activeInspectionData] = useState(() => {
     try {
@@ -39,7 +39,7 @@ export default function InspectionReportPage({
 
   const [showSuccessScreen, setShowSuccessScreen] = useState(false);
 
-  // FIXED: Safely parse rooms data whether it's stored as an array or an object map
+  // Safely parse rooms data whether it's stored as an array or an object map
   const roomsList = Array.isArray(activeInspectionData)
     ? activeInspectionData
     : Object.values(activeInspectionData).length > 0
@@ -49,10 +49,10 @@ export default function InspectionReportPage({
       }))
     : [];
 
-  const handleFinalLockAndSave = () => {
+  const handleFinalLockAndSave = async () => {
     const timestamp = new Date().toLocaleString();
     const finalReport = {
-      propertyId: property?.id,
+      propertyId: property?.propertyId || property?.id,
       propertyName: property?.name || property?.address,
       landlordSig,
       tenantSig,
@@ -61,25 +61,8 @@ export default function InspectionReportPage({
       inspectionData: activeInspectionData,
     };
 
+    // Save locally for fallback views
     localStorage.setItem(reportStorageKey, JSON.stringify(finalReport));
-
-    // Update master properties list
-    const savedProps = JSON.parse(
-      localStorage.getItem("hometrust_properties") || "[]",
-    );
-    const updatedProps = savedProps.map((p) =>
-      p.id === property?.id
-        ? {
-            ...p,
-            status: "READ_ONLY",
-            progress: 100,
-            signatures: { landlord: landlordSig, tenant: tenantSig },
-            inspectionData: activeInspectionData,
-            completedTimestamp: timestamp,
-          }
-        : p,
-    );
-    localStorage.setItem("hometrust_properties", JSON.stringify(updatedProps));
 
     setShowSuccessScreen(true);
 
@@ -93,7 +76,7 @@ export default function InspectionReportPage({
   // Success Screen View
   if (showSuccessScreen) {
     return (
-      <div className="min-h-screen bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="min-h-screen bg-slate-900/65 backdrop-blur-md flex items-center justify-center p-4">
         <div className="bg-white rounded-[40px] max-w-sm w-full p-8 text-center space-y-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
           <div className="w-20 h-20 bg-[#4A1E6D] text-white rounded-full flex items-center justify-center mx-auto shadow-lg shadow-purple-900/30">
             <ShieldCheck className="w-10 h-10" />
@@ -159,7 +142,6 @@ export default function InspectionReportPage({
 
             <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
               <span className="text-xs font-semibold text-slate-500">
-                {/* FIXED: Formatted Date & Time */}
                 Inspected on:{" "}
                 {activeInspectionData.timestamp ||
                   new Date().toLocaleString("en-US", {

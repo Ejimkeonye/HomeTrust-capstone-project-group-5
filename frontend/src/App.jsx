@@ -34,6 +34,7 @@ export default function App() {
   const [properties, setProperties] = useState([]);
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [selectedInspectionData, setSelectedInspectionData] = useState({});
+  const [inspectionId, setInspectionId] = useState(null); // Track live inspection ID for backend syncing
   const [moveOutInspectionData, setMoveOutInspectionData] = useState({}); 
   const [signatures, setSignatures] = useState({ landlord: null, tenant: null });
   const [moveOutSignatures, setMoveOutSignatures] = useState({ landlord: null, tenant: null });
@@ -69,7 +70,6 @@ export default function App() {
         setProperties(cloudProps);
         
         if (cloudProps.length > 0) {
-          // 🛠️ Intelligently look for the property tied to the invited session or fallback to first
           const targetId = currentUser.activePropertyId;
           const matchedProp = cloudProps.find(p => p.propertyId === targetId || p.id === targetId) || cloudProps[0];
           setSelectedProperty(matchedProp);
@@ -148,17 +148,14 @@ export default function App() {
         <PartyOnboardingPage 
           token={inviteToken} 
           onCompleteOnboarding={async (sessionData) => { 
-            // 1. Save user session
             setCurrentUser(sessionData);
             localStorage.setItem("hometrust_current_session", JSON.stringify(sessionData));
             
-            // 2. Fetch properties and automatically select the invited property!
             try {
               const response = await api.get("/properties");
               const cloudProps = response.data?.properties || response.data || [];
               setProperties(cloudProps);
               
-              // Find the specific property tied to this invitation if available
               const targetProp = cloudProps.find(p => p.propertyId === sessionData.activePropertyId || p.id === sessionData.activePropertyId) || cloudProps[0];
               if (targetProp) {
                 setSelectedProperty(targetProp);
@@ -167,7 +164,6 @@ export default function App() {
               console.error("Failed to fetch properties post-onboarding:", err);
             }
 
-            // 3. Clean up URL and navigate to dashboard
             window.history.replaceState({}, document.title, window.location.pathname);
             setCurrentView("dashboard"); 
           }} 
@@ -303,12 +299,16 @@ export default function App() {
           property={selectedProperty}
           inspectionData={selectedInspectionData}
           onBack={() => setCurrentView("inspection")}
-          onSubmitEvidence={() => setCurrentView("sign-inspection")}
+          onSubmitEvidence={(activeId) => {
+            if (activeId) setInspectionId(activeId);
+            setCurrentView("sign-inspection");
+          }}
         />
       )}
 
       {currentView === "sign-inspection" && (
         <SignInspectionPage
+          inspectionId={inspectionId}
           initialSignatures={signatures}
           onBack={() => setCurrentView("evidence-review")}
           onSignaturesComplete={(sigs) => {
