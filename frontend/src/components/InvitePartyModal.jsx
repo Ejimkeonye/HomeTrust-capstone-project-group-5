@@ -36,7 +36,7 @@ export default function InvitePartyModal({
         targetRole: targetRole,
       });
 
-      const link = res.data?.inviteLink || `${window.location.origin}/join?token=${res.data?.invitation?.token}`;
+      const link = res.data?.inviteLink || `https://homebase-frontend-app.vercel.app/join?token=${res.data?.invitation?.token}`;
       setGeneratedLink(link);
       setInvitedSuccess(true);
     } catch (err) {
