@@ -5,11 +5,12 @@ export default function EvidenceReviewPage({
   inspectionData,
   onBack,
   onSubmitEvidence,
+  onUpdateInspectionData,
 }) {
   const [activeCategory, setActiveCategory] = useState("All");
   const [descriptiveNote, setDescriptiveNote] = useState("");
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
-  const [selectedImage, setSelectedImage] = useState(null); // 🛠️ State for full-size photo modal
+  const [selectedImage, setSelectedImage] = useState(null);
 
   const todaysFormattedDate = new Date().toLocaleDateString("en-US", {
     month: "long",
@@ -28,6 +29,39 @@ export default function EvidenceReviewPage({
 
   const handleInitialSubmitClick = async () => {
     setShowConfirmationModal(true);
+  };
+
+  const handleExtraEvidenceUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length || roomsList.length === 0) return;
+
+    const newPhotos = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const dataUrl = await new Promise((resolve) => {
+        const r = new FileReader();
+        r.onload = (ev) => resolve(ev.target.result);
+        r.readAsDataURL(file);
+      });
+
+      newPhotos.push({
+        id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${i}`,
+        url: dataUrl,
+        timestamp: new Date().toLocaleDateString(),
+      });
+    }
+
+    const updatedRooms = [...roomsList];
+    if (updatedRooms[0] && updatedRooms[0].items && updatedRooms[0].items[0]) {
+      updatedRooms[0].items[0].photos = [
+        ...(updatedRooms[0].items[0].photos || []),
+        ...newPhotos
+      ];
+    }
+
+    if (onUpdateInspectionData) {
+      onUpdateInspectionData(updatedRooms);
+    }
   };
 
   return (
@@ -115,12 +149,18 @@ export default function EvidenceReviewPage({
           >
             View evidence
           </button>
-          <button
-            type="button"
-            className="flex-1 bg-[#4A1E6D] hover:bg-purple-900 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
-          >
+          
+          <label className="flex-1 bg-[#4A1E6D] hover:bg-purple-900 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors">
             <Upload className="w-3.5 h-3.5" /> + Add evidence
-          </button>
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              capture="environment"
+              onChange={handleExtraEvidenceUpload}
+              className="hidden"
+            />
+          </label>
         </div>
 
         {/* Category Pills */}
@@ -166,7 +206,7 @@ export default function EvidenceReviewPage({
                             <img
                               src={roomPhotos[photoIdx].url}
                               alt=""
-                              onClick={() => setSelectedImage(roomPhotos[photoIdx].url)} // 🛠️ Click to open preview modal
+                              onClick={() => setSelectedImage(roomPhotos[photoIdx].url)}
                               className="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform"
                               title="Click to view full image"
                             />

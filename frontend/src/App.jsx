@@ -33,8 +33,26 @@ export default function App() {
 
   const [properties, setProperties] = useState([]);
   const [selectedProperty, setSelectedProperty] = useState(null);
-  const [selectedInspectionData, setSelectedInspectionData] = useState({});
-  const [inspectionId, setInspectionId] = useState(null); // Track live inspection ID for backend syncing
+  const [inspectionId, setInspectionId] = useState(null);
+  
+  // 🛠️ Track active property's inspection data securely in state keyed by property ID
+  const [inspectionDataState, setInspectionDataState] = useState({ propertyKey: null, data: [] });
+  const selectedPropertyKey = selectedProperty?.propertyId || selectedProperty?.id || null;
+  const selectedInspectionData = inspectionDataState.propertyKey === selectedPropertyKey
+    ? inspectionDataState.data
+    : (() => {
+        if (!selectedPropertyKey) return [];
+        try {
+          const saved = localStorage.getItem(`hometrust_inspection_v6_${selectedPropertyKey}`);
+          return saved ? JSON.parse(saved) : [];
+        } catch (e) {
+          console.error(e);
+          return [];
+        }
+      })();
+  const setSelectedInspectionData = (data) => {
+    setInspectionDataState({ propertyKey: selectedPropertyKey, data });
+  };
   const [moveOutInspectionData, setMoveOutInspectionData] = useState({}); 
   const [signatures, setSignatures] = useState({ landlord: null, tenant: null });
   const [moveOutSignatures, setMoveOutSignatures] = useState({ landlord: null, tenant: null });
@@ -55,7 +73,7 @@ export default function App() {
     return activeSession ? "dashboard" : "landing";
   });
 
- // Fetch properties from the backend database whenever currentUser changes (logging in)
+  // Fetch properties from backend database
   useEffect(() => {
     const fetchCloudProperties = async () => {
       if (!currentUser) {
@@ -71,7 +89,7 @@ export default function App() {
         
         if (cloudProps.length > 0) {
           const targetId = currentUser.activePropertyId;
-          const matchedProp = cloudProps.find(p => p.propertyId === targetId || p.id === targetId) || cloudProps[0];
+          const matchedProp = cloudProps.find(p => (p.propertyId === targetId || p.id === targetId)) || cloudProps[0];
           setSelectedProperty(matchedProp);
         }
       } catch (err) {
@@ -97,29 +115,35 @@ export default function App() {
   };
 
   const handleAddNewProperty = (newPropData) => {
-    const updatedList = [newPropData, ...properties];
+    // Ensure new property has a guaranteed unique ID
+    const uniqueProp = {
+      ...newPropData,
+      propertyId: newPropData.propertyId || newPropData.id || `prop-${Date.now()}`,
+      id: newPropData.id || newPropData.propertyId || `prop-${Date.now()}`,
+    };
+    const updatedList = [uniqueProp, ...properties];
     setProperties(updatedList);
-    setSelectedProperty(newPropData);
+    setSelectedProperty(uniqueProp);
+    setSelectedInspectionData([]); // Fresh property starts completely blank
   };
 
   const handleDeleteProperty = async (propertyId) => {
     try {
       await api.delete(`/properties/${propertyId}`);
-
-      localStorage.removeItem(`hometrust_inspection_v5_${propertyId}`);
-      localStorage.removeItem(`hometrust_property_image_${propertyId}`);
-      sessionStorage.removeItem(`active_rooms_${propertyId}`);
-
-      const updatedList = properties.filter((p) => p.propertyId !== propertyId && p.id !== propertyId);
-      const nextList = updatedList.length > 0 ? updatedList : [];
-      const nextActive = selectedProperty?.propertyId === propertyId || selectedProperty?.id === propertyId ? (nextList[0] || null) : selectedProperty;
-
-      setProperties(nextList);
-      setSelectedProperty(nextActive);
     } catch (err) {
-      console.error("Failed to delete property from backend:", err.response?.data || err.message);
-      alert("Failed to delete property from server. Please try again.");
+      console.warn("Backend deletion warning (proceeding with local cleanup):", err?.message);
     }
+
+    // Clean up local storage for this specific property only
+    localStorage.removeItem(`hometrust_inspection_v6_${propertyId}`);
+    localStorage.removeItem(`hometrust_property_image_${propertyId}`);
+    localStorage.removeItem(`hometrust_report_${propertyId}`);
+
+    const updatedList = properties.filter((p) => p.propertyId !== propertyId && p.id !== propertyId);
+    const nextActive = updatedList.length > 0 ? updatedList[0] : null;
+
+    setProperties(updatedList);
+    setSelectedProperty(nextActive);
   };
 
   return (
@@ -302,6 +326,9 @@ export default function App() {
           onSubmitEvidence={(activeId) => {
             if (activeId) setInspectionId(activeId);
             setCurrentView("sign-inspection");
+          }}
+          onUpdateInspectionData={(updatedData) => {
+            setSelectedInspectionData(updatedData);
           }}
         />
       )}
