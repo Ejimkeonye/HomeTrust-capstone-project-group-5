@@ -36,9 +36,9 @@ async function getInspectionOrThrow(
     throw new Error('Not authorized to upload evidence for this inspection');
   }
 
-  if (inspection.state === 'READ_ONLY' || inspection.state === 'UNDER_REVIEW') {
+  if (inspection.state === 'READ_ONLY') {
     res.status(400);
-    throw new Error('Cannot upload evidence to an inspection that is submitted or read-only');
+    throw new Error('Cannot upload evidence to a read-only inspection');
   }
   if (!itemResult.Item) {
     res.status(404);

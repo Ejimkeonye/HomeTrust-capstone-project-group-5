@@ -6,9 +6,10 @@ import { PutCommand, GetCommand, QueryCommand, TransactWriteCommand, TransactWri
 import { v4 as uuidv4 } from 'uuid';
 import { docClient, TABLES } from '../config/dynamodb';
 import { AuthRequest } from '../middlewares/authMiddleware';
-import { IUser, IInvitation, IInspection, UserRole } from '../types';
+import { IUser, IInvitation, IInspection, IProperty, UserRole } from '../types';
 import { getJwtSecret } from '../config/jwt';
 import { writeAuditEvent } from '../utils/auditLogger';
+import { sendInviteEmail } from '../utils/mailer';
 
 export const createInvitation = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -26,6 +27,8 @@ export const createInvitation = async (req: AuthRequest, res: Response, next: Ne
       res.status(403);
       throw new Error('Not authorized to invite for this property');
     }
+
+    const property = propResult.Item as IProperty;
 
     // Verify inspection belongs to the property
     const inspResult = await docClient.send(new GetCommand({
@@ -68,8 +71,21 @@ export const createInvitation = async (req: AuthRequest, res: Response, next: Ne
 
     writeAuditEvent({ eventType: 'invitation.created', outcome: 'success', actorId: req.user!.userId, resourceType: 'inspection', resourceId: inspectionId, details: { propertyId } });
 
-    // In production, send this link via email (integrate SES or SendGrid)
     const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/invite?token=${token}`;
+
+    // Send invitation email
+    try {
+      await sendInviteEmail({
+        to: email.trim(),
+        inviterName: req.user!.name || req.user!.email,
+        propertyAddress: property.address || property.name,
+        inviteLink,
+        role: inviteeRole,
+      });
+    } catch (emailError) {
+      console.error('Failed to send invitation email:', emailError);
+      // Don't fail the whole request if email fails — the invite link is still returned
+    }
 
     res.status(201).json({ invitation, inviteLink });
   } catch (error) {

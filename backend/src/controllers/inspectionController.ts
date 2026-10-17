@@ -206,7 +206,7 @@ export const addItemCondition = async (req: AuthRequest, res: Response, next: Ne
     const inspection = await loadInspection(inspectionId);
     if (!inspection) return res.status(404).json({ message: 'Inspection not found' });
     if (!canAccess(inspection, req.user!.userId)) return res.status(403).json({ message: 'Not authorized to modify this inspection' });
-    if (inspection.state === 'READ_ONLY' || inspection.state === 'UNDER_REVIEW') return res.status(409).json({ message: 'Inspection cannot be changed in its current state' });
+    if (inspection.state === 'READ_ONLY') return res.status(409).json({ message: 'Inspection is locked and cannot be changed' });
 
     const propertyResult = await docClient.send(new GetCommand({ TableName: TABLES.PROPERTIES, Key: { propertyId: inspection.propertyId } }));
     const property = propertyResult.Item as IProperty | undefined;
@@ -221,12 +221,13 @@ export const addItemCondition = async (req: AuthRequest, res: Response, next: Ne
       evidence: [], createdAt: now, updatedAt: now,
     };
     await docClient.send(new PutCommand({ TableName: TABLES.ROOM_ITEMS, Item: newItem }));
+    const nextState = inspection.state === 'DRAFT' ? 'IN_PROGRESS' : inspection.state;
     await docClient.send(new UpdateCommand({
       TableName: TABLES.INSPECTIONS,
       Key: { inspectionId },
       UpdateExpression: 'SET #state = :state, updatedAt = :updatedAt',
       ExpressionAttributeNames: { '#state': 'state' },
-      ExpressionAttributeValues: { ':state': 'IN_PROGRESS', ':updatedAt': now },
+      ExpressionAttributeValues: { ':state': nextState, ':updatedAt': now },
     }));
     writeAuditEvent({ eventType: 'inspection.item_added', outcome: 'success', actorId: req.user!.userId, resourceType: 'inspection', resourceId: inspectionId, details: { itemId: roomItemId } });
     res.status(201).json(newItem);
@@ -245,7 +246,7 @@ export const updateItemCondition = async (req: AuthRequest, res: Response, next:
     const inspection = await loadInspection(inspectionId);
     if (!inspection) return res.status(404).json({ message: 'Inspection not found' });
     if (!canAccess(inspection, req.user!.userId)) return res.status(403).json({ message: 'Not authorized to modify this inspection' });
-    if (inspection.state === 'READ_ONLY' || inspection.state === 'UNDER_REVIEW') return res.status(409).json({ message: 'Inspection cannot be changed in its current state' });
+    if (inspection.state === 'READ_ONLY') return res.status(409).json({ message: 'Inspection is locked and cannot be changed' });
     if (!inspection.items.some(item => item.roomItemId === roomItemId)) return res.status(404).json({ message: 'Room item not found' });
 
     const now = new Date().toISOString();
