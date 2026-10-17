@@ -1,4 +1,4 @@
-# HomeBase (Move-In Evidence)
+# HomeTrust (Move-In Evidence)
 
 Digital property handover & condition record tool. Tenants and landlords/property managers jointly document a property's condition at move-in, then compare against move-out to see what changed.
 
