@@ -12,19 +12,19 @@ import {
 export default function MoveOutInspectionReportPage({
   property,
   moveInInspectionData = [],
-  moveOutInspectionData = [],
-  signatures = { landlord: null, tenant: null },
+  moveOutInspectionData: initialMoveOutInspectionData = [],
+  signatures = {},
   onBack,
   onFinalize,
 }) {
-  const propertyId = property?.id || "default";
+  const propertyId = property?.propertyId || property?.id || "default";
   const reportStorageKey = `hometrust_moveout_report_${propertyId}`;
 
   const [showSuccessScreen, setShowSuccessScreen] = useState(false);
 
-  // 1. Pull Move-In Data: Check prop first, then fall back to saved Move-In report in localStorage
+  // 1. Resolve Move-In Data: Check props first, fallback to property or storage
   const [resolvedMoveIn] = useState(() => {
-    if (moveInInspectionData && Object.keys(moveInInspectionData).length > 0) {
+    if (moveInInspectionData && (Array.isArray(moveInInspectionData) ? moveInInspectionData.length > 0 : Object.keys(moveInInspectionData).length > 0)) {
       return moveInInspectionData;
     }
     try {
@@ -34,15 +34,15 @@ export default function MoveOutInspectionReportPage({
         if (parsed.inspectionData) return parsed.inspectionData;
       }
     } catch (e) {
-      console.error("Error loading move-in data from storage:", e);
+      console.error(e);
     }
-    return property?.inspectionData || {};
+    return property?.inspectionData || [];
   });
 
-  // 2. Pull Move-Out Data: Check prop first, then fall back to temporary move-out storage
+  // 2. Resolve Move-Out Data: Check props first, fallback to property-scoped move-out storage, else empty array []
   const [resolvedMoveOut] = useState(() => {
-    if (moveOutInspectionData && Object.keys(moveOutInspectionData).length > 0) {
-      return moveOutInspectionData;
+    if (initialMoveOutInspectionData && (Array.isArray(initialMoveOutInspectionData) ? initialMoveOutInspectionData.length > 0 : Object.keys(initialMoveOutInspectionData).length > 0)) {
+      return initialMoveOutInspectionData;
     }
     try {
       const savedMoveOut = localStorage.getItem(reportStorageKey);
@@ -51,10 +51,21 @@ export default function MoveOutInspectionReportPage({
         if (parsed.moveOutInspectionData) return parsed.moveOutInspectionData;
       }
     } catch (e) {
-      console.error("Error loading move-out data from storage:", e);
+      console.error(e);
     }
-    return {};
+    return [];
   });
+
+  const landlordSig = signatures.landlord || property?.moveOutSignatures?.landlord;
+  const tenantSig = signatures.tenant || property?.moveOutSignatures?.tenant;
+
+  // Check if this property actually has valid signatures or a completed move-out inspection
+  const isActuallyLocked = Boolean(
+    (signatures.landlord && signatures.tenant) || 
+    property?.moveOutStatus === "READ_ONLY" ||
+    property?.moveOutStatus === "LOCKED" ||
+    (landlordSig && tenantSig)
+  );
 
   // Normalize data helper
   const normalizeData = (data) => {
@@ -72,9 +83,6 @@ export default function MoveOutInspectionReportPage({
     new Set([...moveInRooms.map((r) => r.name), ...moveOutRooms.map((r) => r.name)])
   );
 
-  const landlordSig = signatures.landlord;
-  const tenantSig = signatures.tenant;
-
   const handleFinalLockAndSave = () => {
     const timestamp = new Date().toLocaleString();
     const finalReport = {
@@ -90,16 +98,16 @@ export default function MoveOutInspectionReportPage({
 
     localStorage.setItem(reportStorageKey, JSON.stringify(finalReport));
 
-    // Update master properties list in local storage if needed
+    // Update master properties list in local storage safely
     try {
       const savedProps = JSON.parse(
         localStorage.getItem("hometrust_properties") || "[]",
       );
       const updatedProps = savedProps.map((p) =>
-        p.id === propertyId
+        (p.propertyId === propertyId || p.id === propertyId)
           ? {
               ...p,
-              moveOutStatus: "LOCKED",
+              moveOutStatus: "READ_ONLY",
               moveOutSignatures: { landlord: landlordSig, tenant: tenantSig },
               completedTimestamp: timestamp,
             }
@@ -188,7 +196,6 @@ export default function MoveOutInspectionReportPage({
 
             <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
               <span className="text-xs font-semibold text-slate-500">
-                {/* Formatted Date & Time */}
                 Processed on:{" "}
                 {new Date().toLocaleString("en-US", {
                   month: "short",
@@ -199,8 +206,12 @@ export default function MoveOutInspectionReportPage({
                   hour12: true,
                 })}
               </span>
-              <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-300">
-                <Lock className="w-3 h-3" /> Signed & Locked (READ_ONLY)
+              <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+                isActuallyLocked 
+                  ? "bg-emerald-100 text-emerald-800 border-emerald-300" 
+                  : "bg-slate-100 text-slate-600 border-slate-300"
+              }`}>
+                <Lock className="w-3 h-3" /> {isActuallyLocked ? "Signed & Locked (READ_ONLY)" : "Draft / Pending Move-Out"}
               </span>
             </div>
           </div>
@@ -211,13 +222,14 @@ export default function MoveOutInspectionReportPage({
               Move-In vs. Move-Out Comparison
             </h3>
             {allRoomNames.length === 0 ? (
-              <p className="text-xs text-slate-400 italic text-center py-4">No inspection data recorded.</p>
+              <div className="text-center py-6 text-slate-400 text-xs font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                No move-out inspection details found.
+              </div>
             ) : (
               allRoomNames.map((roomName, idx) => {
                 const moveInRoom = moveInRooms.find((r) => r.name === roomName);
                 const moveOutRoom = moveOutRooms.find((r) => r.name === roomName);
 
-                // Dynamically extract photos from custom imageUrl or item photos array
                 const moveInPhoto =
                   moveInRoom?.imageUrl ||
                   moveInRoom?.items?.flatMap((i) => i.photos || [])?.[0]?.url;
@@ -283,7 +295,7 @@ export default function MoveOutInspectionReportPage({
             )}
           </div>
 
-          {/* Display Verified Signatures (Read-Only) */}
+          {/* Display Verified Signatures */}
           <div className="space-y-3 pt-4 border-t border-slate-200">
             <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
               Digital Verification
@@ -294,8 +306,8 @@ export default function MoveOutInspectionReportPage({
                   <span className="text-[10px] font-bold text-slate-500 uppercase block">
                     Landlord Signature
                   </span>
-                  <span className="text-xs font-extrabold text-emerald-700">
-                    Verified & Signed ✓
+                  <span className={`text-xs font-extrabold ${landlordSig ? "text-emerald-700" : "text-slate-400"}`}>
+                    {landlordSig ? "Verified & Signed ✓" : "Pending Signature"}
                   </span>
                 </div>
                 {landlordSig &&
@@ -314,8 +326,8 @@ export default function MoveOutInspectionReportPage({
                   <span className="text-[10px] font-bold text-slate-500 uppercase block">
                     Tenant Signature
                   </span>
-                  <span className="text-xs font-extrabold text-emerald-700">
-                    Verified & Signed ✓
+                  <span className={`text-xs font-extrabold ${tenantSig ? "text-emerald-700" : "text-slate-400"}`}>
+                    {tenantSig ? "Verified & Signed ✓" : "Pending Signature"}
                   </span>
                 </div>
                 {tenantSig &&

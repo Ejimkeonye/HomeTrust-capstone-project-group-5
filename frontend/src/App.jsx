@@ -53,7 +53,32 @@ export default function App() {
   const setSelectedInspectionData = (data) => {
     setInspectionDataState({ propertyKey: selectedPropertyKey, data });
   };
-  const [moveOutInspectionData, setMoveOutInspectionData] = useState({}); 
+
+  // Move-Out inspection data scoped safely by property key
+  const [moveOutDataState, setMoveOutDataState] = useState({ propertyKey: null, data: [] });
+  const selectedMoveOutData = moveOutDataState.propertyKey === selectedPropertyKey
+    ? moveOutDataState.data
+    : (() => {
+        if (!selectedPropertyKey) return [];
+        try {
+          const saved = localStorage.getItem(`hometrust_moveout_inspection_v6_${selectedPropertyKey}`);
+          if (saved) return JSON.parse(saved);
+          
+          // Fallback check in report storage if already locked
+          const savedReport = localStorage.getItem(`hometrust_moveout_report_${selectedPropertyKey}`);
+          if (savedReport) {
+            const parsed = JSON.parse(savedReport);
+            if (parsed.moveOutInspectionData) return parsed.moveOutInspectionData;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+        return [];
+      })();
+  const setMoveOutInspectionData = (data) => {
+    setMoveOutDataState({ propertyKey: selectedPropertyKey, data });
+  };
+
   const [signatures, setSignatures] = useState({ landlord: null, tenant: null });
   const [moveOutSignatures, setMoveOutSignatures] = useState({ landlord: null, tenant: null });
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -115,7 +140,6 @@ export default function App() {
   };
 
   const handleAddNewProperty = (newPropData) => {
-    // Ensure new property has a guaranteed unique ID
     const uniqueProp = {
       ...newPropData,
       propertyId: newPropData.propertyId || newPropData.id || `prop-${Date.now()}`,
@@ -125,6 +149,7 @@ export default function App() {
     setProperties(updatedList);
     setSelectedProperty(uniqueProp);
     setSelectedInspectionData([]); // Fresh property starts completely blank
+    setMoveOutInspectionData([]);
   };
 
   const handleDeleteProperty = async (propertyId) => {
@@ -136,8 +161,11 @@ export default function App() {
 
     // Clean up local storage for this specific property only
     localStorage.removeItem(`hometrust_inspection_v6_${propertyId}`);
+    localStorage.removeItem(`hometrust_moveout_inspection_v6_${propertyId}`);
     localStorage.removeItem(`hometrust_property_image_${propertyId}`);
+    localStorage.removeItem(`hometrust_moveout_property_image_${propertyId}`);
     localStorage.removeItem(`hometrust_report_${propertyId}`);
+    localStorage.removeItem(`hometrust_moveout_report_${propertyId}`);
 
     const updatedList = properties.filter((p) => p.propertyId !== propertyId && p.id !== propertyId);
     const nextActive = updatedList.length > 0 ? updatedList[0] : null;
@@ -213,6 +241,10 @@ export default function App() {
             setCurrentView("move-out-inspection");
           }}
           onViewReport={() => setCurrentView("inspection-report")}
+          onViewMoveOutReport={(prop) => {
+            if (prop) setSelectedProperty(prop);
+            setCurrentView("move-out-report");
+          }}
           onViewEvidence={() => setCurrentView("evidence-review")}
           onOpenInviteModal={(prop) => {
             setSelectedProperty(prop || selectedProperty);
@@ -279,9 +311,12 @@ export default function App() {
       {currentView === "move-out-evidence" && (
         <MoveOutEvidencePage
           property={selectedProperty}
-          inspectionData={moveOutInspectionData}
+          inspectionData={selectedMoveOutData}
           onBack={() => setCurrentView("move-out-inspection")}
           onSubmitEvidence={() => setCurrentView("move-in-out-records")} 
+          onUpdateInspectionData={(updatedData) => {
+            setMoveOutInspectionData(updatedData);
+          }}
         />
       )}
 
@@ -289,7 +324,7 @@ export default function App() {
         <MoveInOutRecordsView
           property={selectedProperty}
           moveInInspectionData={selectedInspectionData}
-          moveOutInspectionData={moveOutInspectionData}
+          moveOutInspectionData={selectedMoveOutData}
           onBack={() => setCurrentView("move-out-evidence")}
           onProceedToSignatures={() => setCurrentView("move-out-signatures")}
         />
@@ -298,6 +333,7 @@ export default function App() {
       {currentView === "move-out-signatures" && (
         <MoveOutSignaturesPage
           property={selectedProperty}
+          userRole={currentUser?.role || "tenant"}
           initialSignatures={moveOutSignatures}
           onBack={() => setCurrentView("move-in-out-records")}
           onSignaturesComplete={(sigs) => {
@@ -311,9 +347,9 @@ export default function App() {
         <MoveOutInspectionReportPage
           property={selectedProperty}
           moveInInspectionData={selectedInspectionData}
-          moveOutInspectionData={moveOutInspectionData}
+          moveOutInspectionData={selectedMoveOutData}
           signatures={moveOutSignatures}
-          onBack={() => setCurrentView("move-out-signatures")}
+          onBack={() => setCurrentView("dashboard")}
           onFinalize={() => setCurrentView("dashboard")}
         />
       )}
@@ -336,6 +372,7 @@ export default function App() {
       {currentView === "sign-inspection" && (
         <SignInspectionPage
           inspectionId={inspectionId}
+          userRole={currentUser?.role || "tenant"}
           initialSignatures={signatures}
           onBack={() => setCurrentView("evidence-review")}
           onSignaturesComplete={(sigs) => {
@@ -357,7 +394,7 @@ export default function App() {
           inspectionData={selectedInspectionData}
           signatures={signatures}
           isLocked={true}
-          onBack={() => setCurrentView("sign-inspection")}
+          onBack={() => setCurrentView("dashboard")}
           onFinalize={() => setCurrentView("dashboard")}
         />
       )}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ArrowLeft,
   Camera,
@@ -15,56 +15,25 @@ import {
   ShieldAlert,
   X,
 } from "lucide-react";
+import api from "../api/client"; // Live API client connected to Render backend
 
 const INITIAL_CATEGORIES = ["All", "Rooms", "Kitchen", "Bathrooms"];
 
 const CONDITION_OPTIONS = [
-  {
-    id: "no_issue",
-    label: "No issue",
-    icon: CheckCircle2,
-    color: "text-emerald-600",
-  },
-  {
-    id: "stains",
-    label: "Stains",
-    icon: AlertTriangle,
-    color: "text-amber-600",
-  },
-  {
-    id: "cracks",
-    label: "Cracks",
-    icon: AlertTriangle,
-    color: "text-orange-600",
-  },
+  { id: "no_issue", label: "No issue", icon: CheckCircle2, color: "text-emerald-600" },
+  { id: "stains", label: "Stains", icon: AlertTriangle, color: "text-amber-600" },
+  { id: "cracks", label: "Cracks", icon: AlertTriangle, color: "text-orange-600" },
   { id: "broken", label: "Broken", icon: XCircle, color: "text-red-600" },
 ];
 
 const SEVERITIES = [
-  {
-    id: "Minor",
-    label: "Minor",
-    style: "bg-blue-50 text-blue-700 border-blue-200",
-  },
-  {
-    id: "Moderate",
-    label: "Moderate",
-    style: "bg-amber-50 text-amber-700 border-amber-200",
-  },
-  {
-    id: "Major",
-    label: "Major",
-    style: "bg-orange-50 text-orange-700 border-orange-200",
-  },
-  {
-    id: "Critical",
-    label: "Critical",
-    style: "bg-red-50 text-red-700 border-red-200",
-  },
+  { id: "Minor", label: "Minor", style: "bg-blue-50 text-blue-700 border-blue-200" },
+  { id: "Moderate", label: "Moderate", style: "bg-amber-50 text-amber-700 border-amber-200" },
+  { id: "Major", label: "Major", style: "bg-orange-50 text-orange-700 border-orange-200" },
+  { id: "Critical", label: "Critical", style: "bg-red-50 text-red-700 border-red-200" },
 ];
 
-const DEFAULT_IMAGE =
-  "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80";
+const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80";
 
 const compressImage = (file) => {
   return new Promise((resolve) => {
@@ -79,8 +48,7 @@ const compressImage = (file) => {
         const scaleFactor = MAX_WIDTH / img.width;
 
         canvas.width = img.width > MAX_WIDTH ? MAX_WIDTH : img.width;
-        canvas.height =
-          img.width > MAX_WIDTH ? img.height * scaleFactor : img.height;
+        canvas.height = img.width > MAX_WIDTH ? img.height * scaleFactor : img.height;
 
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -96,23 +64,19 @@ export default function MoveOutInspectionPage({
   onBack,
   onCompleteMoveOutInspection,
 }) {
-  const safeProperty = property || {
-    id: "demo-1",
-    address: "No 2, sunshine estate, Ikeja city, Lagos",
-    image: DEFAULT_IMAGE,
-    status: "ACTIVE",
-  };
+  const safeProperty = property || null;
 
   const isReadOnly = safeProperty?.moveOutStatus === "READ_ONLY";
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedRoomId, setSelectedRoomId] = useState(null);
+  const [inspectionId, setInspectionId] = useState(null);
 
-  // Property Custom Banner Photo State
+  // Property Custom Banner Photo State (Scoped strictly to current property ID, no bleed)
   const [propertyImage, setPropertyImage] = useState(() => {
+    const propIdKey = safeProperty?.propertyId || safeProperty?.id;
+    if (!propIdKey) return DEFAULT_IMAGE;
     try {
-      const saved = localStorage.getItem(
-        `hometrust_moveout_property_image_${safeProperty?.id}`,
-      );
+      const saved = localStorage.getItem(`hometrust_moveout_property_image_${propIdKey}`);
       if (saved) return saved;
     } catch (e) {
       console.error(e);
@@ -144,81 +108,56 @@ export default function MoveOutInspectionPage({
   const [disputeNote, setDisputeNote] = useState("");
   const [disputeSeverity, setDisputeSeverity] = useState("Minor");
 
-  // Main Move-Out Inspection Data State
+  // Main Move-Out Inspection Data State (Initialized strictly empty for new properties)
   const [roomsData, setRoomsData] = useState(() => {
+    const propIdKey = safeProperty?.propertyId || safeProperty?.id;
+    if (!propIdKey) return [];
+
     try {
-      const saved = localStorage.getItem(
-        `hometrust_moveout_inspection_v5_${safeProperty?.id}`,
-      );
+      const saved = localStorage.getItem(`hometrust_moveout_inspection_v6_${propIdKey}`);
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.error(e);
     }
 
-    return [
-      {
-        id: "room-1",
-        name: "Main Bedroom",
-        category: "Rooms",
-        items: [
-          {
-            id: "item-101",
-            name: "Curtains",
-            condition: "no_issue",
-            notes: "",
-            photos: [],
-            status: "Normal",
-          },
-          {
-            id: "item-102",
-            name: "Cabinet",
-            condition: "no_issue",
-            notes: "",
-            photos: [],
-            status: "Normal",
-          },
-        ],
-      },
-      {
-        id: "room-2",
-        name: "Kitchen",
-        category: "Kitchen",
-        items: [
-          {
-            id: "item-201",
-            name: "Kitchen Sink & Cabinets",
-            condition: "no_issue",
-            notes: "",
-            photos: [],
-            status: "Normal",
-          },
-        ],
-      },
-      {
-        id: "room-3",
-        name: "Main Bathroom",
-        category: "Bathrooms",
-        items: [
-          {
-            id: "item-301",
-            name: "Shower & Tub",
-            condition: "no_issue",
-            notes: "",
-            photos: [],
-            status: "Normal",
-          },
-        ],
-      },
-    ];
+    return [];
   });
+
+  // Background Backend Sync Initialization
+  useEffect(() => {
+    const initInspectionBackend = async () => {
+      const targetPropId = safeProperty?.propertyId || safeProperty?.id;
+      if (!targetPropId) return;
+
+      try {
+        const res = await api.get(`/inspections/property/${targetPropId}`);
+        const inspections = res.data?.inspections || res.data || [];
+        
+        if (inspections.length > 0) {
+          setInspectionId(inspections[0].inspectionId || inspections[0].id);
+        } else {
+          const createRes = await api.post("/inspections", {
+            propertyId: targetPropId,
+            mode: "MoveOut",
+          });
+          const newInsp = createRes.data?.inspection || createRes.data;
+          setInspectionId(newInsp.inspectionId || newInsp.id);
+        }
+      } catch (err) {
+        console.warn("Backend sync notice (running offline/local mode):", err?.message);
+      }
+    };
+
+    initInspectionBackend();
+  }, [safeProperty?.propertyId, safeProperty?.id]);
 
   const saveRooms = (updatedData) => {
     setRoomsData(updatedData);
     try {
-      localStorage.setItem(
-        `hometrust_moveout_inspection_v5_${safeProperty?.id}`,
-        JSON.stringify(updatedData),
-      );
+      const propIdKey = safeProperty?.propertyId || safeProperty?.id;
+      if (propIdKey) {
+        localStorage.setItem(`hometrust_moveout_inspection_v6_${propIdKey}`, JSON.stringify(updatedData));
+      }
     } catch (e) {
       console.error(e);
     }
@@ -231,16 +170,16 @@ export default function MoveOutInspectionPage({
     const compressedUrl = await compressImage(file);
     setPropertyImage(compressedUrl);
     try {
-      localStorage.setItem(
-        `hometrust_moveout_property_image_${safeProperty?.id}`,
-        compressedUrl,
-      );
+      const propIdKey = safeProperty?.propertyId || safeProperty?.id;
+      if (propIdKey) {
+        localStorage.setItem(`hometrust_moveout_property_image_${propIdKey}`, compressedUrl);
+      }
     } catch (err) {
       console.error(err);
     }
   };
 
-  const handleAddRoom = (e) => {
+  const handleAddRoom = async (e) => {
     e.preventDefault();
     if (!newRoomName.trim()) return;
 
@@ -249,9 +188,13 @@ export default function MoveOutInspectionPage({
         ? customCategory.trim()
         : newRoomCategory;
 
+    const roomNameTrimmed = newRoomName.trim();
+    const newRoomId = `room-${Date.now()}`;
+    
     const newRoom = {
-      id: `room-${Date.now()}`,
-      name: newRoomName.trim(),
+      id: newRoomId,
+      roomId: newRoomId,
+      name: roomNameTrimmed,
       category: finalCategory,
       items: [
         {
@@ -271,9 +214,31 @@ export default function MoveOutInspectionPage({
     setCustomCategory("");
     setIsAddingCustomCategory(false);
     setAddRoomModalOpen(false);
+
+    const targetPropId = safeProperty?.propertyId || safeProperty?.id;
+    if (targetPropId) {
+      try {
+        const currentRoomsList = updated.map((r) => ({ 
+          roomId: r.id || r.roomId, 
+          name: r.name, 
+          category: r.category 
+        }));
+        
+        await api.put(`/properties/${targetPropId}`, {
+          name: safeProperty.name || "Property",
+          address: safeProperty.address,
+          type: safeProperty.type || "Apartment",
+          flatNo: safeProperty.flatNo || "1",
+          image: safeProperty.image || DEFAULT_IMAGE,
+          rooms: currentRoomsList,
+        });
+      } catch (err) {
+        console.warn("Failed to register custom room on backend property:", err?.response?.data || err?.message);
+      }
+    }
   };
 
-  const handleDeleteRoom = (roomId, e) => {
+  const handleDeleteRoom = async (roomId, e) => {
     if (e) e.stopPropagation();
     if (
       !window.confirm(
@@ -287,6 +252,21 @@ export default function MoveOutInspectionPage({
     if (selectedRoomId === roomId) {
       setSelectedRoomId(null);
     }
+
+    const targetPropId = safeProperty?.propertyId || safeProperty?.id;
+    if (targetPropId) {
+      try {
+        const currentRoomsList = updated.map((r) => ({ roomId: r.id, name: r.name, category: r.category }));
+        await api.put(`/properties/${targetPropId}`, {
+          name: safeProperty.name || "Property",
+          address: safeProperty.address,
+          type: safeProperty.type || "Apartment",
+          rooms: currentRoomsList,
+        });
+      } catch (err) {
+        console.warn("Backend deletion sync note:", err?.message);
+      }
+    }
   };
 
   const handleSaveRoomName = (roomId) => {
@@ -298,9 +278,12 @@ export default function MoveOutInspectionPage({
     setIsEditingRoomName(false);
   };
 
-  const handleAddItem = (e) => {
+  const handleAddItem = async (e) => {
     e.preventDefault();
     if (!newItemName.trim() || !selectedRoomId) return;
+
+    const targetRoom = roomsData.find((r) => r.id === selectedRoomId);
+    const newItemId = `item-${Date.now()}`;
 
     const updated = roomsData.map((room) => {
       if (room.id === selectedRoomId) {
@@ -309,7 +292,8 @@ export default function MoveOutInspectionPage({
           items: [
             ...room.items,
             {
-              id: `item-${Date.now()}`,
+              id: newItemId,
+              roomItemId: newItemId,
               name: newItemName.trim(),
               condition: "no_issue",
               notes: "",
@@ -325,6 +309,19 @@ export default function MoveOutInspectionPage({
     saveRooms(updated);
     setNewItemName("");
     setAddItemModalOpen(false);
+
+    if (inspectionId) {
+      try {
+        await api.post(`/inspections/${inspectionId}/items`, {
+          roomId: targetRoom?.name || "General Area",
+          itemName: newItemName.trim(),
+          condition: "no_issue",
+          notes: "",
+        });
+      } catch (err) {
+        console.warn("Backend item sync note:", err?.message);
+      }
+    }
   };
 
   const handleDeleteItem = (roomId, itemId) => {
@@ -332,7 +329,7 @@ export default function MoveOutInspectionPage({
       if (room.id === roomId) {
         return {
           ...room,
-          items: room.items.filter((i) => i.id !== itemId),
+          items: room.items.filter((i) => i.id !== itemId && i.roomItemId !== itemId),
         };
       }
       return room;
@@ -340,15 +337,17 @@ export default function MoveOutInspectionPage({
     saveRooms(updated);
   };
 
-  const updateItemData = (roomId, itemId, fields) => {
+  const updateItemData = async (roomId, itemId, fields) => {
+    const targetRoom = roomsData.find((r) => r.id === roomId);
+    const targetItem = targetRoom?.items.find((i) => i.id === itemId || i.roomItemId === itemId);
+
     const updated = roomsData.map((room) => {
       if (room.id === roomId) {
         return {
           ...room,
           items: room.items.map((item) => {
-            if (item.id === itemId) {
+            if (item.id === itemId || item.roomItemId === itemId) {
               const updatedItem = { ...item, ...fields };
-
               if (fields.condition === "no_issue") {
                 updatedItem.status = "Normal";
                 delete updatedItem.dispute;
@@ -364,30 +363,38 @@ export default function MoveOutInspectionPage({
       return room;
     });
     saveRooms(updated);
+
+    if (inspectionId) {
+      try {
+        let backendRoomItemId = targetItem?.roomItemId;
+
+        if (!backendRoomItemId || String(backendRoomItemId).startsWith("item-")) {
+          const createRes = await api.post(`/inspections/${inspectionId}/items`, {
+            roomId: targetRoom?.name || "Living Room",
+            itemName: targetItem?.name || "General Amenity",
+            condition: fields.condition || targetItem?.condition || "no_issue",
+            notes: fields.notes !== undefined ? fields.notes : targetItem?.notes || "",
+          });
+          
+          backendRoomItemId = createRes.data?.roomItemId;
+          if (backendRoomItemId) {
+            targetItem.roomItemId = backendRoomItemId;
+          }
+          return; 
+        }
+
+        await api.patch(`/inspections/${inspectionId}/items/${backendRoomItemId}`, {
+          condition: fields.condition !== undefined ? fields.condition : undefined,
+          notes: fields.notes !== undefined ? fields.notes : undefined,
+        });
+      } catch (err) {
+        console.warn("Backend sync notice:", err?.response?.data || err?.message);
+      }
+    }
   };
 
   const handleClearDispute = (roomId, itemId) => {
-    const updated = roomsData.map((room) => {
-      if (room.id === roomId) {
-        return {
-          ...room,
-          items: room.items.map((item) => {
-            if (item.id === itemId) {
-              const updatedItem = {
-                ...item,
-                condition: "no_issue",
-                status: "Normal",
-              };
-              delete updatedItem.dispute;
-              return updatedItem;
-            }
-            return item;
-          }),
-        };
-      }
-      return room;
-    });
-    saveRooms(updated);
+    updateItemData(roomId, itemId, { condition: "no_issue", notes: "" });
   };
 
   const handlePhotoUpload = async (roomId, itemId, e) => {
@@ -409,7 +416,7 @@ export default function MoveOutInspectionPage({
         return {
           ...room,
           items: room.items.map((item) => {
-            if (item.id === itemId) {
+            if (item.id === itemId || item.roomItemId === itemId) {
               return {
                 ...item,
                 photos: [...(item.photos || []), ...compressedPhotos],
@@ -431,7 +438,7 @@ export default function MoveOutInspectionPage({
 
     const targetRoom = roomsData.find((r) => r.id === disputeTarget.roomId);
     const targetItem = targetRoom?.items.find(
-      (i) => i.id === disputeTarget.itemId,
+      (i) => i.id === disputeTarget.itemId || i.roomItemId === disputeTarget.itemId,
     );
 
     const newCondition =
@@ -510,10 +517,13 @@ export default function MoveOutInspectionPage({
             {activeRoom ? activeRoom.name : "Move-Out Inspection"}
           </h1>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
+                if (inspectionId) {
+                  try { await api.post(`/inspections/${inspectionId}/submit`); } catch (err) { console.error(err); }
+                }
                 if (onCompleteMoveOutInspection) {
                   onCompleteMoveOutInspection(roomsData);
                 }
@@ -528,13 +538,13 @@ export default function MoveOutInspectionPage({
         {/* Collaborative Notice Banner */}
         {isReadOnly && (
           <div className="bg-amber-500/20 border-b border-amber-500/30 px-4 py-2 text-center text-amber-900 text-xs font-medium backdrop-blur-md">
-            🤝 <strong>Collaborative Mode:</strong> You can still add departure notes, upload photos, or dispute items.
+            🤝 <strong>Collaborative Mode:</strong> Baseline is saved, but you can still add departure notes, upload photos, or dispute items.
           </div>
         )}
 
         {/* Main Content Scroll Container */}
         <div className="px-6 py-4 flex-1 flex flex-col justify-between overflow-y-auto space-y-4 bg-white">
-          {/* Banner Image */}
+          {/* Main Inspection Banner Image with Camera Capture enabled */}
           <div className="relative w-full h-40 rounded-2xl overflow-hidden shadow-sm bg-slate-100 border border-slate-200 group">
             <img
               src={propertyImage}
@@ -596,82 +606,88 @@ export default function MoveOutInspectionPage({
 
               {/* Room Cards */}
               <div className="space-y-3">
-                {filteredRooms.map((room) => {
-                  const allPhotos = room.items.flatMap((i) => i.photos || []);
-                  const disputedCount = room.items.filter(
-                    (i) =>
-                      i.status === "Under Review" ||
-                      i.condition !== "no_issue" ||
-                      !!i.dispute,
-                  ).length;
+                {filteredRooms.length === 0 ? (
+                  <div className="text-center py-10 text-slate-400 text-xs font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    No inspection sections yet. Click "+ Add Section" or add a room to begin!
+                  </div>
+                ) : (
+                  filteredRooms.map((room) => {
+                    const allPhotos = room.items.flatMap((i) => i.photos || []);
+                    const disputedCount = room.items.filter(
+                      (i) =>
+                        i.status === "Under Review" ||
+                        i.condition !== "no_issue" ||
+                        !!i.dispute,
+                    ).length;
 
-                  return (
-                    <div
-                      key={room.id}
-                      onClick={() => setSelectedRoomId(room.id)}
-                      className="w-full flex items-center gap-2.5 group cursor-pointer text-left relative bg-purple-900/10 hover:bg-purple-900/15 p-2.5 rounded-2xl transition-all border border-purple-900/20 shadow-xs"
-                    >
-                      <div className="w-20 h-16 bg-white rounded-xl overflow-hidden grid grid-cols-2 grid-rows-2 gap-0.5 p-0.5 shrink-0 border border-purple-900/10">
-                        {[0, 1, 2, 3].map((idx) => (
-                          <div
-                            key={idx}
-                            className="bg-slate-100 w-full h-full overflow-hidden flex items-center justify-center"
-                          >
-                            {allPhotos[idx] ? (
-                              <img
-                                src={allPhotos[idx].url}
-                                alt=""
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full bg-slate-100" />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="flex-1 flex items-center justify-between relative">
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <h3 className="text-xs font-extrabold text-slate-900">
-                              {room.name}
-                            </h3>
-                            {disputedCount > 0 && (
-                              <span
-                                className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"
-                                title="Has updates/issues"
-                              />
-                            )}
-                          </div>
-                          <p className="text-[10px] text-slate-600 font-semibold mt-0.5">
-                            {room.items.length}{" "}
-                            {room.items.length === 1 ? "Item" : "Items"}
-                            {disputedCount > 0 && (
-                              <span className="text-amber-600 font-bold ml-1">
-                                ({disputedCount} Flagged)
-                              </span>
-                            )}
-                          </p>
-                          <span className="inline-block mt-1 text-[9px] font-extrabold text-purple-900 bg-purple-200/60 px-2 py-0.5 rounded-md">
-                            {room.category}
-                          </span>
+                    return (
+                      <div
+                        key={room.id}
+                        onClick={() => setSelectedRoomId(room.id)}
+                        className="w-full flex items-center gap-2.5 group cursor-pointer text-left relative bg-purple-900/10 hover:bg-purple-900/15 p-2.5 rounded-2xl transition-all border border-purple-900/20 shadow-xs"
+                      >
+                        <div className="w-20 h-16 bg-white rounded-xl overflow-hidden grid grid-cols-2 grid-rows-2 gap-0.5 p-0.5 shrink-0 border border-purple-900/10">
+                          {[0, 1, 2, 3].map((idx) => (
+                            <div
+                              key={idx}
+                              className="bg-slate-100 w-full h-full overflow-hidden flex items-center justify-center"
+                            >
+                              {allPhotos[idx] ? (
+                                <img
+                                  src={allPhotos[idx].url}
+                                  alt=""
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-slate-100" />
+                              )}
+                            </div>
+                          ))}
                         </div>
 
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={(e) => handleDeleteRoom(room.id, e)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white/60 rounded-lg transition-colors cursor-pointer"
-                            title="Delete Room"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                          <ChevronRight className="w-5 h-5 text-purple-900/60 group-hover:translate-x-0.5 transition-transform" />
+                        <div className="flex-1 flex items-center justify-between relative">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <h3 className="text-xs font-extrabold text-slate-900">
+                                {room.name}
+                              </h3>
+                              {disputedCount > 0 && (
+                                <span
+                                  className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"
+                                  title="Has disputes/issues"
+                                />
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-600 font-semibold mt-0.5">
+                              {room.items.length}{" "}
+                              {room.items.length === 1 ? "Item" : "Items"}
+                              {disputedCount > 0 && (
+                                <span className="text-amber-600 font-bold ml-1">
+                                  ({disputedCount} Flagged)
+                                </span>
+                              )}
+                            </p>
+                            <span className="inline-block mt-1 text-[9px] font-extrabold text-purple-900 bg-purple-200/60 px-2 py-0.5 rounded-md">
+                              {room.category}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteRoom(room.id, e)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white/60 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Room"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                            <ChevronRight className="w-5 h-5 text-purple-900/60 group-hover:translate-x-0.5 transition-transform" />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
           ) : (
@@ -764,7 +780,7 @@ export default function MoveOutInspectionPage({
                   }`}
                 >
                   <AlertCircle className="w-3.5 h-3.5" />
-                  Flagged / Issues ({totalDisputedCount})
+                  Damaged / Disputed ({totalDisputedCount})
                 </button>
               </div>
 
@@ -774,7 +790,7 @@ export default function MoveOutInspectionPage({
                   <div className="text-center py-8 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                     <p className="text-xs font-bold">
                       {itemFilter === "disputed"
-                        ? "No flagged issues in this section"
+                        ? "No damaged or disputed items in this section 🎉"
                         : "No items listed."}
                     </p>
                   </div>
@@ -801,7 +817,9 @@ export default function MoveOutInspectionPage({
                             {isDamagedOrDisputed && (
                               <span className="px-2 py-0.5 bg-amber-500 text-white text-[10px] font-bold rounded-full flex items-center gap-1">
                                 <AlertCircle className="w-3 h-3" />
-                                {item.dispute ? "Note Logged" : "Flagged"}
+                                {item.dispute
+                                  ? "Dispute Filed"
+                                  : "Flagged Issue"}
                               </span>
                             )}
                             <button
@@ -817,14 +835,14 @@ export default function MoveOutInspectionPage({
                           </div>
                         </div>
 
-                        {/* Dispute/Note Record Badge */}
+                        {/* Integrated Active Dispute Badge */}
                         {item.dispute && (
                           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1.5 relative">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-1.5">
                                 <ShieldAlert className="w-4 h-4 text-amber-600" />
                                 <span className="text-xs font-extrabold text-amber-900">
-                                  Departure Note / Record ({item.dispute.raisedBy})
+                                  Active Dispute Record ({item.dispute.raisedBy})
                                 </span>
                               </div>
                               {activeSeverityObj && (
@@ -850,13 +868,13 @@ export default function MoveOutInspectionPage({
                                 }
                                 className="text-red-600 hover:underline cursor-pointer font-bold flex items-center gap-0.5"
                               >
-                                <X className="w-3 h-3" /> Clear Note
+                                <X className="w-3 h-3" /> Clear Dispute
                               </button>
                             </div>
                           </div>
                         )}
 
-                        {/* Photos */}
+                        {/* Photos with Camera Capture Enabled */}
                         <div className="grid grid-cols-2 gap-2">
                           {item.photos?.map((p, idx) => (
                             <img
@@ -876,6 +894,7 @@ export default function MoveOutInspectionPage({
                               type="file"
                               multiple
                               accept="image/*"
+                              capture="environment"
                               onChange={(e) =>
                                 handlePhotoUpload(activeRoom.id, item.id, e)
                               }
@@ -940,12 +959,12 @@ export default function MoveOutInspectionPage({
                                 notes: e.target.value,
                               })
                             }
-                            placeholder="Note condition details..."
+                            placeholder="Note condition details, scratches, stains..."
                             className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-purple-800 text-slate-800 placeholder-slate-400"
                           />
                         </div>
 
-                        {/* Note/Dispute Trigger Button */}
+                        {/* Dispute Trigger Button */}
                         <div className="pt-1 flex justify-end">
                           <button
                             type="button"
@@ -966,8 +985,8 @@ export default function MoveOutInspectionPage({
                           >
                             <MessageSquare className="w-3 h-3 text-amber-600" />
                             {item.dispute
-                              ? "Edit Departure Note"
-                              : "Add Departure Note"}
+                              ? "Edit Dispute / Add Comment"
+                              : "Dispute Item / Comment"}
                           </button>
                         </div>
                       </div>
@@ -1139,12 +1158,12 @@ export default function MoveOutInspectionPage({
             className="bg-white p-6 rounded-3xl max-w-md w-full space-y-4 shadow-2xl border border-slate-200"
           >
             <h3 className="font-extrabold text-base text-slate-900">
-              Log Departure Note / Detail ({userRole})
+              Dispute / Comment on Item ({userRole})
             </h3>
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Severity Level
+                Severity Level / Concern Level
               </label>
               <div className="grid grid-cols-4 gap-2">
                 {SEVERITIES.map((s) => (
@@ -1166,14 +1185,14 @@ export default function MoveOutInspectionPage({
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                Notes
+                Your Comment / Objection
               </label>
               <textarea
                 required
                 rows={3}
                 value={disputeNote}
                 onChange={(e) => setDisputeNote(e.target.value)}
-                placeholder="Describe departure condition..."
+                placeholder="State your perspective or condition disagreement..."
                 className="w-full border border-slate-300 rounded-2xl p-3 text-xs focus:outline-none focus:ring-2 focus:ring-purple-800 text-slate-800 bg-white"
               />
             </div>
@@ -1190,7 +1209,7 @@ export default function MoveOutInspectionPage({
                 type="submit"
                 className="px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl cursor-pointer shadow-sm"
               >
-                Save Note
+                Post Comment / Dispute
               </button>
             </div>
           </form>
