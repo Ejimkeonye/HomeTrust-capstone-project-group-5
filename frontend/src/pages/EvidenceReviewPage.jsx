@@ -1,263 +1,135 @@
-import { useState, useRef } from "react";
-import { ArrowLeft, Camera, Check, ShieldCheck, Upload, X } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ArrowLeft, Camera, Check, ShieldCheck, Upload, X, MessageSquare, AlertCircle } from "lucide-react";
+import api from "../api/client"; // Live API client connected to Render backend
 
 export default function EvidenceReviewPage({
-  inspectionData = {},
+  property,
   onBack,
   onSubmitEvidence,
-  onAddEvidence,
 }) {
   const [activeCategory, setActiveCategory] = useState("All");
   const [descriptiveNote, setDescriptiveNote] = useState("");
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [roomsList, setRoomsList] = useState([]);
+  const [inspectionId, setInspectionId] = useState(null);
 
-  // Generate today's date dynamically (e.g. "October 12, 2026")
   const todaysFormattedDate = new Date().toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
   });
 
-  // State for the custom "Add Evidence" form modal
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newRoomName, setNewRoomName] = useState("");
-  const [newRoomCategory, setNewRoomCategory] = useState("Rooms");
-  const [newImagePreview, setNewImagePreview] = useState(null);
-
-  // Dynamic checklist items for the new room
-  const [newItemName, setNewItemName] = useState("");
-  const [newItemCondition, setNewItemCondition] = useState("good");
-  const [checklistItems, setChecklistItems] = useState([]);
-
-  // Parse inspection data safely into rooms/items
-  const [roomsList, setRoomsList] = useState(() => {
-    return Array.isArray(inspectionData)
-      ? inspectionData
-      : Object.keys(inspectionData).map((k) => ({
-          id: k,
-          name: k,
-          category: "Rooms",
-          ...inspectionData[k],
-        }));
-  });
-
-  const fileInputRef = useRef(null);
   const categories = ["All", "Rooms", "Kitchen", "Bathrooms", "Balcony"];
+  const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80";
 
+// Fetch live inspection data and map accurate room names and full comments
+  useEffect(() => {
+    const fetchInspectionEvidence = async () => {
+      const targetPropId = property?.propertyId || property?.id;
+      if (!targetPropId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // 1. Fetch property schema to get exact room names (e.g. "Main Bathroom")
+        const propRes = await api.get(`/properties/${targetPropId}`);
+        const propertyData = propRes.data?.property || propRes.data;
+        const definedRooms = propertyData?.rooms || [];
+
+        // 2. Fetch live inspection data
+        const res = await api.get(`/inspections/property/${targetPropId}`);
+        const inspections = res.data?.inspections || res.data || [];
+        const currentInsp = inspections[0];
+        
+        if (currentInsp) {
+          setInspectionId(currentInsp.inspectionId || currentInsp.id);
+        }
+
+        const backendItems = currentInsp?.items || [];
+        
+        // Map backend items and keep the longest/most complete note string per item
+        const itemMap = new Map();
+        backendItems.forEach(item => {
+          const roomId = item.roomId;
+          const itemName = item.itemName || item.name || "General Area";
+          const key = `${roomId}-${itemName}`;
+          
+          const existing = itemMap.get(key);
+          const currentNotes = item.notes || item.dispute?.description || "";
+
+          // If we already have a note for this item, keep whichever note string is longer (i.e. complete sentence vs. partial typing fragment)
+          const bestNotes = existing && existing.notes.length >= currentNotes.length 
+            ? existing.notes 
+            : currentNotes;
+
+          itemMap.set(key, {
+            name: itemName,
+            condition: item.condition || "no_issue",
+            notes: bestNotes,
+            photos: item.evidence || item.photos || []
+          });
+        });
+
+        // Build rooms list matching the exact property definition names
+        const formattedRooms = definedRooms.map(room => {
+          const roomId = room.roomId || room.id;
+          const roomName = room.name || "Room"; // This will now correctly output "Main Bathroom", "Kitchen", etc.
+
+          // Find items matching this specific room ID or room name
+          const matchedItems = [];
+          itemMap.forEach((itemData, key) => {
+            if (key.startsWith(roomId) || key.toLowerCase().includes(roomName.toLowerCase())) {
+              matchedItems.push(itemData);
+            }
+          });
+
+          return {
+            id: roomId,
+            name: roomName,
+            category: room.category || "Rooms",
+            imageUrl: property?.image || DEFAULT_IMAGE,
+            items: matchedItems.length > 0 ? matchedItems : [
+              { name: "General Area", condition: "no_issue", notes: "", photos: [] }
+            ]
+          };
+        });
+
+        setRoomsList(formattedRooms);
+      } catch (err) {
+        console.error("Failed to load inspection evidence from backend:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInspectionEvidence();
+  }, [property]);
+  
   // Category Filtering Logic
   const filteredRooms = roomsList.filter((room) => {
     if (activeCategory === "All") return true;
-    const nameMatch = room.name
-      ?.toLowerCase()
-      .includes(activeCategory.toLowerCase());
-    const categoryMatch =
-      room.category?.toLowerCase() === activeCategory.toLowerCase();
-    return nameMatch || categoryMatch;
+    return room.category?.toLowerCase() === activeCategory.toLowerCase();
   });
 
-  const handleInitialSubmitClick = () => {
+  const handleInitialSubmitClick = async () => {
+    if (inspectionId) {
+      try {
+        await api.post(`/inspections/${inspectionId}/submit`, {
+          finalNote: descriptiveNote
+        });
+      } catch (err) {
+        console.warn("Backend submit notice:", err?.response?.data || err?.message);
+      }
+    }
     setShowConfirmationModal(true);
-  };
-
-  // Handle Image Selection for Custom Modal
-  const handleImageSelect = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
-      setNewImagePreview(uploadEvent.target.result);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // Add checklist item to the new evidence form
-  const handleAddChecklistItem = () => {
-    if (!newItemName.trim()) return;
-    setChecklistItems((prev) => [
-      ...prev,
-      { name: newItemName, condition: newItemCondition },
-    ]);
-    setNewItemName("");
-    setNewItemCondition("good");
-  };
-
-  // Save the fully customized new evidence item
-  const handleSaveNewEvidence = (e) => {
-    e.preventDefault();
-    if (!newRoomName.trim()) return;
-
-    const customEvidenceItem = {
-      id: Date.now() + Math.random(),
-      name: newRoomName,
-      category: newRoomCategory,
-      imageUrl: newImagePreview,
-      items:
-        checklistItems.length > 0
-          ? checklistItems
-          : [{ name: "General Area", condition: "good" }],
-    };
-
-    setRoomsList((prev) => [customEvidenceItem, ...prev]);
-    if (onAddEvidence) onAddEvidence(customEvidenceItem);
-
-    // Reset Form & Close Modal
-    setShowAddModal(false);
-    setNewRoomName("");
-    setNewRoomCategory("Rooms");
-    setNewImagePreview(null);
-    setChecklistItems([]);
   };
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
       <div className="w-full max-w-md bg-white min-h-screen sm:min-h-200 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative text-slate-900">
-        {/* Hidden File Input triggered inside the modal */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleImageSelect}
-          accept="image/*"
-          className="hidden"
-        />
-
-        {/* CUSTOM "ADD EVIDENCE" MODAL FORM */}
-        {showAddModal && (
-          <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-4xl max-w-sm w-full p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
-              <div className="flex items-center justify-between border-b pb-3">
-                <h3 className="text-sm font-extrabold text-[#4A1E6D]">
-                  Add New Evidence Room
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200 cursor-pointer"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSaveNewEvidence} className="space-y-3">
-                {/* Room Name */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-700">
-                    Room / Space Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newRoomName}
-                    onChange={(e) => setNewRoomName(e.target.value)}
-                    placeholder="e.g. Master Bedroom, Guest Bath"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-[#4A1E6D]"
-                  />
-                </div>
-
-                {/* Category Selection */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-700">
-                    Category
-                  </label>
-                  <select
-                    value={newRoomCategory}
-                    onChange={(e) => setNewRoomCategory(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-[#4A1E6D]"
-                  >
-                    <option value="Rooms">Rooms</option>
-                    <option value="Kitchen">Kitchen</option>
-                    <option value="Bathrooms">Bathrooms</option>
-                    <option value="Balcony">Balcony</option>
-                  </select>
-                </div>
-
-                {/* Photo Uploader */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-slate-700">
-                    Evidence Photo
-                  </label>
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full h-24 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center bg-slate-50 hover:bg-slate-100 cursor-pointer overflow-hidden"
-                  >
-                    {newImagePreview ? (
-                      <img
-                        src={newImagePreview}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <>
-                        <Upload className="w-5 h-5 text-slate-400 mb-1" />
-                        <span className="text-[10px] text-slate-500 font-medium">
-                          Click to upload photo
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Checklist / Amenities Builder */}
-                <div className="space-y-2 pt-1 border-t">
-                  <label className="text-[11px] font-bold text-slate-700">
-                    Add Item / Amenity Checklist
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newItemName}
-                      onChange={(e) => setNewItemName(e.target.value)}
-                      placeholder="Item name (e.g. Walls, Door)"
-                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs focus:outline-none"
-                    />
-                    <select
-                      value={newItemCondition}
-                      onChange={(e) => setNewItemCondition(e.target.value)}
-                      className="bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs focus:outline-none capitalize"
-                    >
-                      <option value="good">Good</option>
-                      <option value="fair">Fair</option>
-                      <option value="damaged">Damaged</option>
-                      <option value="needs_repair">Needs Repair</option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={handleAddChecklistItem}
-                      className="bg-[#4A1E6D] text-white px-3 rounded-xl text-xs font-bold cursor-pointer"
-                    >
-                      +
-                    </button>
-                  </div>
-
-                  {/* List of added checklist items */}
-                  {checklistItems.length > 0 && (
-                    <div className="space-y-1 max-h-24 overflow-y-auto bg-slate-50 p-2 rounded-xl border border-slate-200">
-                      {checklistItems.map((item, idx) => (
-                        <div
-                          key={idx}
-                          className="flex justify-between text-[11px] text-slate-700"
-                        >
-                          <span>{item.name}</span>
-                          <span className="font-bold capitalize text-[#4A1E6D]">
-                            {item.condition.replace("_", " ")}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Save Button */}
-                <button
-                  type="submit"
-                  className="w-full bg-[#4A1E6D] hover:bg-purple-900 text-white font-extrabold py-3 rounded-xl text-xs transition-colors cursor-pointer mt-4"
-                >
-                  Save Evidence Room
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
-
+        
         {/* Confirmation Modal Overlay */}
         {showConfirmationModal && (
           <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -283,16 +155,9 @@ export default function EvidenceReviewPage({
                     setShowConfirmationModal(false);
                     if (onSubmitEvidence) onSubmitEvidence();
                   }}
-                  className="w-full bg-white hover:bg-purple-50 text-[#4A1E6D] font-extrabold py-3 rounded-2xl text-xs transition-colors cursor-pointer"
+                  className="w-full bg-white hover:bg-purple-50 text-[#4A1E6D] font-extrabold py-3 rounded-2xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                 >
-                  Proceed to Signatures
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmationModal(false)}
-                  className="w-full bg-transparent hover:bg-white/10 text-white font-bold py-2.5 rounded-2xl text-xs transition-colors border border-white/20 cursor-pointer"
-                >
-                  Back (Add More Evidence)
+                  <Check className="w-4 h-4" /> Proceed to Signatures
                 </button>
               </div>
             </div>
@@ -324,7 +189,6 @@ export default function EvidenceReviewPage({
           </button>
           <button
             type="button"
-            onClick={() => setShowAddModal(true)}
             className="flex-1 bg-[#4A1E6D] hover:bg-purple-900 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
           >
             <Upload className="w-3.5 h-3.5" /> + Add evidence
@@ -356,61 +220,68 @@ export default function EvidenceReviewPage({
 
         {/* Content / Evidence Scroll Area */}
         <div className="px-6 py-4 flex-1 overflow-y-auto space-y-4 bg-white">
-          {filteredRooms.length > 0 ? (
-            filteredRooms.map((room, idx) => {
-              // Pull photo from custom imageUrl OR dynamically look inside the inspection items array
-              const roomPhoto =
-                room.imageUrl ||
-                room.items?.flatMap((i) => i.photos || [])?.[0]?.url;
-
-              return (
-                <div
-                  key={room.id || idx}
-                  className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-16 h-16 bg-slate-200 rounded-xl overflow-hidden shrink-0 flex items-center justify-center text-slate-400">
-                      {roomPhoto ? (
-                        <img
-                          src={roomPhoto}
-                          alt={room.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <Camera className="w-6 h-6" />
-                      )}
+          {loading ? (
+            <div className="text-center py-10 text-slate-400 text-xs font-medium">
+              Loading live evidence records from backend...
+            </div>
+          ) : filteredRooms.length > 0 ? (
+            filteredRooms.map((room, idx) => (
+              <div
+                key={room.id || idx}
+                className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-16 h-16 bg-slate-200 rounded-xl overflow-hidden shrink-0 flex items-center justify-center text-slate-400">
+                    {room.imageUrl ? (
+                      <img
+                        src={room.imageUrl}
+                        alt={room.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Camera className="w-6 h-6 text-slate-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                      <h4 className="text-xs font-extrabold text-slate-900">
+                        {room.name}
+                      </h4>
+                      <span className="text-[10px] bg-purple-100 text-[#4A1E6D] px-2 py-0.5 rounded-md font-bold">
+                        {room.category || "Rooms"}
+                      </span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start">
-                        <h4 className="text-xs font-extrabold text-slate-900">
-                          {room.name}
-                        </h4>
-                        <span className="text-[10px] bg-purple-100 text-[#4A1E6D] px-2 py-0.5 rounded-md font-bold">
-                          {room.category || "Rooms"}
-                        </span>
+
+                    <div className="text-[11px] text-slate-600 mt-2 space-y-2">
+                      <div className="font-semibold text-purple-900 border-b border-purple-100 pb-1 flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5 text-purple-800" />
+                        Condition & Comments Checklist:
                       </div>
-                      <div className="text-[11px] text-slate-600 mt-1 space-y-0.5">
-                        <div className="font-semibold text-purple-900">
-                          Condition Checklist:
-                        </div>
-                        {room.items?.map((item, iIdx) => (
-                          <div key={iIdx} className="flex justify-between">
-                            <span>{item.name}:</span>
-                            <span className="font-bold capitalize">
-                              {(item.condition || "good").replace("_", " ")}
+                      {room.items?.map((item, iIdx) => (
+                        <div key={iIdx} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
+                          <div className="flex justify-between items-center font-bold text-slate-900 text-xs">
+                            <span>{item.name}</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 uppercase">
+                              {item.condition.replace("_", " ")}
                             </span>
                           </div>
-                        ))}
-                      </div>
+                          {item.notes && (
+                            <p className="text-[11px] text-slate-600 bg-purple-50/50 p-1.5 rounded-lg border border-purple-100 font-medium flex items-start gap-1">
+                              <MessageSquare className="w-3 h-3 text-purple-800 shrink-0 mt-0.5" />
+                              <span>"{item.notes}"</span>
+                            </p>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
-              );
-            })
+              </div>
+            ))
           ) : (
-            <div className="text-center py-10 text-slate-400 text-xs font-medium">
-              No evidence found for "{activeCategory}". Click "+ Add evidence"
-              to create a custom room entry.
+            <div className="text-center py-10 text-slate-400 text-xs font-medium flex flex-col items-center gap-2">
+              <X className="w-6 h-6 text-slate-300" />
+              <span>No live evidence items found for this property inspection.</span>
             </div>
           )}
 

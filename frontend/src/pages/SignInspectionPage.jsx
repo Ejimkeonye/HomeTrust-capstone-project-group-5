@@ -1,7 +1,9 @@
 import { useState } from "react";
 import SignatureCanvas from "../components/SignatureCanvas";
+import api from "../api/client"; // Live API client connected to Render backend
 
 export default function SignInspectionPage({
+  inspectionId,
   onBack,
   onSignaturesComplete,
   initialSignatures,
@@ -9,8 +11,28 @@ export default function SignInspectionPage({
   const [signatures, setSignatures] = useState(
     initialSignatures || { landlord: null, tenant: null },
   );
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isComplete = signatures.landlord && signatures.tenant; // Or adjust based on whether one or both are required
+  const isComplete = signatures.landlord && signatures.tenant;
+
+  const handleLockAndSign = async () => {
+    if (!isComplete) return;
+    setIsSubmitting(true);
+
+    try {
+      if (inspectionId) {
+        // Calls your backend controller `approveInspection`
+        await api.post(`/inspections/${inspectionId}/acknowledge`, {
+          signatures,
+        });
+      }
+    } catch (err) {
+      console.warn("Backend signature acknowledgement notice:", err?.response?.data || err?.message);
+    } finally {
+      setIsSubmitting(false);
+      onSignaturesComplete(signatures);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4 font-sans">
@@ -52,11 +74,11 @@ export default function SignInspectionPage({
 
         <button
           type="button"
-          disabled={!isComplete}
-          onClick={() => onSignaturesComplete(signatures)}
+          disabled={!isComplete || isSubmitting}
+          onClick={handleLockAndSign}
           className="w-full bg-[#4A1E6D] hover:bg-purple-950 disabled:opacity-40 text-white font-extrabold py-3.5 rounded-2xl text-xs transition-colors shadow-lg cursor-pointer"
         >
-          Lock & Proceed to Final Report →
+          {isSubmitting ? "Locking to Database..." : "Lock & Proceed to Final Report →"}
         </button>
       </div>
     </div>
