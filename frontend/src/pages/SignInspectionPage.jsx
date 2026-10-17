@@ -4,6 +4,7 @@ import api from "../api/client"; // Live API client connected to Render backend
 
 export default function SignInspectionPage({
   inspectionId,
+  userRole = "tenant", // "landlord" or "tenant"
   onBack,
   onSignaturesComplete,
   initialSignatures,
@@ -13,7 +14,12 @@ export default function SignInspectionPage({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isComplete = signatures.landlord && signatures.tenant;
+  const currentRole = String(userRole).toLowerCase();
+  const isLandlord = currentRole.includes("landlord");
+  const isTenant = currentRole.includes("tenant");
+
+  // ✨ KEY LOGIC: Users only need to fill their OWN respective signature field to complete!
+  const isComplete = isLandlord ? Boolean(signatures.landlord) : isTenant ? Boolean(signatures.tenant) : Boolean(signatures.landlord && signatures.tenant);
 
   const handleLockAndSign = async () => {
     if (!isComplete) return;
@@ -21,7 +27,6 @@ export default function SignInspectionPage({
 
     try {
       if (inspectionId) {
-        // Calls your backend controller `approveInspection`
         await api.post(`/inspections/${inspectionId}/acknowledge`, {
           signatures,
         });
@@ -42,34 +47,60 @@ export default function SignInspectionPage({
             onClick={onBack}
             className="text-xs font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
           >
-            ← Back to Evidence Review
+            ← Back
           </button>
           <h2 className="text-sm font-extrabold text-[#4A1E6D]">
-            Signatures Required
+            {isLandlord ? "Landlord Signature" : "Tenant Signature"}
           </h2>
         </div>
 
         <p className="text-xs text-slate-600 font-medium">
-          Please provide digital signatures to lock and seal this inspection
-          report.
+          Please provide your digital signature to acknowledge and lock your portion of this report.
         </p>
 
-        {/* Signature Canvas Components */}
+        {/* Signature Canvas Components with Role Gating */}
         <div className="space-y-4">
-          <SignatureCanvas
-            label="Landlord Signature"
-            savedSignature={signatures.landlord}
-            onSave={(sig) =>
-              setSignatures((prev) => ({ ...prev, landlord: sig }))
-            }
-          />
-          <SignatureCanvas
-            label="Tenant Signature"
-            savedSignature={signatures.tenant}
-            onSave={(sig) =>
-              setSignatures((prev) => ({ ...prev, tenant: sig }))
-            }
-          />
+          
+          {/* Landlord Field: Editable ONLY if user is landlord */}
+          <div className="space-y-1">
+            {isLandlord ? (
+              <SignatureCanvas
+                label="Landlord Signature (Your Role)"
+                savedSignature={signatures.landlord}
+                onSave={(sig) =>
+                  setSignatures((prev) => ({ ...prev, landlord: sig }))
+                }
+              />
+            ) : (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-600">Landlord Signature</span>
+                <span className={`text-xs font-extrabold ${signatures.landlord ? "text-emerald-700" : "text-amber-600"}`}>
+                  {signatures.landlord ? "Signed ✓" : "Awaiting Landlord"}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Tenant Field: Editable ONLY if user is tenant */}
+          <div className="space-y-1">
+            {isTenant ? (
+              <SignatureCanvas
+                label="Tenant Signature (Your Role)"
+                savedSignature={signatures.tenant}
+                onSave={(sig) =>
+                  setSignatures((prev) => ({ ...prev, tenant: sig }))
+                }
+              />
+            ) : (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-600">Tenant Signature</span>
+                <span className={`text-xs font-extrabold ${signatures.tenant ? "text-emerald-700" : "text-amber-600"}`}>
+                  {signatures.tenant ? "Signed ✓" : "Awaiting Tenant"}
+                </span>
+              </div>
+            )}
+          </div>
+
         </div>
 
         <button
@@ -78,7 +109,7 @@ export default function SignInspectionPage({
           onClick={handleLockAndSign}
           className="w-full bg-[#4A1E6D] hover:bg-purple-950 disabled:opacity-40 text-white font-extrabold py-3.5 rounded-2xl text-xs transition-colors shadow-lg cursor-pointer"
         >
-          {isSubmitting ? "Locking to Database..." : "Lock & Proceed to Final Report →"}
+          {isSubmitting ? "Locking to Database..." : "Save Signature & Proceed →"}
         </button>
       </div>
     </div>

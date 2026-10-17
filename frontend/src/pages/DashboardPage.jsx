@@ -26,7 +26,8 @@ export default function DashboardPage({
   onLogout,
   onViewReport,
   onStartInspection,
-  onStartMoveOutInspection, 
+  onStartMoveOutInspection,
+  onViewMoveOutReport, 
   onViewEvidence,
   onOpenNotifications,
   onOpenProfile,
@@ -99,6 +100,16 @@ export default function DashboardPage({
     setNewFlatNo("");
     setShowAddPropertyModal(false);
   };
+
+  // Check if move-in is fully signed and locked by BOTH parties
+  const moveInSignatures = activeProperty?.signatures || {};
+  const isMoveInFullySigned = Boolean(
+    activeProperty?.status === "READ_ONLY" && 
+    moveInSignatures.landlord && 
+    moveInSignatures.tenant
+  );
+
+  const isMoveOutLocked = activeProperty?.moveOutStatus === "READ_ONLY" || activeProperty?.moveOutStatus === "LOCKED";
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
@@ -327,44 +338,76 @@ export default function DashboardPage({
             </div>
           </div>
 
-          {/* Move-Out Compartment Card */}
+          {/* Move-Out Compartment Card (Gated until Move-In is Fully Signed by BOTH parties) */}
           <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xs font-extrabold text-slate-900">Move-Out Compartment</h2>
                 <p className="text-[10px] text-slate-500">Record property state upon departure.</p>
               </div>
-              <span className="text-[10px] px-2.5 py-1 rounded-full bg-purple-100 text-purple-900 font-extrabold">
-                Ready
+              <span className={`text-[10px] px-2.5 py-1 rounded-full font-extrabold ${
+                isMoveInFullySigned 
+                  ? "bg-purple-100 text-purple-900" 
+                  : "bg-slate-100 text-slate-400"
+              }`}>
+                {isMoveInFullySigned ? "Ready" : "Locked"}
               </span>
             </div>
 
-            <button
-              type="button"
-              disabled={!activeProperty}
-              onClick={() => activeProperty && onStartMoveOutInspection && onStartMoveOutInspection(activeProperty)}
-              className="w-full bg-[#4A1E6D] hover:bg-purple-950 disabled:bg-slate-300 text-white font-extrabold text-xs py-3 rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
-            >
-              <Camera className="w-4 h-4" /> Start Move-Out Inspection
-            </button>
+            {isMoveInFullySigned ? (
+              <div className="space-y-2">
+                {isMoveOutLocked ? (
+                  <button
+                    type="button"
+                    onClick={() => activeProperty && onViewMoveOutReport && onViewMoveOutReport(activeProperty)}
+                    className="w-full bg-purple-100 text-[#4A1E6D] border border-purple-300 hover:bg-purple-200 font-extrabold text-xs py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+                  >
+                    <FileText className="w-4 h-4" /> View Final Move-Out Report
+                  </button>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => activeProperty && onViewMoveOutReport && onViewMoveOutReport(activeProperty)}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold text-xs py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <FileText className="w-3.5 h-3.5" /> View Report
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => activeProperty && onStartMoveOutInspection && onStartMoveOutInspection(activeProperty)}
+                      className="bg-[#4A1E6D] hover:bg-purple-950 text-white font-extrabold text-xs py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <Camera className="w-3.5 h-3.5" /> Start Walkthrough
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-[11px] text-slate-400 font-medium text-center py-2 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                🔒 Move-out unlocks after both Landlord and Tenant sign the Move-In report.
+              </div>
+            )}
           </div>
 
           {/* Move-Out Inspection Progress */}
-          <div className="space-y-3 pt-1">
-            <h2 className="text-sm font-extrabold text-slate-900">Move-Out Inspection Progress</h2>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-                <span>{activeProperty?.address || "No property selected"}</span>
-                <span>{activeProperty?.moveOutProgress || 0}%</span>
-              </div>
-              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                <div
-                  className="bg-[#4A1E6D] h-full rounded-full transition-all duration-500"
-                  style={{ width: `${activeProperty?.moveOutProgress || 0}%` }}
-                />
+          {isMoveInFullySigned && (
+            <div className="space-y-3 pt-1">
+              <h2 className="text-sm font-extrabold text-slate-900">Move-Out Inspection Progress</h2>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                  <span>{activeProperty?.address || "No property selected"}</span>
+                  <span>{activeProperty?.moveOutProgress || 0}%</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                  <div
+                    className="bg-[#4A1E6D] h-full rounded-full transition-all duration-500"
+                    style={{ width: `${activeProperty?.moveOutProgress || 0}%` }}
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
         </div>
 
