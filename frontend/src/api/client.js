@@ -1,8 +1,8 @@
 import axios from 'axios';
 
-// Automatically pulls your live Render URL from the .env file
-const API_URL = import.meta.env.VITE_API_URL;
-console.log("CHECKING VITE_API_URL:", API_URL); // <-- Add it right here!
+// Automatically pulls your live Render URL from the .env file, or defaults to local backend
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+console.log("CHECKING VITE_API_URL:", API_URL);
 
 const api = axios.create({
   baseURL: `${API_URL}/api`, // Appends /api to the live Render backend URL
