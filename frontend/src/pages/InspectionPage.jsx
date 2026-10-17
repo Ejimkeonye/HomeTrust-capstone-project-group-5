@@ -67,22 +67,19 @@ export default function InspectionPage({
   onBack,
   onCompleteInspection,
 }) {
-  const safeProperty = property || {
-    id: "demo-1",
-    address: "No 2, sunshine estate, Ikeja city, Lagos",
-    image: DEFAULT_IMAGE,
-    status: "ACTIVE",
-  };
+  const safeProperty = property || null;
 
   const isReadOnly = safeProperty?.status === "READ_ONLY";
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [inspectionId, setInspectionId] = useState(null);
 
-  // Property Custom Banner Photo State
+  // Property Custom Banner Photo State (Scoped strictly to current property ID, no Sabo bleed)
   const [propertyImage, setPropertyImage] = useState(() => {
+    const propIdKey = safeProperty?.propertyId || safeProperty?.id;
+    if (!propIdKey) return DEFAULT_IMAGE;
     try {
-      const saved = localStorage.getItem(`hometrust_property_image_${safeProperty?.propertyId || safeProperty?.id}`);
+      const saved = localStorage.getItem(`hometrust_property_image_${propIdKey}`);
       if (saved) return saved;
     } catch (e) {
       console.error(e);
@@ -118,42 +115,20 @@ export default function InspectionPage({
   const [disputeNote, setDisputeNote] = useState("");
   const [disputeSeverity, setDisputeSeverity] = useState("Minor");
 
-  // Main Inspection Data State (Initialized from LocalStorage for instant UI, then synced with backend)
+  // Main Inspection Data State (Initialized strictly from current property key, defaults to [] so new properties start blank)
   const [roomsData, setRoomsData] = useState(() => {
+    const propIdKey = safeProperty?.propertyId || safeProperty?.id;
+    if (!propIdKey) return [];
+
     try {
-      const propIdKey = safeProperty?.propertyId || safeProperty?.id;
-      const saved = localStorage.getItem(`hometrust_inspection_v5_${propIdKey}`);
+      const saved = localStorage.getItem(`hometrust_inspection_v6_${propIdKey}`);
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.error(e);
     }
 
-    return [
-      {
-        id: "room-1",
-        name: "Living Room",
-        category: "Rooms",
-        items: [
-          { id: "item-101", name: "Main Area", condition: "no_issue", notes: "", photos: [], status: "Normal" },
-        ],
-      },
-      {
-        id: "room-2",
-        name: "Kitchen",
-        category: "Kitchen",
-        items: [
-          { id: "item-201", name: "Kitchen Sink & Cabinets", condition: "no_issue", notes: "", photos: [], status: "Normal" },
-        ],
-      },
-      {
-        id: "room-3",
-        name: "Main Bathroom",
-        category: "Bathrooms",
-        items: [
-          { id: "item-301", name: "Shower & Tub", condition: "no_issue", notes: "", photos: [], status: "Normal" },
-        ],
-      },
-    ];
+    // Brand new properties start completely blank as requested by project manager
+    return [];
   });
 
   // Background Backend Sync Initialization
@@ -188,7 +163,9 @@ export default function InspectionPage({
     setRoomsData(updatedData);
     try {
       const propIdKey = safeProperty?.propertyId || safeProperty?.id;
-      localStorage.setItem(`hometrust_inspection_v5_${propIdKey}`, JSON.stringify(updatedData));
+      if (propIdKey) {
+        localStorage.setItem(`hometrust_inspection_v6_${propIdKey}`, JSON.stringify(updatedData));
+      }
     } catch (e) {
       console.error(e);
     }
@@ -202,7 +179,9 @@ export default function InspectionPage({
     setPropertyImage(compressedUrl);
     try {
       const propIdKey = safeProperty?.propertyId || safeProperty?.id;
-      localStorage.setItem(`hometrust_property_image_${propIdKey}`, compressedUrl);
+      if (propIdKey) {
+        localStorage.setItem(`hometrust_property_image_${propIdKey}`, compressedUrl);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -222,7 +201,7 @@ export default function InspectionPage({
     
     const newRoom = {
       id: newRoomId,
-      roomId: newRoomId, // 🛠️ Ensure roomId matches backend property schema expectations
+      roomId: newRoomId,
       name: roomNameTrimmed,
       category: finalCategory,
       items: [
@@ -244,7 +223,6 @@ export default function InspectionPage({
     setIsAddingCustomCategory(false);
     setAddRoomModalOpen(false);
 
-    // 🛠️ IMMEDIATELY REGISTER THE CUSTOM ROOM ON THE BACKEND PROPERTY SCHEMA
     const targetPropId = safeProperty?.propertyId || safeProperty?.id;
     if (targetPropId) {
       try {
@@ -283,7 +261,6 @@ export default function InspectionPage({
       setSelectedRoomId(null);
     }
 
-    // Background Backend Sync for Deletion
     const targetPropId = safeProperty?.propertyId || safeProperty?.id;
     if (targetPropId) {
       try {
@@ -341,7 +318,6 @@ export default function InspectionPage({
     setNewItemName("");
     setAddItemModalOpen(false);
 
-    // Background Backend Sync for Item Creation
     if (inspectionId) {
       try {
         await api.post(`/inspections/${inspectionId}/items`, {
@@ -369,8 +345,7 @@ export default function InspectionPage({
     saveRooms(updated);
   };
 
-const updateItemData = async (roomId, itemId, fields) => {
-    // 1. Update local state immediately for an instant, snappy UI response
+  const updateItemData = async (roomId, itemId, fields) => {
     const targetRoom = roomsData.find((r) => r.id === roomId);
     const targetItem = targetRoom?.items.find((i) => i.id === itemId || i.roomItemId === itemId);
 
@@ -397,12 +372,10 @@ const updateItemData = async (roomId, itemId, fields) => {
     });
     saveRooms(updated);
 
-    // 2. Safely sync to backend
     if (inspectionId) {
       try {
         let backendRoomItemId = targetItem?.roomItemId;
 
-        // If it's a brand new local item lacking a backend UUID, create it via POST once
         if (!backendRoomItemId || String(backendRoomItemId).startsWith("item-")) {
           const createRes = await api.post(`/inspections/${inspectionId}/items`, {
             roomId: targetRoom?.name || "Living Room",
@@ -418,7 +391,6 @@ const updateItemData = async (roomId, itemId, fields) => {
           return; 
         }
 
-        // If it already exists on the backend, ALWAYS patch it cleanly (avoiding 409 POST conflicts)
         await api.patch(`/inspections/${inspectionId}/items/${backendRoomItemId}`, {
           condition: fields.condition !== undefined ? fields.condition : undefined,
           notes: fields.notes !== undefined ? fields.notes : undefined,
@@ -537,6 +509,8 @@ const updateItemData = async (roomId, itemId, fields) => {
     );
   }
 
+  const isPropertyValid = Boolean(safeProperty?.propertyId || safeProperty?.id);
+
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
       <div className="w-full max-w-md bg-white min-h-screen sm:min-h-203 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative text-slate-900">
@@ -559,15 +533,17 @@ const updateItemData = async (roomId, itemId, fields) => {
           </button>
 
           <h1 className="text-base font-extrabold text-white text-center truncate">
-            {activeRoom ? activeRoom.name : "Inspection"}
+            {activeRoom ? activeRoom.name : (safeProperty?.name || "Inspection")}
           </h1>
 
           <div className="flex items-center gap-2">
+            {/* 🛠️ Invite Button Disabled Until Property is Added */}
             <button
               type="button"
+              disabled={!isPropertyValid}
               onClick={() => setInviteModalOpen(true)}
-              className="inline-flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1.5 rounded-full text-[11px] font-black shadow-md transition-all cursor-pointer animate-pulse"
-              title="Invite Tenant/Landlord"
+              className="inline-flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 px-3 py-1.5 rounded-full text-[11px] font-black shadow-md transition-all cursor-pointer"
+              title={!isPropertyValid ? "Save property before inviting" : "Invite Tenant/Landlord"}
             >
               <UserPlus className="w-3.5 h-3.5" />
               <span>Invite</span>
@@ -599,7 +575,7 @@ const updateItemData = async (roomId, itemId, fields) => {
 
         {/* Main Content Scroll Container */}
         <div className="px-6 py-4 flex-1 flex flex-col justify-between overflow-y-auto space-y-4 bg-white">
-          {/* Main Inspection Banner Image */}
+          {/* Main Inspection Banner Image with Camera Capture enabled */}
           <div className="relative w-full h-40 rounded-2xl overflow-hidden shadow-sm bg-slate-100 border border-slate-200 group">
             <img
               src={propertyImage}
@@ -661,82 +637,88 @@ const updateItemData = async (roomId, itemId, fields) => {
 
               {/* Room Cards */}
               <div className="space-y-3">
-                {filteredRooms.map((room) => {
-                  const allPhotos = room.items.flatMap((i) => i.photos || []);
-                  const disputedCount = room.items.filter(
-                    (i) =>
-                      i.status === "Under Review" ||
-                      i.condition !== "no_issue" ||
-                      !!i.dispute,
-                  ).length;
+                {filteredRooms.length === 0 ? (
+                  <div className="text-center py-10 text-slate-400 text-xs font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    No inspection sections yet. Click "+ Add Section" or add a room to begin!
+                  </div>
+                ) : (
+                  filteredRooms.map((room) => {
+                    const allPhotos = room.items.flatMap((i) => i.photos || []);
+                    const disputedCount = room.items.filter(
+                      (i) =>
+                        i.status === "Under Review" ||
+                        i.condition !== "no_issue" ||
+                        !!i.dispute,
+                    ).length;
 
-                  return (
-                    <div
-                      key={room.id}
-                      onClick={() => setSelectedRoomId(room.id)}
-                      className="w-full flex items-center gap-2.5 group cursor-pointer text-left relative bg-purple-900/10 hover:bg-purple-900/15 p-2.5 rounded-2xl transition-all border border-purple-900/20 shadow-xs"
-                    >
-                      <div className="w-20 h-16 bg-white rounded-xl overflow-hidden grid grid-cols-2 grid-rows-2 gap-0.5 p-0.5 shrink-0 border border-purple-900/10">
-                        {[0, 1, 2, 3].map((idx) => (
-                          <div
-                            key={idx}
-                            className="bg-slate-100 w-full h-full overflow-hidden flex items-center justify-center"
-                          >
-                            {allPhotos[idx] ? (
-                              <img
-                                src={allPhotos[idx].url}
-                                alt=""
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full bg-slate-100" />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="flex-1 flex items-center justify-between relative">
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <h3 className="text-xs font-extrabold text-slate-900">
-                              {room.name}
-                            </h3>
-                            {disputedCount > 0 && (
-                              <span
-                                className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"
-                                title="Has disputes/issues"
-                              />
-                            )}
-                          </div>
-                          <p className="text-[10px] text-slate-600 font-semibold mt-0.5">
-                            {room.items.length}{" "}
-                            {room.items.length === 1 ? "Item" : "Items"}
-                            {disputedCount > 0 && (
-                              <span className="text-amber-600 font-bold ml-1">
-                                ({disputedCount} Flagged)
-                              </span>
-                            )}
-                          </p>
-                          <span className="inline-block mt-1 text-[9px] font-extrabold text-purple-900 bg-purple-200/60 px-2 py-0.5 rounded-md">
-                            {room.category}
-                          </span>
+                    return (
+                      <div
+                        key={room.id}
+                        onClick={() => setSelectedRoomId(room.id)}
+                        className="w-full flex items-center gap-2.5 group cursor-pointer text-left relative bg-purple-900/10 hover:bg-purple-900/15 p-2.5 rounded-2xl transition-all border border-purple-900/20 shadow-xs"
+                      >
+                        <div className="w-20 h-16 bg-white rounded-xl overflow-hidden grid grid-cols-2 grid-rows-2 gap-0.5 p-0.5 shrink-0 border border-purple-900/10">
+                          {[0, 1, 2, 3].map((idx) => (
+                            <div
+                              key={idx}
+                              className="bg-slate-100 w-full h-full overflow-hidden flex items-center justify-center"
+                            >
+                              {allPhotos[idx] ? (
+                                <img
+                                  src={allPhotos[idx].url}
+                                  alt=""
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-slate-100" />
+                              )}
+                            </div>
+                          ))}
                         </div>
 
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={(e) => handleDeleteRoom(room.id, e)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white/60 rounded-lg transition-colors cursor-pointer"
-                            title="Delete Room"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                          <ChevronRight className="w-5 h-5 text-purple-900/60 group-hover:translate-x-0.5 transition-transform" />
+                        <div className="flex-1 flex items-center justify-between relative">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <h3 className="text-xs font-extrabold text-slate-900">
+                                {room.name}
+                              </h3>
+                              {disputedCount > 0 && (
+                                <span
+                                  className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"
+                                  title="Has disputes/issues"
+                                />
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-600 font-semibold mt-0.5">
+                              {room.items.length}{" "}
+                              {room.items.length === 1 ? "Item" : "Items"}
+                              {disputedCount > 0 && (
+                                <span className="text-amber-600 font-bold ml-1">
+                                  ({disputedCount} Flagged)
+                                </span>
+                              )}
+                            </p>
+                            <span className="inline-block mt-1 text-[9px] font-extrabold text-purple-900 bg-purple-200/60 px-2 py-0.5 rounded-md">
+                              {room.category}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteRoom(room.id, e)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white/60 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Room"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                            <ChevronRight className="w-5 h-5 text-purple-900/60 group-hover:translate-x-0.5 transition-transform" />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
           ) : (
@@ -923,7 +905,7 @@ const updateItemData = async (roomId, itemId, fields) => {
                           </div>
                         )}
 
-                        {/* Photos */}
+                        {/* Photos with Camera Capture Enabled */}
                         <div className="grid grid-cols-2 gap-2">
                           {item.photos?.map((p, idx) => (
                             <img
@@ -943,6 +925,7 @@ const updateItemData = async (roomId, itemId, fields) => {
                               type="file"
                               multiple
                               accept="image/*"
+                              capture="environment"
                               onChange={(e) =>
                                 handlePhotoUpload(activeRoom.id, item.id, e)
                               }
