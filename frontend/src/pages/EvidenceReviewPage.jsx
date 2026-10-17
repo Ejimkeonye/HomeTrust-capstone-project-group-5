@@ -1,18 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ArrowLeft, Camera, Check, ShieldCheck, Upload, X, MessageSquare, AlertCircle } from "lucide-react";
-import api from "../api/client"; // Live API client connected to Render backend
 
 export default function EvidenceReviewPage({
-  property,
+  inspectionData,
   onBack,
   onSubmitEvidence,
 }) {
   const [activeCategory, setActiveCategory] = useState("All");
   const [descriptiveNote, setDescriptiveNote] = useState("");
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [roomsList, setRoomsList] = useState([]);
-  const [inspectionId, setInspectionId] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null); // 🛠️ State for full-size photo modal
 
   const todaysFormattedDate = new Date().toLocaleDateString("en-US", {
     month: "long",
@@ -21,108 +18,15 @@ export default function EvidenceReviewPage({
   });
 
   const categories = ["All", "Rooms", "Kitchen", "Bathrooms", "Balcony"];
-  const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80";
 
-// Fetch live inspection data and map accurate room names and full comments
-  useEffect(() => {
-    const fetchInspectionEvidence = async () => {
-      const targetPropId = property?.propertyId || property?.id;
-      if (!targetPropId) {
-        setLoading(false);
-        return;
-      }
+  const roomsList = Array.isArray(inspectionData) ? inspectionData : (inspectionData?.rooms || []);
 
-      try {
-        // 1. Fetch property schema to get exact room names (e.g. "Main Bathroom")
-        const propRes = await api.get(`/properties/${targetPropId}`);
-        const propertyData = propRes.data?.property || propRes.data;
-        const definedRooms = propertyData?.rooms || [];
-
-        // 2. Fetch live inspection data
-        const res = await api.get(`/inspections/property/${targetPropId}`);
-        const inspections = res.data?.inspections || res.data || [];
-        const currentInsp = inspections[0];
-        
-        if (currentInsp) {
-          setInspectionId(currentInsp.inspectionId || currentInsp.id);
-        }
-
-        const backendItems = currentInsp?.items || [];
-        
-        // Map backend items and keep the longest/most complete note string per item
-        const itemMap = new Map();
-        backendItems.forEach(item => {
-          const roomId = item.roomId;
-          const itemName = item.itemName || item.name || "General Area";
-          const key = `${roomId}-${itemName}`;
-          
-          const existing = itemMap.get(key);
-          const currentNotes = item.notes || item.dispute?.description || "";
-
-          // If we already have a note for this item, keep whichever note string is longer (i.e. complete sentence vs. partial typing fragment)
-          const bestNotes = existing && existing.notes.length >= currentNotes.length 
-            ? existing.notes 
-            : currentNotes;
-
-          itemMap.set(key, {
-            name: itemName,
-            condition: item.condition || "no_issue",
-            notes: bestNotes,
-            photos: item.evidence || item.photos || []
-          });
-        });
-
-        // Build rooms list matching the exact property definition names
-        const formattedRooms = definedRooms.map(room => {
-          const roomId = room.roomId || room.id;
-          const roomName = room.name || "Room"; // This will now correctly output "Main Bathroom", "Kitchen", etc.
-
-          // Find items matching this specific room ID or room name
-          const matchedItems = [];
-          itemMap.forEach((itemData, key) => {
-            if (key.startsWith(roomId) || key.toLowerCase().includes(roomName.toLowerCase())) {
-              matchedItems.push(itemData);
-            }
-          });
-
-          return {
-            id: roomId,
-            name: roomName,
-            category: room.category || "Rooms",
-            imageUrl: property?.image || DEFAULT_IMAGE,
-            items: matchedItems.length > 0 ? matchedItems : [
-              { name: "General Area", condition: "no_issue", notes: "", photos: [] }
-            ]
-          };
-        });
-
-        setRoomsList(formattedRooms);
-      } catch (err) {
-        console.error("Failed to load inspection evidence from backend:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchInspectionEvidence();
-  }, [property]);
-  
-  // Category Filtering Logic
   const filteredRooms = roomsList.filter((room) => {
     if (activeCategory === "All") return true;
     return room.category?.toLowerCase() === activeCategory.toLowerCase();
   });
 
   const handleInitialSubmitClick = async () => {
-    if (inspectionId) {
-      try {
-        await api.post(`/inspections/${inspectionId}/submit`, {
-          finalNote: descriptiveNote
-        });
-      } catch (err) {
-        console.warn("Backend submit notice:", err?.response?.data || err?.message);
-      }
-    }
     setShowConfirmationModal(true);
   };
 
@@ -130,6 +34,30 @@ export default function EvidenceReviewPage({
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
       <div className="w-full max-w-md bg-white min-h-screen sm:min-h-200 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative text-slate-900">
         
+        {/* Full-Size Image Preview Modal Lightbox */}
+        {selectedImage && (
+          <div 
+            onClick={() => setSelectedImage(null)}
+            className="absolute inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4 cursor-pointer animate-fade-in"
+          >
+            <button
+              type="button"
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={selectedImage}
+              alt="Evidence preview"
+              className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+            />
+            <p className="text-white/70 text-xs font-medium mt-4">
+              Tap anywhere to close preview
+            </p>
+          </div>
+        )}
+
         {/* Confirmation Modal Overlay */}
         {showConfirmationModal && (
           <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -220,68 +148,78 @@ export default function EvidenceReviewPage({
 
         {/* Content / Evidence Scroll Area */}
         <div className="px-6 py-4 flex-1 overflow-y-auto space-y-4 bg-white">
-          {loading ? (
-            <div className="text-center py-10 text-slate-400 text-xs font-medium">
-              Loading live evidence records from backend...
-            </div>
-          ) : filteredRooms.length > 0 ? (
-            filteredRooms.map((room, idx) => (
-              <div
-                key={room.id || idx}
-                className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="w-16 h-16 bg-slate-200 rounded-xl overflow-hidden shrink-0 flex items-center justify-center text-slate-400">
-                    {room.imageUrl ? (
-                      <img
-                        src={room.imageUrl}
-                        alt={room.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Camera className="w-6 h-6 text-slate-400" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start">
-                      <h4 className="text-xs font-extrabold text-slate-900">
-                        {room.name}
-                      </h4>
-                      <span className="text-[10px] bg-purple-100 text-[#4A1E6D] px-2 py-0.5 rounded-md font-bold">
-                        {room.category || "Rooms"}
-                      </span>
-                    </div>
+          {filteredRooms.length > 0 ? (
+            filteredRooms.map((room, idx) => {
+              const roomPhotos = room.items?.flatMap(item => item.photos || []) || [];
 
-                    <div className="text-[11px] text-slate-600 mt-2 space-y-2">
-                      <div className="font-semibold text-purple-900 border-b border-purple-100 pb-1 flex items-center gap-1">
-                        <AlertCircle className="w-3.5 h-3.5 text-purple-800" />
-                        Condition & Comments Checklist:
-                      </div>
-                      {room.items?.map((item, iIdx) => (
-                        <div key={iIdx} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
-                          <div className="flex justify-between items-center font-bold text-slate-900 text-xs">
-                            <span>{item.name}</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 uppercase">
-                              {item.condition.replace("_", " ")}
-                            </span>
-                          </div>
-                          {item.notes && (
-                            <p className="text-[11px] text-slate-600 bg-purple-50/50 p-1.5 rounded-lg border border-purple-100 font-medium flex items-start gap-1">
-                              <MessageSquare className="w-3 h-3 text-purple-800 shrink-0 mt-0.5" />
-                              <span>"{item.notes}"</span>
-                            </p>
+              return (
+                <div
+                  key={room.id || idx}
+                  className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm"
+                >
+                  <div className="flex items-start gap-3">
+                    {/* Clickable Room Photo Grid Thumbnail */}
+                    <div className="w-16 h-16 bg-slate-200 rounded-xl overflow-hidden shrink-0 grid grid-cols-2 grid-rows-2 gap-0.5 p-0.5 border border-slate-300">
+                      {[0, 1, 2, 3].map((photoIdx) => (
+                        <div key={photoIdx} className="bg-slate-100 w-full h-full overflow-hidden flex items-center justify-center">
+                          {roomPhotos[photoIdx] ? (
+                            <img
+                              src={roomPhotos[photoIdx].url}
+                              alt=""
+                              onClick={() => setSelectedImage(roomPhotos[photoIdx].url)} // 🛠️ Click to open preview modal
+                              className="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform"
+                              title="Click to view full image"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-slate-100 flex items-center justify-center">
+                              <Camera className="w-3 h-3 text-slate-300" />
+                            </div>
                           )}
                         </div>
                       ))}
                     </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start">
+                        <h4 className="text-xs font-extrabold text-slate-900">
+                          {room.name}
+                        </h4>
+                        <span className="text-[10px] bg-purple-100 text-[#4A1E6D] px-2 py-0.5 rounded-md font-bold">
+                          {room.category || "Rooms"}
+                        </span>
+                      </div>
+
+                      <div className="text-[11px] text-slate-600 mt-2 space-y-2">
+                        <div className="font-semibold text-purple-900 border-b border-purple-100 pb-1 flex items-center gap-1">
+                          <AlertCircle className="w-3.5 h-3.5 text-purple-800" />
+                          Condition & Comments Checklist:
+                        </div>
+                        {room.items?.map((item, iIdx) => (
+                          <div key={iIdx} className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1">
+                            <div className="flex justify-between items-center font-bold text-slate-900 text-xs">
+                              <span>{item.name}</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 uppercase">
+                                {(item.condition || "no_issue").replace("_", " ")}
+                              </span>
+                            </div>
+                            {item.notes && (
+                              <p className="text-[11px] text-slate-600 bg-purple-50/50 p-1.5 rounded-lg border border-purple-100 font-medium flex items-start gap-1">
+                                <MessageSquare className="w-3 h-3 text-purple-800 shrink-0 mt-0.5" />
+                                <span>"{item.notes}"</span>
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="text-center py-10 text-slate-400 text-xs font-medium flex flex-col items-center gap-2">
               <X className="w-6 h-6 text-slate-300" />
-              <span>No live evidence items found for this property inspection.</span>
+              <span>No evidence items found for this property inspection.</span>
             </div>
           )}
 

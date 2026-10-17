@@ -18,28 +18,24 @@ export default function InspectionReportPage({
   const reportStorageKey = `hometrust_report_${property?.id || property?.propertyId || "default"}`;
 
   const [activeInspectionData] = useState(() => {
+    if (initialInspectionData && (Array.isArray(initialInspectionData) ? initialInspectionData.length > 0 : Object.keys(initialInspectionData).length > 0)) {
+      return initialInspectionData;
+    }
     try {
       const saved = localStorage.getItem(reportStorageKey);
       const parsedSaved = saved ? JSON.parse(saved) : {};
-      return (
-        parsedSaved.inspectionData ||
-        initialInspectionData ||
-        property?.inspectionData ||
-        {}
-      );
+      return parsedSaved.inspectionData || property?.inspectionData || [];
     } catch (e) {
       console.error(e);
-      return initialInspectionData || property?.inspectionData || {};
+      return property?.inspectionData || [];
     }
   });
 
-  // Use signatures passed down from parent/storage
   const landlordSig = signatures.landlord || property?.signatures?.landlord;
   const tenantSig = signatures.tenant || property?.signatures?.tenant;
 
   const [showSuccessScreen, setShowSuccessScreen] = useState(false);
 
-  // Safely parse rooms data whether it's stored as an array or an object map
   const roomsList = Array.isArray(activeInspectionData)
     ? activeInspectionData
     : Object.values(activeInspectionData).length > 0
@@ -61,9 +57,7 @@ export default function InspectionReportPage({
       inspectionData: activeInspectionData,
     };
 
-    // Save locally for fallback views
     localStorage.setItem(reportStorageKey, JSON.stringify(finalReport));
-
     setShowSuccessScreen(true);
 
     if (onFinalize) {
@@ -73,7 +67,6 @@ export default function InspectionReportPage({
 
   const handlePrint = () => window.print();
 
-  // Success Screen View
   if (showSuccessScreen) {
     return (
       <div className="min-h-screen bg-slate-900/65 backdrop-blur-md flex items-center justify-center p-4">
@@ -143,15 +136,14 @@ export default function InspectionReportPage({
             <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
               <span className="text-xs font-semibold text-slate-500">
                 Inspected on:{" "}
-                {activeInspectionData.timestamp ||
-                  new Date().toLocaleString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                    hour: "numeric",
-                    minute: "2-digit",
-                    hour12: true,
-                  })}
+                {new Date().toLocaleString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  hour12: true,
+                })}
               </span>
               <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full border border-emerald-300">
                 <Lock className="w-3 h-3" /> Signed & Locked (READ_ONLY)
@@ -168,7 +160,7 @@ export default function InspectionReportPage({
               roomsList.map((room, idx) => (
                 <div
                   key={room.id || idx}
-                  className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2"
+                  className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3"
                 >
                   <div className="flex justify-between items-center">
                     <h4 className="text-xs font-extrabold text-slate-900">
@@ -179,18 +171,41 @@ export default function InspectionReportPage({
                     </span>
                   </div>
 
-                  <div className="text-xs text-slate-600 space-y-1">
+                  <div className="text-xs text-slate-600 space-y-2">
                     {room.items?.map((item, iIdx) => (
                       <div
                         key={item.id || iIdx}
-                        className="flex justify-between py-1 border-b border-slate-200/60 last:border-0"
+                        className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5"
                       >
-                        <span className="font-semibold text-slate-800">
-                          {item.name}
-                        </span>
-                        <span className="text-[11px] text-purple-900 font-bold capitalize">
-                          {item.condition?.replace("_", " ")}
-                        </span>
+                        <div className="flex justify-between items-center">
+                          <span className="font-extrabold text-slate-800">
+                            {item.name}
+                          </span>
+                          <span className="text-[10px] text-purple-900 bg-purple-50 px-2 py-0.5 rounded-md font-bold uppercase">
+                            {item.condition?.replace("_", " ")}
+                          </span>
+                        </div>
+
+                        {/* Render Item Comments / Notes */}
+                        {item.notes && (
+                          <p className="text-[11px] text-slate-600 bg-slate-50 p-1.5 rounded-lg border border-slate-200 font-medium">
+                            💬 "{item.notes}"
+                          </p>
+                        )}
+
+                        {/* Render Attached Photos */}
+                        {item.photos && item.photos.length > 0 && (
+                          <div className="grid grid-cols-4 gap-1.5 pt-1">
+                            {item.photos.map((p, pIdx) => (
+                              <img
+                                key={p.id || pIdx}
+                                src={p.url}
+                                alt="Evidence"
+                                className="w-full h-12 rounded-lg object-cover border border-slate-200"
+                              />
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

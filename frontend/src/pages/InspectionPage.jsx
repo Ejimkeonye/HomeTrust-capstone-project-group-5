@@ -369,8 +369,11 @@ export default function InspectionPage({
     saveRooms(updated);
   };
 
-  const updateItemData = async (roomId, itemId, fields) => {
-    // 1. Update local state immediately for snappy UI
+const updateItemData = async (roomId, itemId, fields) => {
+    // 1. Update local state immediately for an instant, snappy UI response
+    const targetRoom = roomsData.find((r) => r.id === roomId);
+    const targetItem = targetRoom?.items.find((i) => i.id === itemId || i.roomItemId === itemId);
+
     const updated = roomsData.map((room) => {
       if (room.id === roomId) {
         return {
@@ -378,7 +381,6 @@ export default function InspectionPage({
           items: room.items.map((item) => {
             if (item.id === itemId || item.roomItemId === itemId) {
               const updatedItem = { ...item, ...fields };
-
               if (fields.condition === "no_issue") {
                 updatedItem.status = "Normal";
                 delete updatedItem.dispute;
@@ -395,15 +397,12 @@ export default function InspectionPage({
     });
     saveRooms(updated);
 
-    // 2. Sync cleanly to backend without 404ing
+    // 2. Safely sync to backend
     if (inspectionId) {
       try {
-        const targetRoom = roomsData.find((r) => r.id === roomId);
-        const targetItem = targetRoom?.items.find((i) => i.id === itemId || i.roomItemId === itemId);
-        
         let backendRoomItemId = targetItem?.roomItemId;
 
-        // If it's a local-only item or default template item that hasn't been created on the backend yet, create it first!
+        // If it's a brand new local item lacking a backend UUID, create it via POST once
         if (!backendRoomItemId || String(backendRoomItemId).startsWith("item-")) {
           const createRes = await api.post(`/inspections/${inspectionId}/items`, {
             roomId: targetRoom?.name || "Living Room",
@@ -413,15 +412,13 @@ export default function InspectionPage({
           });
           
           backendRoomItemId = createRes.data?.roomItemId;
-          
-          // Save the real backend ID back into local state so future patches work instantly
           if (backendRoomItemId) {
             targetItem.roomItemId = backendRoomItemId;
           }
-          return; // Creation handled the condition/notes, so we can return here
+          return; 
         }
 
-        // If it already exists on the backend, patch it normally
+        // If it already exists on the backend, ALWAYS patch it cleanly (avoiding 409 POST conflicts)
         await api.patch(`/inspections/${inspectionId}/items/${backendRoomItemId}`, {
           condition: fields.condition !== undefined ? fields.condition : undefined,
           notes: fields.notes !== undefined ? fields.notes : undefined,
