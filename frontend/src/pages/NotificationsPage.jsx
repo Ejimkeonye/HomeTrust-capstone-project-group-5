@@ -1,59 +1,40 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Bell, CheckCircle2, ShieldAlert, UserPlus, Clock } from "lucide-react";
+import { ArrowLeft, Bell, CheckCircle2, ShieldAlert, UserPlus, Clock, Trash2 } from "lucide-react";
 
-export default function NotificationsPage({ onBack, onSelectNotification }) {
-  // Generate real-time dynamic timestamps for realistic display
-  const now = new Date();
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
+export default function NotificationsPage({ activeProperty, onBack, onSelectNotification }) {
+  const propertyKey = activeProperty?.propertyId || activeProperty?.id || "global";
+  const storageKey = `hometrust_notifications_${propertyKey}`;
 
-  const formatTime = (dateObj) => {
-    return dateObj.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
-  };
-
-  const initialNotifications = [
-    {
-      id: "notif-1",
-      type: "dispute",
-      title: "New Dispute / Comment Raised",
-      description: "A party added a note or dispute on the property inspection.",
-      timestamp: `Today, ${formatTime(now)}`,
-    },
-    {
-      id: "notif-2",
-      type: "invite",
-      title: "Party Invite Accepted",
-      description: "Your invited participant successfully joined the inspection flow.",
-      timestamp: `Yesterday, ${formatTime(yesterday)}`,
-    },
-    {
-      id: "notif-3",
-      type: "system",
-      title: "Baseline Inspection Locked",
-      description: "Property inspection report has been verified and sealed.",
-      timestamp: now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-    },
-  ];
-
-  // Load read status from localStorage so it persists permanently
-  const [readIds, setReadIds] = useState(() => {
-    return JSON.parse(localStorage.getItem("hometrust_read_notifications") || "[]");
+  // 🛠️ Load notifications scoped strictly to the current active property
+  const [notifications, setNotifications] = useState(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
-  // Save to localStorage whenever readIds changes
+  // Save changes to localStorage under this specific property key
   useEffect(() => {
-    localStorage.setItem("hometrust_read_notifications", JSON.stringify(readIds));
-  }, [readIds]);
+    localStorage.setItem(storageKey, JSON.stringify(notifications));
+  }, [notifications, storageKey]);
 
   const markAllAsRead = () => {
-    const allIds = initialNotifications.map((n) => n.id);
-    setReadIds(allIds);
+    const updated = notifications.map((n) => ({ ...n, read: true }));
+    setNotifications(updated);
+  };
+
+  const clearAllNotifications = () => {
+    setNotifications([]);
+    localStorage.removeItem(storageKey);
   };
 
   const handleNotificationClick = (notif) => {
-    if (!readIds.includes(notif.id)) {
-      setReadIds([...readIds, notif.id]);
-    }
+    const updated = notifications.map((n) => 
+      n.id === notif.id ? { ...n, read: true } : n
+    );
+    setNotifications(updated);
     if (onSelectNotification) onSelectNotification(notif);
   };
 
@@ -67,12 +48,6 @@ export default function NotificationsPage({ onBack, onSelectNotification }) {
         return <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
     }
   };
-
-  // Map state to include dynamic read property based on saved IDs
-  const notifications = initialNotifications.map((n) => ({
-    ...n,
-    read: readIds.includes(n.id),
-  }));
 
   const hasUnread = notifications.some((n) => !n.read);
 
@@ -89,18 +64,33 @@ export default function NotificationsPage({ onBack, onSelectNotification }) {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-base font-extrabold text-white text-center truncate">
-            Notifications
-          </h1>
-          {hasUnread && (
-            <button
-              type="button"
-              onClick={markAllAsRead}
-              className="text-[10px] font-bold text-purple-200 hover:text-white transition-colors cursor-pointer"
-            >
-              Mark all read
-            </button>
-          )}
+          <div className="text-center truncate">
+            <h1 className="text-base font-extrabold text-white">Notifications</h1>
+            <p className="text-[10px] text-purple-200 truncate max-w-50">
+              {activeProperty?.address || "Portfolio Overview"}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {hasUnread && (
+              <button
+                type="button"
+                onClick={markAllAsRead}
+                className="text-[10px] font-bold text-purple-200 hover:text-white transition-colors cursor-pointer"
+              >
+                Mark read
+              </button>
+            )}
+            {notifications.length > 0 && (
+              <button
+                type="button"
+                onClick={clearAllNotifications}
+                className="text-white/70 hover:text-red-300 p-1 transition-colors cursor-pointer"
+                title="Clear all notifications"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Content Scroll Area */}
@@ -108,7 +98,7 @@ export default function NotificationsPage({ onBack, onSelectNotification }) {
           {notifications.length === 0 ? (
             <div className="text-center py-16 text-slate-400 text-xs font-medium space-y-2">
               <Bell className="w-8 h-8 mx-auto text-slate-300" />
-              <p>No new notifications right now.</p>
+              <p>No activity alerts for this property yet. Actions like adding rooms, submitting evidence, or signing will appear here.</p>
             </div>
           ) : (
             notifications.map((notif) => (

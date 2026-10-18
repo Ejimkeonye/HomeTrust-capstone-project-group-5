@@ -7,6 +7,7 @@ import {
   LogOut,
   ShieldCheck,
 } from "lucide-react";
+import { triggerNotification } from "../utils/notifications";
 
 export default function InspectionReportPage({
   property,
@@ -15,7 +16,8 @@ export default function InspectionReportPage({
   onBack,
   onFinalize,
 }) {
-  const reportStorageKey = `hometrust_report_${property?.id || property?.propertyId || "default"}`;
+  const propertyKey = property?.propertyId || property?.id;
+  const reportStorageKey = `hometrust_report_${propertyKey || "default"}`;
 
   const [activeInspectionData] = useState(() => {
     if (initialInspectionData && (Array.isArray(initialInspectionData) ? initialInspectionData.length > 0 : Object.keys(initialInspectionData).length > 0)) {
@@ -55,7 +57,7 @@ export default function InspectionReportPage({
   const handleFinalLockAndSave = async () => {
     const timestamp = new Date().toLocaleString();
     const finalReport = {
-      propertyId: property?.propertyId || property?.id,
+      propertyId: propertyKey,
       propertyName: property?.name || property?.address,
       landlordSig,
       tenantSig,
@@ -65,6 +67,16 @@ export default function InspectionReportPage({
     };
 
     localStorage.setItem(reportStorageKey, JSON.stringify(finalReport));
+
+    if (propertyKey) {
+      triggerNotification(
+        propertyKey,
+        "Inspection Report Sealed",
+        "The final inspection summary report has been officially locked and saved.",
+        "system"
+      );
+    }
+
     setShowSuccessScreen(true);
 
     if (onFinalize) {

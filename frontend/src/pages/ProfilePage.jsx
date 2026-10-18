@@ -1,8 +1,17 @@
 import { ArrowLeft, User, Shield, Mail, Phone, LogOut } from "lucide-react";
 
 export default function ProfilePage({ user, onBack, onLogout }) {
-  // Fallback data if user details are minimal
-  const userName = user?.name || user?.firstName || "Clement John";
+  // 🛠️ Helper to ensure names have proper spacing (e.g. ClementJohn -> Clement John)
+  const formatName = (rawName) => {
+    if (!rawName) return "Clement John";
+    return rawName.includes(" ") 
+      ? rawName 
+      : rawName.replace(/([a-z])([A-Z])/g, '$1 $2');
+  };
+
+  const rawUserName = user?.name || user?.firstName || "Clement John";
+  const userName = formatName(rawUserName);
+
   const userEmail = user?.email || "clement@example.com";
   const userRole = user?.role || "Landlord";
   const userPhone = user?.phoneNumber || "+234 800 000 0000";

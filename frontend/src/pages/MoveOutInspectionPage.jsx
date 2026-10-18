@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import api from "../api/client"; // Live API client connected to Render backend
+import { triggerNotification } from "../utils/notifications";
 
 const INITIAL_CATEGORIES = ["All", "Rooms", "Kitchen", "Bathrooms"];
 
@@ -65,6 +66,7 @@ export default function MoveOutInspectionPage({
   onCompleteMoveOutInspection,
 }) {
   const safeProperty = property || null;
+  const propertyKey = safeProperty?.propertyId || safeProperty?.id;
 
   const isReadOnly = safeProperty?.moveOutStatus === "READ_ONLY";
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -73,10 +75,9 @@ export default function MoveOutInspectionPage({
 
   // Property Custom Banner Photo State (Scoped strictly to current property ID, no bleed)
   const [propertyImage, setPropertyImage] = useState(() => {
-    const propIdKey = safeProperty?.propertyId || safeProperty?.id;
-    if (!propIdKey) return DEFAULT_IMAGE;
+    if (!propertyKey) return DEFAULT_IMAGE;
     try {
-      const saved = localStorage.getItem(`hometrust_moveout_property_image_${propIdKey}`);
+      const saved = localStorage.getItem(`hometrust_moveout_property_image_${propertyKey}`);
       if (saved) return saved;
     } catch (e) {
       console.error(e);
@@ -110,11 +111,10 @@ export default function MoveOutInspectionPage({
 
   // Main Move-Out Inspection Data State (Initialized strictly empty for new properties)
   const [roomsData, setRoomsData] = useState(() => {
-    const propIdKey = safeProperty?.propertyId || safeProperty?.id;
-    if (!propIdKey) return [];
+    if (!propertyKey) return [];
 
     try {
-      const saved = localStorage.getItem(`hometrust_moveout_inspection_v6_${propIdKey}`);
+      const saved = localStorage.getItem(`hometrust_moveout_inspection_v6_${propertyKey}`);
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.error(e);
@@ -126,18 +126,17 @@ export default function MoveOutInspectionPage({
   // Background Backend Sync Initialization
   useEffect(() => {
     const initInspectionBackend = async () => {
-      const targetPropId = safeProperty?.propertyId || safeProperty?.id;
-      if (!targetPropId) return;
+      if (!propertyKey) return;
 
       try {
-        const res = await api.get(`/inspections/property/${targetPropId}`);
+        const res = await api.get(`/inspections/property/${propertyKey}`);
         const inspections = res.data?.inspections || res.data || [];
         
         if (inspections.length > 0) {
           setInspectionId(inspections[0].inspectionId || inspections[0].id);
         } else {
           const createRes = await api.post("/inspections", {
-            propertyId: targetPropId,
+            propertyId: propertyKey,
             mode: "MoveOut",
           });
           const newInsp = createRes.data?.inspection || createRes.data;
@@ -149,14 +148,13 @@ export default function MoveOutInspectionPage({
     };
 
     initInspectionBackend();
-  }, [safeProperty?.propertyId, safeProperty?.id]);
+  }, [propertyKey]);
 
   const saveRooms = (updatedData) => {
     setRoomsData(updatedData);
     try {
-      const propIdKey = safeProperty?.propertyId || safeProperty?.id;
-      if (propIdKey) {
-        localStorage.setItem(`hometrust_moveout_inspection_v6_${propIdKey}`, JSON.stringify(updatedData));
+      if (propertyKey) {
+        localStorage.setItem(`hometrust_moveout_inspection_v6_${propertyKey}`, JSON.stringify(updatedData));
       }
     } catch (e) {
       console.error(e);
@@ -170,9 +168,8 @@ export default function MoveOutInspectionPage({
     const compressedUrl = await compressImage(file);
     setPropertyImage(compressedUrl);
     try {
-      const propIdKey = safeProperty?.propertyId || safeProperty?.id;
-      if (propIdKey) {
-        localStorage.setItem(`hometrust_moveout_property_image_${propIdKey}`, compressedUrl);
+      if (propertyKey) {
+        localStorage.setItem(`hometrust_moveout_property_image_${propertyKey}`, compressedUrl);
       }
     } catch (err) {
       console.error(err);
@@ -215,8 +212,14 @@ export default function MoveOutInspectionPage({
     setIsAddingCustomCategory(false);
     setAddRoomModalOpen(false);
 
-    const targetPropId = safeProperty?.propertyId || safeProperty?.id;
-    if (targetPropId) {
+    if (propertyKey) {
+      triggerNotification(
+        propertyKey,
+        "Move-Out Section Added",
+        `Added departure section: "${roomNameTrimmed}".`,
+        "system"
+      );
+
       try {
         const currentRoomsList = updated.map((r) => ({ 
           roomId: r.id || r.roomId, 
@@ -224,7 +227,7 @@ export default function MoveOutInspectionPage({
           category: r.category 
         }));
         
-        await api.put(`/properties/${targetPropId}`, {
+        await api.put(`/properties/${propertyKey}`, {
           name: safeProperty.name || "Property",
           address: safeProperty.address,
           type: safeProperty.type || "Apartment",
@@ -253,11 +256,10 @@ export default function MoveOutInspectionPage({
       setSelectedRoomId(null);
     }
 
-    const targetPropId = safeProperty?.propertyId || safeProperty?.id;
-    if (targetPropId) {
+    if (propertyKey) {
       try {
         const currentRoomsList = updated.map((r) => ({ roomId: r.id, name: r.name, category: r.category }));
-        await api.put(`/properties/${targetPropId}`, {
+        await api.put(`/properties/${propertyKey}`, {
           name: safeProperty.name || "Property",
           address: safeProperty.address,
           type: safeProperty.type || "Apartment",
@@ -309,6 +311,15 @@ export default function MoveOutInspectionPage({
     saveRooms(updated);
     setNewItemName("");
     setAddItemModalOpen(false);
+
+    if (propertyKey) {
+      triggerNotification(
+        propertyKey,
+        "Departure Amenity Added",
+        `Added "${newItemName.trim()}" to ${targetRoom?.name || "section"}.`,
+        "system"
+      );
+    }
 
     if (inspectionId) {
       try {
@@ -455,6 +466,15 @@ export default function MoveOutInspectionPage({
       },
     });
 
+    if (propertyKey) {
+      triggerNotification(
+        propertyKey,
+        "Move-Out Issue Flagged",
+        `Departure issue flagged on ${targetItem?.name || "item"} (${disputeSeverity}).`,
+        "dispute"
+      );
+    }
+
     setDisputeModalOpen(false);
     setDisputeNote("");
     setDisputeSeverity("Minor");
@@ -521,6 +541,15 @@ export default function MoveOutInspectionPage({
             <button
               type="button"
               onClick={async () => {
+                if (propertyKey) {
+                  triggerNotification(
+                    propertyKey,
+                    "Move-Out Walkthrough Completed",
+                    "Departure condition has been recorded.",
+                    "system"
+                  );
+                }
+
                 if (inspectionId) {
                   try { await api.post(`/inspections/${inspectionId}/submit`); } catch (err) { console.error(err); }
                 }

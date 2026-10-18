@@ -1,14 +1,19 @@
 import { useState } from "react";
 import SignatureCanvas from "../components/SignatureCanvas";
 import api from "../api/client"; // Live API client connected to Render backend
+import { triggerNotification } from "../utils/notifications";
 
 export default function SignInspectionPage({
+  property,
   inspectionId,
   userRole = "tenant", // "landlord" or "tenant"
   onBack,
   onSignaturesComplete,
   initialSignatures,
 }) {
+  const safeProperty = property || null;
+  const propertyKey = safeProperty?.propertyId || safeProperty?.id;
+
   const [signatures, setSignatures] = useState(
     initialSignatures || { landlord: null, tenant: null },
   );
@@ -30,6 +35,25 @@ export default function SignInspectionPage({
         await api.post(`/inspections/${inspectionId}/acknowledge`, {
           signatures,
         });
+      }
+
+      if (propertyKey) {
+        triggerNotification(
+          propertyKey,
+          "Signature Recorded",
+          `${isLandlord ? "Landlord" : "Tenant"} signed the inspection report.`,
+          "invite"
+        );
+
+        const isBothSigned = Boolean(signatures.landlord && signatures.tenant);
+        if (isBothSigned) {
+          triggerNotification(
+            propertyKey,
+            "Inspection Sealed",
+            "Both parties have signed. Move-out compartment is now unlocked.",
+            "system"
+          );
+        }
       }
     } catch (err) {
       console.warn("Backend signature acknowledgement notice:", err?.response?.data || err?.message);

@@ -19,6 +19,7 @@ import {
 import api from "../api/client"; // Live API client connected to Render backend
 import InvitePartyModal from "../components/InvitePartyModal";
 import InviteLinkSent from "../components/InviteLinkSent";
+import { triggerNotification } from "../utils/notifications";
 
 const INITIAL_CATEGORIES = ["All", "Rooms", "Kitchen", "Bathrooms"];
 
@@ -223,8 +224,16 @@ export default function InspectionPage({
     setIsAddingCustomCategory(false);
     setAddRoomModalOpen(false);
 
+    // 🛠️ Trigger notification for newly added section
     const targetPropId = safeProperty?.propertyId || safeProperty?.id;
     if (targetPropId) {
+      triggerNotification(
+        targetPropId,
+        "Inspection Section Added",
+        `Added new section: "${roomNameTrimmed}" to checklist.`,
+        "system"
+      );
+
       try {
         const currentRoomsList = updated.map((r) => ({ 
           roomId: r.id || r.roomId, 
@@ -317,6 +326,16 @@ export default function InspectionPage({
     saveRooms(updated);
     setNewItemName("");
     setAddItemModalOpen(false);
+
+    const targetPropId = safeProperty?.propertyId || safeProperty?.id;
+    if (targetPropId) {
+      triggerNotification(
+        targetPropId,
+        "Amenity Added",
+        `Added "${newItemName.trim()}" to ${targetRoom?.name || "section"}.`,
+        "system"
+      );
+    }
 
     if (inspectionId) {
       try {
@@ -463,6 +482,16 @@ export default function InspectionPage({
       },
     });
 
+    const targetPropId = safeProperty?.propertyId || safeProperty?.id;
+    if (targetPropId) {
+      triggerNotification(
+        targetPropId,
+        "Dispute Flagged",
+        `Issue recorded on ${targetItem?.name || "item"} (${disputeSeverity} severity).`,
+        "dispute"
+      );
+    }
+
     setDisputeModalOpen(false);
     setDisputeNote("");
     setDisputeSeverity("Minor");
@@ -537,7 +566,7 @@ export default function InspectionPage({
           </h1>
 
           <div className="flex items-center gap-2">
-            {/* 🛠️ Invite Button Disabled Until Property is Added */}
+            {/* Invite Button Disabled Until Property is Added */}
             <button
               type="button"
               disabled={!isPropertyValid}
@@ -552,6 +581,16 @@ export default function InspectionPage({
             <button
               type="button"
               onClick={async () => {
+                const targetPropId = safeProperty?.propertyId || safeProperty?.id;
+                if (targetPropId) {
+                  triggerNotification(
+                    targetPropId,
+                    "Inspection Walkthrough Completed",
+                    "All room items have been inspected and logged.",
+                    "system"
+                  );
+                }
+
                 if (inspectionId) {
                   try { await api.post(`/inspections/${inspectionId}/submit`); } catch (err) { console.error(err); }
                 }

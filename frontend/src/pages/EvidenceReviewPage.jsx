@@ -1,7 +1,9 @@
 import { useState, useRef } from "react";
 import { ArrowLeft, Camera, Check, ShieldCheck, Upload, X, MessageSquare, AlertCircle } from "lucide-react";
+import { triggerNotification } from "../utils/notifications";
 
 export default function EvidenceReviewPage({
+  property,
   inspectionData,
   onBack,
   onSubmitEvidence,
@@ -51,17 +53,6 @@ export default function EvidenceReviewPage({
     setShowConfirmationModal(true);
   };
 
-  // Handle Image Selection for Custom Modal
-  const handleImageSelect = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (uploadEvent) => {
-      setNewImagePreview(uploadEvent.target.result);
-    };
-    reader.readAsDataURL(file);
-  };
-
   const handleAddChecklistItem = () => {
     if (!newItemName.trim()) return;
     setChecklistItems((prev) => [
@@ -108,7 +99,17 @@ export default function EvidenceReviewPage({
       onUpdateInspectionData(updatedRooms);
     }
 
-    // Reset Form & Close Modal
+    // 🛠️ TRIGGER LOCAL PROPERTY-SCOPED NOTIFICATION
+    const propertyKey = property?.propertyId || property?.id;
+    if (propertyKey) {
+      triggerNotification(
+        propertyKey,
+        "New Evidence Space Added",
+        `Added new space: "${newRoomName.trim()}" to inspection records.`,
+        "system"
+      );
+    }
+
     setShowAddModal(false);
     setNewRoomName("");
     setNewRoomCategory("Rooms");
@@ -124,7 +125,6 @@ export default function EvidenceReviewPage({
         <input
           type="file"
           ref={fileInputRef}
-          onChange={handleImageSelect}
           accept="image/*"
           className="hidden"
         />
@@ -206,7 +206,22 @@ export default function EvidenceReviewPage({
                     Evidence Photo
                   </label>
                   <div
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => {
+                      const cameraInput = document.createElement("input");
+                      cameraInput.type = "file";
+                      cameraInput.accept = "image/*";
+                      cameraInput.capture = "environment";
+                      cameraInput.onchange = (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (uploadEvent) => {
+                          setNewImagePreview(uploadEvent.target.result);
+                        };
+                        reader.readAsDataURL(file);
+                      };
+                      cameraInput.click();
+                    }}
                     className="w-full h-24 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center bg-slate-50 hover:bg-slate-100 cursor-pointer overflow-hidden"
                   >
                     {newImagePreview ? (
@@ -217,9 +232,9 @@ export default function EvidenceReviewPage({
                       />
                     ) : (
                       <>
-                        <Upload className="w-5 h-5 text-slate-400 mb-1" />
-                        <span className="text-[10px] text-slate-500 font-medium">
-                          Click to upload photo
+                        <Upload className="w-5 h-5 text-[#4A1E6D] mb-1" />
+                        <span className="text-[10px] text-[#4A1E6D] font-medium">
+                          Tap to capture or upload photo
                         </span>
                       </>
                     )}
@@ -294,10 +309,10 @@ export default function EvidenceReviewPage({
               </div>
               <div className="space-y-3">
                 <h2 className="text-xl font-black text-white">
-                  Congratulations!
+                  Evidence Submitted!
                 </h2>
                 <p className="text-xs text-purple-200 leading-relaxed font-medium">
-                  Evidences have been acknowledged and approved by parties.
+                  Evidence review submitted successfully! Waiting for counter-party review and acknowledgment.
                 </p>
                 <div className="text-[10px] text-purple-300 font-bold uppercase tracking-wider">
                   {todaysFormattedDate}
@@ -389,7 +404,6 @@ export default function EvidenceReviewPage({
                   className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm"
                 >
                   <div className="flex items-start gap-3">
-                    {/* Clickable Room Photo Grid Thumbnail */}
                     <div className="w-16 h-16 bg-slate-200 rounded-xl overflow-hidden shrink-0 grid grid-cols-2 grid-rows-2 gap-0.5 p-0.5 border border-slate-300">
                       {[0, 1, 2, 3].map((photoIdx) => (
                         <div key={photoIdx} className="bg-slate-100 w-full h-full overflow-hidden flex items-center justify-center">

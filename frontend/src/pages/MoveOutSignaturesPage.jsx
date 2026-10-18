@@ -1,14 +1,19 @@
 import { useState } from "react";
 import SignatureCanvas from "../components/SignatureCanvas";
 import api from "../api/client"; // Live API client connected to Render backend
+import { triggerNotification } from "../utils/notifications";
 
 export default function MoveOutSignaturesPage({
+  property,
   inspectionId,
   userRole = "tenant", // "landlord" or "tenant"
   onBack,
   onSignaturesComplete,
   initialSignatures,
 }) {
+  const safeProperty = property || null;
+  const propertyKey = safeProperty?.propertyId || safeProperty?.id;
+
   const [signatures, setSignatures] = useState(
     initialSignatures || { landlord: null, tenant: null },
   );
@@ -34,6 +39,25 @@ export default function MoveOutSignaturesPage({
         await api.post(`/inspections/${inspectionId}/acknowledge`, {
           signatures,
         });
+      }
+
+      if (propertyKey) {
+        triggerNotification(
+          propertyKey,
+          "Move-Out Signature Recorded",
+          `${isLandlord ? "Landlord" : "Tenant"} signed the move-out report.`,
+          "invite"
+        );
+
+        const isBothSigned = Boolean(signatures.landlord && signatures.tenant);
+        if (isBothSigned) {
+          triggerNotification(
+            propertyKey,
+            "Move-Out Inspection Sealed",
+            "Both parties have signed the move-out report.",
+            "system"
+          );
+        }
       }
     } catch (err) {
       console.warn("Backend move-out signature acknowledgement notice:", err?.response?.data || err?.message);
