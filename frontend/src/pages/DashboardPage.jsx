@@ -67,6 +67,21 @@ export default function DashboardPage({
     e.preventDefault();
     if (!newAddress.trim()) return;
 
+    const normalizedNewAddress = newAddress.trim().toLowerCase();
+    const normalizedNewFlat = (newFlatNo || "1").trim().toLowerCase();
+
+    // 🛠️ BUG #5 FIXED: Prevent duplicate property additions
+    const isDuplicate = properties.some((p) => {
+      const existingAddress = (p.address || "").trim().toLowerCase();
+      const existingFlat = (p.flatNo || "1").trim().toLowerCase();
+      return existingAddress === normalizedNewAddress && existingFlat === normalizedNewFlat;
+    });
+
+    if (isDuplicate) {
+      alert("You have already added this property unit to your portfolio!");
+      return;
+    }
+
     const propertyPayload = {
       name: newAddress,
       address: newAddress,

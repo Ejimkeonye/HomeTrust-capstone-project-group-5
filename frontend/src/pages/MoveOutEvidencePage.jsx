@@ -1,12 +1,17 @@
 import { useState, useRef } from "react";
 import { ArrowLeft, Camera, Check, ShieldCheck, Upload, X, MessageSquare, AlertCircle } from "lucide-react";
+import { triggerNotification } from "../utils/notifications";
 
 export default function MoveOutEvidencePage({
+  property,
   inspectionData,
   onBack,
   onSubmitEvidence,
   onUpdateInspectionData,
 }) {
+  const safeProperty = property || null;
+  const propertyKey = safeProperty?.propertyId || safeProperty?.id;
+
   const [activeCategory, setActiveCategory] = useState("All");
   const [descriptiveNote, setDescriptiveNote] = useState("");
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
@@ -48,6 +53,14 @@ export default function MoveOutEvidencePage({
   });
 
   const handleInitialSubmitClick = () => {
+    if (propertyKey) {
+      triggerNotification(
+        propertyKey,
+        "Move-Out Evidence Submitted",
+        "Departure evidence library submitted for review.",
+        "system"
+      );
+    }
     setShowConfirmationModal(true);
   };
 
@@ -106,6 +119,15 @@ export default function MoveOutEvidencePage({
     const updatedRooms = [customEvidenceRoom, ...roomsList];
     if (onUpdateInspectionData) {
       onUpdateInspectionData(updatedRooms);
+    }
+
+    if (propertyKey) {
+      triggerNotification(
+        propertyKey,
+        "Move-Out Evidence Added",
+        `Added departure space: "${newRoomName.trim()}".`,
+        "system"
+      );
     }
 
     // Reset Form & Close Modal
@@ -205,8 +227,23 @@ export default function MoveOutEvidencePage({
                   <label className="text-[11px] font-bold text-slate-700">
                     Evidence Photo
                   </label>
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
+                 <div
+                    onClick={() => {
+                      const cameraInput = document.createElement("input");
+                      cameraInput.type = "file";
+                      cameraInput.accept = "image/*";
+                      cameraInput.capture = "environment";
+                      cameraInput.onchange = (e) => {
+                        const file = e.target.files[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (uploadEvent) => {
+                          setNewImagePreview(uploadEvent.target.result);
+                        };
+                        reader.readAsDataURL(file);
+                      };
+                      cameraInput.click();
+                    }}
                     className="w-full h-24 border-2 border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center bg-slate-50 hover:bg-slate-100 cursor-pointer overflow-hidden"
                   >
                     {newImagePreview ? (
@@ -217,9 +254,9 @@ export default function MoveOutEvidencePage({
                       />
                     ) : (
                       <>
-                        <Upload className="w-5 h-5 text-slate-400 mb-1" />
-                        <span className="text-[10px] text-slate-500 font-medium">
-                          Click to upload photo
+                        <Upload className="w-5 h-5 text-[#4A1E6D] mb-1" />
+                        <span className="text-[10px] text-[#4A1E6D] font-medium">
+                          Tap to capture or upload photo
                         </span>
                       </>
                     )}

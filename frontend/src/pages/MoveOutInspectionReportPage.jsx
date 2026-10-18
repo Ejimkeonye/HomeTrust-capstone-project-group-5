@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Camera,
 } from "lucide-react";
+import { triggerNotification } from "../utils/notifications";
 
 export default function MoveOutInspectionReportPage({
   property,
@@ -97,6 +98,15 @@ export default function MoveOutInspectionReportPage({
     };
 
     localStorage.setItem(reportStorageKey, JSON.stringify(finalReport));
+
+    if (propertyId) {
+      triggerNotification(
+        propertyId,
+        "Move-Out Report Sealed",
+        "The final move-out comparison record is legally sealed and locked.",
+        "system"
+      );
+    }
 
     // Update master properties list in local storage safely
     try {
