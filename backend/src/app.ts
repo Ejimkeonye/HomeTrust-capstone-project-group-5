@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import fs from 'fs';
 import authRoutes from './routes/authRoutes';
 import propertyRoutes from './routes/propertyRoutes';
 import inspectionRoutes from './routes/inspectionRoutes';
@@ -23,22 +24,28 @@ app.use('/api/inspections', inspectionRoutes);
 app.use('/api/evidence', evidenceRoutes);
 app.use('/api/invitations', invitationRoutes);
 
+
+// Root status endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'HomeTrust Backend API is running', healthCheck: '/api/health' });
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'API is running' });
 });
 
-// ─── Serve Frontend in Production ────────────────────────────────────────────
-// When deployed on Render, the built React app lives in ../dist (project root).
-// Express serves those static files, and any non-API route falls through to
-// index.html so React Router can handle client-side routing.
+// ─── Serve Frontend in Production (if bundled together) ───────────────────────
+// If frontend is deployed separately, this will safely skip without throwing ENOENT.
 if (process.env.NODE_ENV === 'production') {
   const frontendPath = path.join(__dirname, '../../dist');
-  app.use(express.static(frontendPath));
+  if (fs.existsSync(path.join(frontendPath, 'index.html'))) {
+    app.use(express.static(frontendPath));
 
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendPath, 'index.html'));
-  });
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(frontendPath, 'index.html'));
+    });
+  }
 }
 
 // Error handling middleware (must be last)
