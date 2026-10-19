@@ -27,7 +27,7 @@ export default function PartyOnboardingPage({
     setError("");
 
     try {
-      // 🛠️ CRITICAL FIX: Wipe old conflicting sessions so previous accounts (e.g. Clement) don't bleed over!
+      // 🛠️ CRITICAL FIX: Wipe old conflicting sessions so previous accounts don't bleed over!
       localStorage.removeItem("hometrust_current_session");
       localStorage.removeItem("hometrust_token");
       localStorage.removeItem("hometrust_user");
@@ -50,6 +50,8 @@ export default function PartyOnboardingPage({
 
         sessionData = {
           ...user,
+          name: user?.name || fullName.trim(),
+          email: user?.email || `${fullName.trim().toLowerCase().replace(/\s+/g, '')}@invited.hometrust`,
           role: resolvedRole, 
           activePropertyId: propertyId || token,
           activeInspectionId: inspectionId,
@@ -62,13 +64,17 @@ export default function PartyOnboardingPage({
         sessionData = {
           id: `user-${Date.now()}`,
           name: fullName.trim(),
+          email: `${fullName.trim().toLowerCase().replace(/\s+/g, '')}@invited.hometrust`,
           role: "tenant", // Default fallback role
           activePropertyId: token, // Treat token as property key reference
           isInvitedParticipant: true,
         };
       }
 
+      // 🛠️ ISOLATED STORAGE: Save user-specific session key
+      const userKey = sessionData.email || sessionData.id;
       localStorage.setItem("hometrust_current_session", JSON.stringify(sessionData));
+      localStorage.setItem(`hometrust_current_session_${userKey}`, JSON.stringify(sessionData));
 
       if (onCompleteOnboarding) {
         onCompleteOnboarding(sessionData);

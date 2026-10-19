@@ -138,7 +138,7 @@ export default function App() {
     return activeSession ? "dashboard" : "landing";
   });
 
-  // Fetch properties from backend database
+  // Fetch properties from backend database with User-Scoped Isolation
   useEffect(() => {
     const fetchCloudProperties = async () => {
       if (!currentUser) {
@@ -146,6 +146,9 @@ export default function App() {
         setSelectedProperty(null);
         return;
       }
+
+      // 🛠️ ISOLATE STORAGE BY USER ID TO PREVENT ALABA/BASIT CROSS-BLEED
+      const userStorageKey = `hometrust_properties_${currentUser.email || currentUser.id || 'default'}`;
 
       try {
         const response = await api.get("/properties");
@@ -162,18 +165,22 @@ export default function App() {
             }
           } catch (err) {
             console.warn("Direct property fetch fallback:", err);
-            const fallbackProp = {
-              propertyId: targetId,
-              id: targetId,
-              address: "Shared Inspection Workspace",
-              flatNo: "1",
-              type: "Apartment",
-            };
-            cloudProps = [fallbackProp, ...cloudProps];
+            // 🛠️ Avoid adding generic fallback placeholders if they pollute active user account
+            if (!cloudProps.some(p => p.propertyId === targetId)) {
+              const fallbackProp = {
+                propertyId: targetId,
+                id: targetId,
+                address: currentUser.isInvitedParticipant ? "Shared Inspection Workspace" : "Primary Property Unit",
+                flatNo: "1",
+                type: "Apartment",
+              };
+              cloudProps = [fallbackProp, ...cloudProps];
+            }
           }
         }
 
         setProperties(cloudProps);
+        localStorage.setItem(userStorageKey, JSON.stringify(cloudProps));
 
         if (cloudProps.length > 0) {
           const matchedProp = cloudProps.find(p => (p.propertyId === targetId || p.id === targetId)) || cloudProps[0];
@@ -190,6 +197,17 @@ export default function App() {
         }
       } catch (err) {
         console.error("Failed to load properties from backend:", err);
+        // Fallback to user-scoped local storage if offline
+        try {
+          const localSaved = localStorage.getItem(userStorageKey);
+          if (localSaved) {
+            const parsed = JSON.parse(localSaved);
+            setProperties(parsed);
+            if (parsed.length > 0) setSelectedProperty(parsed[0]);
+          }
+        } catch (e) {
+          console.error(e);
+        }
       }
     };
 
@@ -223,6 +241,12 @@ export default function App() {
     setSelectedInspectionData([]);
     setMoveOutInspectionData([]);
 
+    // Save to user-scoped key
+    if (currentUser) {
+      const userStorageKey = `hometrust_properties_${currentUser.email || currentUser.id || 'default'}`;
+      localStorage.setItem(userStorageKey, JSON.stringify(updatedList));
+    }
+
     const propKey = uniqueProp.propertyId || uniqueProp.id;
     triggerNotification(propKey, "New Property Added", `Successfully registered ${uniqueProp.address}.`, "system");
   };
@@ -248,6 +272,11 @@ export default function App() {
 
     setProperties(updatedList);
     setSelectedProperty(nextActive);
+
+    if (currentUser) {
+      const userStorageKey = `hometrust_properties_${currentUser.email || currentUser.id || 'default'}`;
+      localStorage.setItem(userStorageKey, JSON.stringify(updatedList));
+    }
   };
 
   return (
