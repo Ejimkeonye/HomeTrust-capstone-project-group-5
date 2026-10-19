@@ -27,11 +27,6 @@ export default function PartyOnboardingPage({
     setError("");
 
     try {
-      // 🛠️ CRITICAL FIX: Wipe old conflicting sessions so previous accounts don't bleed over!
-      localStorage.removeItem("hometrust_current_session");
-      localStorage.removeItem("hometrust_token");
-      localStorage.removeItem("hometrust_user");
-
       let sessionData = null;
 
       try {
@@ -41,12 +36,11 @@ export default function PartyOnboardingPage({
           password: password,
         });
 
-        const { token: jwtToken, user, propertyId, inspectionId, role: backendRole, inviterRole } = res.data;
+        const { token: jwtToken, user, propertyId, inspectionId, role: backendRole, inviterRole = "landlord" } = res.data;
         localStorage.setItem("hometrust_token", jwtToken);
         
-        // 🛠️ DYNAMIC ROLE DETECTION: 
-        // If backend provides a role, use it. Otherwise, inverse the inviter's role dynamically!
-        const resolvedRole = backendRole || (inviterRole === "landlord" ? "tenant" : "landlord");
+        // 🛠️ DYNAMIC INVERSE ROLE MAPPING
+        const resolvedRole = backendRole || (inviterRole.toLowerCase().includes("tenant") ? "landlord" : "tenant");
 
         sessionData = {
           ...user,
@@ -60,21 +54,20 @@ export default function PartyOnboardingPage({
       } catch (backendErr) {
         console.warn("Backend invite resolution fallback triggered:", backendErr);
         
-        // 🛠️ FAILSAFE FALLBACK: Safe local session build if offline or backend route is delayed
         sessionData = {
           id: `user-${Date.now()}`,
           name: fullName.trim(),
           email: `${fullName.trim().toLowerCase().replace(/\s+/g, '')}@invited.hometrust`,
-          role: "tenant", // Default fallback role
-          activePropertyId: token, // Treat token as property key reference
+          role: "tenant", 
+          activePropertyId: token, 
           isInvitedParticipant: true,
         };
       }
 
-      // 🛠️ ISOLATED STORAGE: Save user-specific session key
+      // 🛠️ ISOLATED STORAGE: Save with a user-specific session key to prevent global overrides
       const userKey = sessionData.email || sessionData.id;
+      localStorage.setItem(`hometrust_session_${userKey}`, JSON.stringify(sessionData));
       localStorage.setItem("hometrust_current_session", JSON.stringify(sessionData));
-      localStorage.setItem(`hometrust_current_session_${userKey}`, JSON.stringify(sessionData));
 
       if (onCompleteOnboarding) {
         onCompleteOnboarding(sessionData);

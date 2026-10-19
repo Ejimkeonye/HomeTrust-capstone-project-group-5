@@ -147,7 +147,6 @@ export default function App() {
         return;
       }
 
-      // 🛠️ ISOLATE STORAGE BY USER ID TO PREVENT ALABA/BASIT CROSS-BLEED
       const userStorageKey = `hometrust_properties_${currentUser.email || currentUser.id || 'default'}`;
 
       try {
@@ -165,7 +164,6 @@ export default function App() {
             }
           } catch (err) {
             console.warn("Direct property fetch fallback:", err);
-            // 🛠️ Avoid adding generic fallback placeholders if they pollute active user account
             if (!cloudProps.some(p => p.propertyId === targetId)) {
               const fallbackProp = {
                 propertyId: targetId,
@@ -197,7 +195,6 @@ export default function App() {
         }
       } catch (err) {
         console.error("Failed to load properties from backend:", err);
-        // Fallback to user-scoped local storage if offline
         try {
           const localSaved = localStorage.getItem(userStorageKey);
           if (localSaved) {
@@ -241,7 +238,6 @@ export default function App() {
     setSelectedInspectionData([]);
     setMoveOutInspectionData([]);
 
-    // Save to user-scoped key
     if (currentUser) {
       const userStorageKey = `hometrust_properties_${currentUser.email || currentUser.id || 'default'}`;
       localStorage.setItem(userStorageKey, JSON.stringify(updatedList));
