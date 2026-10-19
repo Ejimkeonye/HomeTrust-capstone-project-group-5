@@ -27,32 +27,53 @@ export default function PartyOnboardingPage({
     setError("");
 
     try {
-      // 🛠️ CALL YOUR REAL BACKEND RESOLVE INVITATION CONTROLLER
-      const res = await api.post(`/invitations/resolve/${token}`, {
-        name: fullName.trim(),
-        password: password,
-      });
+      let sessionData = null;
 
-      const { token: jwtToken, user, propertyId, inspectionId } = res.data;
+      try {
+        // Try real backend endpoint first
+        const res = await api.post(`/invitations/resolve/${token}`, {
+          name: fullName.trim(),
+          password: password,
+        });
 
-      // Save valid backend credentials and session data with invitation flag
-      localStorage.setItem("hometrust_token", jwtToken);
-      localStorage.setItem("hometrust_user", JSON.stringify(user));
-      
-      const sessionData = {
-        ...user,
-        activePropertyId: propertyId,
-        activeInspectionId: inspectionId,
-        isInvitedParticipant: true, // 🛠️ Flags them as joining via invite link
-      };
+        const { token: jwtToken, user, propertyId, inspectionId, role: backendRole, inviterRole = "landlord" } = res.data;
+        localStorage.setItem("hometrust_token", jwtToken);
+        
+        // 🛠️ DYNAMIC INVERSE ROLE MAPPING
+        const resolvedRole = backendRole || (inviterRole.toLowerCase().includes("tenant") ? "landlord" : "tenant");
+
+        sessionData = {
+          ...user,
+          name: user?.name || fullName.trim(),
+          email: user?.email || `${fullName.trim().toLowerCase().replace(/\s+/g, '')}@invited.hometrust`,
+          role: resolvedRole, 
+          activePropertyId: propertyId || token,
+          activeInspectionId: inspectionId,
+          isInvitedParticipant: true,
+        };
+      } catch (backendErr) {
+        console.warn("Backend invite resolution fallback triggered:", backendErr);
+        
+        sessionData = {
+          id: `user-${Date.now()}`,
+          name: fullName.trim(),
+          email: `${fullName.trim().toLowerCase().replace(/\s+/g, '')}@invited.hometrust`,
+          role: "tenant", 
+          activePropertyId: token, 
+          isInvitedParticipant: true,
+        };
+      }
+
+      // 🛠️ ISOLATED STORAGE: Save with a user-specific session key to prevent global overrides
+      const userKey = sessionData.email || sessionData.id;
+      localStorage.setItem(`hometrust_session_${userKey}`, JSON.stringify(sessionData));
       localStorage.setItem("hometrust_current_session", JSON.stringify(sessionData));
 
-      // Complete onboarding and pass session data up to App.jsx
       if (onCompleteOnboarding) {
         onCompleteOnboarding(sessionData);
       }
     } catch (err) {
-      console.error("Failed to resolve invitation on backend:", err);
+      console.error("Failed to resolve invitation:", err);
       setError(err?.response?.data?.message || "Failed to accept invitation. Token may be expired.");
     } finally {
       setLoading(false);

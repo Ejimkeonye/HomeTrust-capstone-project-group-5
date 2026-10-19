@@ -12,7 +12,7 @@ import {
   ChevronDown,
   Trash2,
   Building2,
-  Bell
+  Bell,
 } from "lucide-react";
 import api from "../api/client"; // Live API client connected to Render backend
 
@@ -26,7 +26,8 @@ export default function DashboardPage({
   onLogout,
   onViewReport,
   onStartInspection,
-  onStartMoveOutInspection, 
+  onStartMoveOutInspection,
+  onViewMoveOutReport,
   onViewEvidence,
   onOpenNotifications,
   onOpenProfile,
@@ -46,14 +47,15 @@ export default function DashboardPage({
   const getFirstName = () => {
     if (!user) return "User";
     const rawName = user.name || user.firstName || "Clement John";
-    const formattedName = rawName.includes(" ") 
-      ? rawName 
-      : rawName.replace(/([a-z])([A-Z])/g, '$1 $2');
+    const formattedName = rawName.includes(" ")
+      ? rawName
+      : rawName.replace(/([a-z])([A-Z])/g, "$1 $2");
     return formattedName.trim().split(" ")[0];
   };
 
   const firstName = getFirstName();
-  const defaultImage = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=400&q=80";
+  const defaultImage =
+    "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=400&q=80";
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -66,6 +68,24 @@ export default function DashboardPage({
     e.preventDefault();
     if (!newAddress.trim()) return;
 
+    const normalizedNewAddress = newAddress.trim().toLowerCase();
+    const normalizedNewFlat = (newFlatNo || "1").trim().toLowerCase();
+
+    // 🛠️ BUG #5 FIXED: Prevent duplicate property additions
+    const isDuplicate = properties.some((p) => {
+      const existingAddress = (p.address || "").trim().toLowerCase();
+      const existingFlat = (p.flatNo || "1").trim().toLowerCase();
+      return (
+        existingAddress === normalizedNewAddress &&
+        existingFlat === normalizedNewFlat
+      );
+    });
+
+    if (isDuplicate) {
+      alert("You have already added this property unit to your portfolio!");
+      return;
+    }
+
     const propertyPayload = {
       name: newAddress,
       address: newAddress,
@@ -73,9 +93,24 @@ export default function DashboardPage({
       flatNo: newFlatNo || "1",
       image: defaultImage,
       rooms: [
-        { roomId: `room-${Date.now()}-1`, name: "Living Room", category: "Rooms", items: [] },
-        { roomId: `room-${Date.now()}-2`, name: "Master Bedroom", category: "Rooms", items: [] },
-        { roomId: `room-${Date.now()}-3`, name: "Kitchen", category: "Kitchen", items: [] },
+        {
+          roomId: `room-${Date.now()}-1`,
+          name: "Living Room",
+          category: "Rooms",
+          items: [],
+        },
+        {
+          roomId: `room-${Date.now()}-2`,
+          name: "Master Bedroom",
+          category: "Rooms",
+          items: [],
+        },
+        {
+          roomId: `room-${Date.now()}-3`,
+          name: "Kitchen",
+          category: "Kitchen",
+          items: [],
+        },
       ],
     };
 
@@ -91,7 +126,7 @@ export default function DashboardPage({
       // Fallback local creation if offline or testing
       onAddNewProperty({
         propertyId: `prop-${Date.now()}`,
-        ...propertyPayload
+        ...propertyPayload,
       });
     }
 
@@ -100,18 +135,34 @@ export default function DashboardPage({
     setShowAddPropertyModal(false);
   };
 
+  // Check if move-in is fully signed and locked by BOTH parties
+  const moveInSignatures = activeProperty?.signatures || {};
+  const isMoveInFullySigned = Boolean(
+    activeProperty?.status === "READ_ONLY" ||
+    activeProperty?.moveInStatus === "LOCKED" ||
+    (moveInSignatures.landlord && moveInSignatures.tenant) ||
+    (moveInSignatures.landlordSigned && moveInSignatures.tenantSigned),
+  );
+
+  const isMoveOutLocked =
+    activeProperty?.moveOutStatus === "READ_ONLY" ||
+    activeProperty?.moveOutStatus === "LOCKED";
+
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
       <div className="w-full max-w-md bg-white min-h-screen sm:min-h-211 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative pb-24">
-        
         {/* ADD PROPERTY MODAL (Restricted for invited participants) */}
         {!isInvitedParticipant && showAddPropertyModal && (
           <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-4xl max-w-sm w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in duration-200">
-              <h3 className="text-sm font-extrabold text-purple-900">Add New Property / Unit</h3>
+              <h3 className="text-sm font-extrabold text-purple-900">
+                Add New Property / Unit
+              </h3>
               <form onSubmit={handleCreatePropertySubmit} className="space-y-3">
                 <div>
-                  <label className="text-[11px] font-bold text-slate-700">Property Address</label>
+                  <label className="text-[11px] font-bold text-slate-700">
+                    Property Address
+                  </label>
                   <input
                     type="text"
                     required
@@ -122,7 +173,9 @@ export default function DashboardPage({
                   />
                 </div>
                 <div>
-                  <label className="text-[11px] font-bold text-slate-700">Unit / Flat Number</label>
+                  <label className="text-[11px] font-bold text-slate-700">
+                    Unit / Flat Number
+                  </label>
                   <input
                     type="text"
                     value={newFlatNo}
@@ -157,11 +210,11 @@ export default function DashboardPage({
             <h1 className="text-2xl font-extrabold text-slate-950 tracking-tight">
               {getGreeting()}, {firstName}!
             </h1>
-            
+
             <div className="flex items-center gap-1">
-              <button 
+              <button
                 type="button"
-                onClick={onOpenNotifications} 
+                onClick={onOpenNotifications}
                 className="p-2 text-slate-600 hover:text-purple-900 transition-colors relative cursor-pointer"
                 title="Notifications"
               >
@@ -171,10 +224,10 @@ export default function DashboardPage({
                 )}
               </button>
 
-              <button 
-                type="button" 
-                onClick={onLogout} 
-                className="p-2 text-slate-400 hover:text-red-500 transition-colors cursor-pointer" 
+              <button
+                type="button"
+                onClick={onLogout}
+                className="p-2 text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
                 title="Sign out"
               >
                 <LogOut className="w-4 h-4" />
@@ -188,11 +241,10 @@ export default function DashboardPage({
 
         {/* Content */}
         <div className="px-6 flex-1 overflow-y-auto space-y-6">
-          
           {/* PROPERTY SWITCHER CARD */}
           <div className="relative">
             {activeProperty ? (
-              <div 
+              <div
                 onClick={() => setShowPropertyDropdown(!showPropertyDropdown)}
                 className="bg-slate-50 border border-purple-200 rounded-2xl p-3 flex gap-3.5 items-center shadow-xs cursor-pointer hover:border-purple-400 transition-all"
               >
@@ -204,7 +256,8 @@ export default function DashboardPage({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-purple-800 bg-purple-100 px-2 py-0.5 rounded-md">
-                      Active Property {isInvitedParticipant ? "(Shared Workspace)" : ""}
+                      Active Property{" "}
+                      {isInvitedParticipant ? "(Shared Workspace)" : ""}
                     </span>
                     <ChevronDown className="w-4 h-4 text-slate-500" />
                   </div>
@@ -217,14 +270,20 @@ export default function DashboardPage({
                 </div>
               </div>
             ) : (
-              <div 
-                onClick={() => !isInvitedParticipant && setShowAddPropertyModal(true)}
+              <div
+                onClick={() =>
+                  !isInvitedParticipant && setShowAddPropertyModal(true)
+                }
                 className={`bg-purple-50 border-2 border-dashed border-purple-300 rounded-2xl p-5 flex flex-col items-center justify-center text-center transition-all ${!isInvitedParticipant ? "cursor-pointer hover:bg-purple-100/50" : "cursor-default"}`}
               >
                 <Building2 className="w-8 h-8 text-purple-800 mb-1" />
-                <h3 className="text-xs font-bold text-purple-900">No properties assigned yet</h3>
+                <h3 className="text-xs font-bold text-purple-900">
+                  No properties assigned yet
+                </h3>
                 <p className="text-[11px] text-purple-700/80 mt-0.5">
-                  {!isInvitedParticipant ? "Click here to add your first property unit" : "Waiting for property assignment"}
+                  {!isInvitedParticipant
+                    ? "Click here to add your first property unit"
+                    : "Waiting for property assignment"}
                 </p>
               </div>
             )}
@@ -236,7 +295,7 @@ export default function DashboardPage({
                     key={prop.propertyId || prop.id}
                     className="p-2.5 rounded-xl hover:bg-purple-50 flex items-center justify-between text-xs font-bold text-slate-800 group"
                   >
-                    <div 
+                    <div
                       onClick={() => {
                         onSelectProperty(prop);
                         setShowPropertyDropdown(false);
@@ -244,7 +303,9 @@ export default function DashboardPage({
                       className="flex-1 truncate cursor-pointer pr-2"
                     >
                       <span className="truncate block">{prop.address}</span>
-                      <span className="text-[10px] text-slate-400 font-normal">Flat {prop.flatNo}</span>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        Flat {prop.flatNo}
+                      </span>
                     </div>
 
                     {!isInvitedParticipant && (
@@ -252,7 +313,11 @@ export default function DashboardPage({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (window.confirm(`Are you sure you want to delete "${prop.address}"?`)) {
+                          if (
+                            window.confirm(
+                              `Are you sure you want to delete "${prop.address}"?`,
+                            )
+                          ) {
                             onDeleteProperty(prop.propertyId || prop.id);
                           }
                         }}
@@ -264,7 +329,7 @@ export default function DashboardPage({
                     )}
                   </div>
                 ))}
-                
+
                 {!isInvitedParticipant && (
                   <button
                     onClick={() => {
@@ -282,12 +347,16 @@ export default function DashboardPage({
 
           {/* Quick Actions */}
           <div className="space-y-3">
-            <h2 className="text-sm font-extrabold text-slate-900">Quick actions</h2>
+            <h2 className="text-sm font-extrabold text-slate-900">
+              Quick actions
+            </h2>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 disabled={!activeProperty}
-                onClick={() => activeProperty && onStartInspection(activeProperty)}
+                onClick={() =>
+                  activeProperty && onStartInspection(activeProperty)
+                }
                 className="bg-purple-800 hover:bg-purple-900 disabled:bg-slate-300 text-white rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-all cursor-pointer disabled:cursor-not-allowed shadow-sm min-h-30"
               >
                 <Camera className="w-6 h-6 text-white mb-2" />
@@ -312,7 +381,9 @@ export default function DashboardPage({
 
           {/* Move-In Inspection Progress */}
           <div className="space-y-3 pt-1">
-            <h2 className="text-sm font-extrabold text-slate-900">Move-In Inspection Progress</h2>
+            <h2 className="text-sm font-extrabold text-slate-900">
+              Move-In Inspection Progress
+            </h2>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs font-bold text-slate-800">
                 <span>{activeProperty?.address || "No property selected"}</span>
@@ -327,94 +398,156 @@ export default function DashboardPage({
             </div>
           </div>
 
-          {/* Move-Out Compartment Card */}
+          {/* Move-Out Compartment Card (Gated until Move-In is Fully Signed by BOTH parties) */}
           <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xs font-extrabold text-slate-900">Move-Out Compartment</h2>
-                <p className="text-[10px] text-slate-500">Record property state upon departure.</p>
+                <h2 className="text-xs font-extrabold text-slate-900">
+                  Move-Out Compartment
+                </h2>
+                <p className="text-[10px] text-slate-500">
+                  Record property state upon departure.
+                </p>
               </div>
-              <span className="text-[10px] px-2.5 py-1 rounded-full bg-purple-100 text-purple-900 font-extrabold">
-                Ready
+              <span
+                className={`text-[10px] px-2.5 py-1 rounded-full font-extrabold ${
+                  isMoveInFullySigned
+                    ? "bg-purple-100 text-purple-900"
+                    : "bg-slate-100 text-slate-400"
+                }`}
+              >
+                {isMoveInFullySigned ? "Ready" : "Locked"}
               </span>
             </div>
 
-            <button
-              type="button"
-              disabled={!activeProperty}
-              onClick={() => activeProperty && onStartMoveOutInspection && onStartMoveOutInspection(activeProperty)}
-              className="w-full bg-[#4A1E6D] hover:bg-purple-950 disabled:bg-slate-300 text-white font-extrabold text-xs py-3 rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
-            >
-              <Camera className="w-4 h-4" /> Start Move-Out Inspection
-            </button>
+            {isMoveInFullySigned ? (
+              <div className="space-y-2">
+                {isMoveOutLocked ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      activeProperty &&
+                      onViewMoveOutReport &&
+                      onViewMoveOutReport(activeProperty)
+                    }
+                    className="w-full bg-purple-100 text-[#4A1E6D] border border-purple-300 hover:bg-purple-200 font-extrabold text-xs py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+                  >
+                    <FileText className="w-4 h-4" /> View Final Move-Out Report
+                  </button>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        activeProperty &&
+                        onViewMoveOutReport &&
+                        onViewMoveOutReport(activeProperty)
+                      }
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold text-xs py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <FileText className="w-3.5 h-3.5" /> View Report
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        activeProperty &&
+                        onStartMoveOutInspection &&
+                        onStartMoveOutInspection(activeProperty)
+                      }
+                      className="bg-[#4A1E6D] hover:bg-purple-950 text-white font-extrabold text-xs py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                    >
+                      <Camera className="w-3.5 h-3.5" /> Start Walkthrough
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-[11px] text-slate-400 font-medium text-center py-2 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                🔒 Move-out unlocks after both Landlord and Tenant sign the
+                Move-In report.
+              </div>
+            )}
           </div>
 
           {/* Move-Out Inspection Progress */}
-          <div className="space-y-3 pt-1">
-            <h2 className="text-sm font-extrabold text-slate-900">Move-Out Inspection Progress</h2>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-800">
-                <span>{activeProperty?.address || "No property selected"}</span>
-                <span>{activeProperty?.moveOutProgress || 0}%</span>
-              </div>
-              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                <div
-                  className="bg-[#4A1E6D] h-full rounded-full transition-all duration-500"
-                  style={{ width: `${activeProperty?.moveOutProgress || 0}%` }}
-                />
+          {isMoveInFullySigned && (
+            <div className="space-y-3 pt-1">
+              <h2 className="text-sm font-extrabold text-slate-900">
+                Move-Out Inspection Progress
+              </h2>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                  <span>
+                    {activeProperty?.address || "No property selected"}
+                  </span>
+                  <span>{activeProperty?.moveOutProgress || 0}%</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                  <div
+                    className="bg-[#4A1E6D] h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${activeProperty?.moveOutProgress || 0}%`,
+                    }}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-
+          )}
         </div>
 
         {/* Bottom Navigation */}
         <div className="absolute bottom-5 left-5 right-5 bg-white rounded-full border border-slate-200 shadow-xl p-2 flex items-center justify-around z-10">
-          <button 
-            type="button" 
-            onClick={() => setActiveTab("home")} 
+          <button
+            type="button"
+            onClick={() => setActiveTab("home")}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "home" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}
           >
             <Home className="w-5 h-5" />
           </button>
 
-          <button 
-            type="button" 
-            onClick={() => { 
-              setActiveTab("inspection"); 
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("inspection");
               if (activeProperty && onStartInspection) {
-                onStartInspection(activeProperty); 
+                onStartInspection(activeProperty);
               } else {
                 alert("Please select a property unit first to inspect.");
               }
-            }} 
+            }}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "inspection" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}
           >
             <Search className="w-5 h-5" />
           </button>
 
-          <button 
-            type="button" 
-            onClick={() => { setActiveTab("evidence"); if (onViewEvidence) onViewEvidence(); }} 
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("evidence");
+              if (onViewEvidence) onViewEvidence();
+            }}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "evidence" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}
           >
             <ShieldCheck className="w-5 h-5" />
           </button>
 
-          <button 
-            type="button" 
-            onClick={() => { setActiveTab("report"); if (onViewReport) onViewReport(); }} 
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("report");
+              if (onViewReport) onViewReport();
+            }}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "report" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}
           >
             <FileText className="w-5 h-5" />
           </button>
 
-          <button 
-            type="button" 
-            onClick={() => { 
-              setActiveTab("profile"); 
-              if (onOpenProfile) onOpenProfile(); 
-            }} 
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("profile");
+              if (onOpenProfile) onOpenProfile();
+            }}
             className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer ${activeTab === "profile" ? "bg-purple-800 text-white" : "text-slate-700 hover:bg-slate-100"}`}
           >
             <User className="w-5 h-5" />
