@@ -71,7 +71,7 @@ def verify_token(token):
     now = int(time.time())
 
     if not isinstance(payload.get("exp"), (int, float)):
-        raise ValueError("JWT expiry is missing")
+        raise TypeError("JWT expiry must be a number")
 
     if now >= payload["exp"]:
         raise ValueError("JWT has expired")
