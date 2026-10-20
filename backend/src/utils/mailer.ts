@@ -134,6 +134,27 @@ export async function sendPasswordResetEmail(to: string, code: string): Promise<
   const html = '<p>Your HomeTrust verification code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">' +
     code + '</p><p>This code expires in 10 minutes. If you did not request this, you can ignore this email.</p>';
 
+  if (useBrevo) {
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': process.env.BREVO_API_KEY as string,
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: 'HomeTrust', email: process.env.MAIL_FROM },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+        textContent: text,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`[Mailer] Brevo password reset send failed: ${response.status} ${await response.text()}`);
+    }
+    return;
+  }
   if (process.env.RESEND_API_KEY) {
     if (!process.env.EMAIL_FROM) throw new Error('EMAIL_FROM must be configured when using the email API');
     const response = await fetch('https://api.resend.com/emails', {
