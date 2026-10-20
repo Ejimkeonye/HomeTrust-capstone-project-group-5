@@ -5,6 +5,7 @@ import {
   updateInspectionState,
   addItemCondition,
   updateItemCondition,
+  deleteItemCondition,
   getPropertyInspections,
   submitInspection,
   reviewInspectionItem,
@@ -29,6 +30,7 @@ router.get("/:id", protect, getInspection);
 router.put("/:id/state", protect, updateInspectionState);
 router.post("/:id/items", protect, addItemCondition);
 router.patch("/:id/items/:itemId", protect, updateItemCondition);
+router.delete("/:id/items/:itemId", protect, deleteItemCondition);
 router.post("/:id/submit", protect, submitInspection);
 router.post("/:id/items/:itemId/review", protect, reviewInspectionItem);
 router.post("/:id/rooms/:roomId/evidence-decision", protect, reviewRoomEvidence);

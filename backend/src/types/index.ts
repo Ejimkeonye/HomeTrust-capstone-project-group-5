@@ -42,6 +42,9 @@ export interface IEvidence {
   createdAt: string;
 }
 export type InspectionCondition = 'no_issue' | 'stains' | 'cracks' | 'broken';
+export type ItemStatus = 'Normal' | 'Under Review';
+export type DisputeSeverity = 'Minor' | 'Moderate' | 'Major' | 'Critical';
+export interface IItemDispute { description: string; severity: DisputeSeverity; raisedBy: string; timestamp: string }
 export interface IItemCondition {
   inspectionId: string;
   roomItemId: string;
@@ -50,6 +53,8 @@ export interface IItemCondition {
   itemName: string;
   condition: InspectionCondition;
   notes?: string;
+  status?: ItemStatus;
+  dispute?: IItemDispute;
   evidence: IEvidence[];
   disputed?: boolean;
   reviewStatus?: 'ACCEPTED' | 'DISPUTED';
