@@ -3,7 +3,7 @@ import { PutCommand, GetCommand, QueryCommand, UpdateCommand, TransactWriteComma
 import { v4 as uuidv4 } from 'uuid';
 import { docClient, TABLES } from '../config/dynamodb';
 import { AuthRequest } from '../middlewares/authMiddleware';
-import { IInspection, IItemCondition, IProperty, IEvidence, InspectionCondition } from '../types';
+import { IInspection, IInspectionSignature, IItemCondition, IProperty, IEvidence, InspectionCondition } from '../types';
 import { writeAuditEvent } from '../utils/auditLogger';
 import { createInspectionPdf } from '../utils/inspectionPdf';
 import { presignEvidenceGet } from '../utils/s3Presigner';
@@ -56,6 +56,16 @@ async function loadInspection(inspectionId: string): Promise<IInspection | undef
       }))),
     })));
   }
+  const [landlordSignature, tenantSignature] = await Promise.all([
+    inspection.landlordSignature?.uploadedAt
+      ? { ...inspection.landlordSignature, url: await presignEvidenceGet(evidenceBucket, inspection.landlordSignature.objectKey, 900) }
+      : undefined,
+    inspection.tenantSignature?.uploadedAt
+      ? { ...inspection.tenantSignature, url: await presignEvidenceGet(evidenceBucket, inspection.tenantSignature.objectKey, 900) }
+      : undefined,
+  ]);
+  inspection.landlordSignature = landlordSignature;
+  inspection.tenantSignature = tenantSignature;
   return inspection;
 }
 
@@ -69,6 +79,203 @@ function approvalSummary(inspection: IInspection) {
   return { approvedCount, totalParties, fullyAcknowledged: totalParties > 0 && approvedCount >= totalParties };
 }
 
+function parseSignatureImage(value: unknown): { contentType: 'image/png' | 'image/jpeg'; bytes: Buffer } | undefined {
+  if (typeof value !== 'string') return undefined;
+  const match = /^data:(image\/png|image\/jpeg);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+  if (!match || match[2].length % 4 !== 0) return undefined;
+  const bytes = Buffer.from(match[2], 'base64');
+  if (bytes.length === 0 || bytes.length > 1024 * 1024 || bytes.toString('base64') !== match[2]) return undefined;
+  const isPng = match[1] === 'image/png' && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  const isJpeg = match[1] === 'image/jpeg' && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  return isPng || isJpeg ? { contentType: match[1] as 'image/png' | 'image/jpeg', bytes } : undefined;
+}
+
+async function requestSignatureUpload(fileName: string, contentType: string): Promise<{ uploadUrl: string; objectKey: string }> {
+  const uploadServiceUrl = process.env.PRESIGNED_UPLOAD_URL;
+  if (!uploadServiceUrl) throw new Error('PRESIGNED_UPLOAD_URL is not configured');
+  const response = await fetch(uploadServiceUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file_name: fileName, content_type: contentType }),
+  });
+  if (!response.ok) throw new Error('Signature upload service failed');
+  const result = await response.json() as { upload_url?: unknown; object_key?: unknown };
+  if (typeof result.upload_url !== 'string' || typeof result.object_key !== 'string' ||
+      !result.object_key.startsWith('evidence/signatures/')) {
+    throw new Error('Signature upload service returned an invalid S3 location');
+  }
+  return { uploadUrl: result.upload_url, objectKey: result.object_key };
+}
+
+async function removeSignatureReservation(inspectionId: string, signatureField: 'landlordSignature' | 'tenantSignature', objectKey: string): Promise<void> {
+  try {
+    await docClient.send(new UpdateCommand({
+      TableName: TABLES.INSPECTIONS,
+      Key: { inspectionId },
+      UpdateExpression: 'REMOVE #signature',
+      ExpressionAttributeNames: { '#signature': signatureField },
+      ExpressionAttributeValues: { ':objectKey': objectKey },
+      ConditionExpression: '#signature.objectKey = :objectKey',
+    }));
+  } catch (cleanupError) {
+    console.error('Failed to remove incomplete signature metadata:', cleanupError);
+  }
+}
+export const saveInspectionSignature = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const body = req.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body) ||
+        Object.keys(body).some((field) => field !== 'signature')) {
+      return res.status(400).json({ message: 'Send only the signature image in the signature field' });
+    }
+    const image = parseSignatureImage(body.signature);
+    if (!image) {
+      return res.status(400).json({ message: 'signature must be a PNG or JPEG data URL no larger than 1 MB' });
+    }
+
+    const inspectionId = req.params.id as string;
+    const result = await docClient.send(new GetCommand({
+      TableName: TABLES.INSPECTIONS,
+      Key: { inspectionId },
+    }));
+    const inspection = result.Item as IInspection | undefined;
+    if (!inspection) return res.status(404).json({ message: 'Inspection not found' });
+
+    let role: 'Landlord' | 'Tenant';
+    let signatureField: 'landlordSignature' | 'tenantSignature';
+    let linkedPartyField: 'landlordId' | 'tenantId';
+    if (inspection.landlordId === req.user!.userId && inspection.tenantId !== req.user!.userId) {
+      role = 'Landlord';
+      signatureField = 'landlordSignature';
+      linkedPartyField = 'landlordId';
+    } else if (inspection.tenantId === req.user!.userId && inspection.landlordId !== req.user!.userId) {
+      role = 'Tenant';
+      signatureField = 'tenantSignature';
+      linkedPartyField = 'tenantId';
+    } else {
+      return res.status(403).json({ message: 'Only the linked landlord or tenant can sign this inspection' });
+    }
+    if (!inspection.landlordId || !inspection.tenantId) {
+      return res.status(409).json({ message: 'Both landlord and tenant must be linked before signing' });
+    }
+    if (inspection.state !== 'UNDER_REVIEW') {
+      return res.status(409).json({ message: 'Signatures can be added only while the inspection is under review' });
+    }
+    if (inspection[signatureField]) {
+      return res.status(409).json({ message: 'You have already signed this inspection' });
+    }
+
+    const safeInspectionId = inspectionId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const extension = image.contentType === 'image/png' ? 'png' : 'jpg';
+    const fileName = 'signatures/' + safeInspectionId + '/' + role.toLowerCase() + '/' + uuidv4() + '.' + extension;
+    const target = await requestSignatureUpload(fileName, image.contentType);
+    const signedAt = new Date().toISOString();
+    const signature: IInspectionSignature = {
+      userId: req.user!.userId,
+      role,
+      name: req.user!.name || req.user!.email,
+      signedAt,
+      objectKey: target.objectKey,
+      contentType: image.contentType,
+    };
+
+    let savedInspection: IInspection;
+    try {
+      const saved = await docClient.send(new UpdateCommand({
+        TableName: TABLES.INSPECTIONS,
+        Key: { inspectionId },
+        UpdateExpression: 'SET #signature = :signature, updatedAt = :signedAt',
+        ExpressionAttributeNames: { '#signature': signatureField, '#state': 'state', '#linkedParty': linkedPartyField },
+        ExpressionAttributeValues: { ':signature': signature, ':signedAt': signedAt, ':underReview': 'UNDER_REVIEW', ':userId': req.user!.userId },
+        ConditionExpression: 'attribute_not_exists(#signature) AND #state = :underReview AND #linkedParty = :userId',
+        ReturnValues: 'ALL_NEW',
+      }));
+      savedInspection = saved.Attributes as IInspection;
+    } catch (error) {
+      if ((error as { name?: string }).name === 'ConditionalCheckFailedException') {
+        return res.status(409).json({ message: 'Inspection state changed or this party has already signed' });
+      }
+      throw error;
+    }
+
+    let uploadSucceeded: boolean;
+    try {
+      const uploadResponse = await fetch(target.uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': image.contentType },
+        body: image.bytes as unknown as BodyInit,
+      });
+      uploadSucceeded = uploadResponse.ok;
+    } catch (uploadError) {
+      await removeSignatureReservation(inspectionId, signatureField, target.objectKey);
+      return next(uploadError);
+    }
+    if (!uploadSucceeded) {
+      await removeSignatureReservation(inspectionId, signatureField, target.objectKey);
+      return res.status(502).json({ message: 'Could not store signature image' });
+    }
+    let finalInspection = savedInspection;
+    try {
+      const completed = await docClient.send(new UpdateCommand({
+        TableName: TABLES.INSPECTIONS,
+        Key: { inspectionId },
+        UpdateExpression: 'SET #signature.#uploadedAt = :uploadedAt, updatedAt = :uploadedAt',
+        ExpressionAttributeNames: { '#signature': signatureField, '#uploadedAt': 'uploadedAt' },
+        ExpressionAttributeValues: { ':uploadedAt': new Date().toISOString(), ':objectKey': target.objectKey },
+        ConditionExpression: '#signature.objectKey = :objectKey',
+        ReturnValues: 'ALL_NEW',
+      }));
+      finalInspection = completed.Attributes as IInspection;
+    } catch (error) {
+      await removeSignatureReservation(inspectionId, signatureField, target.objectKey);
+      throw error;
+    }
+    if (finalInspection.landlordSignature?.uploadedAt && finalInspection.tenantSignature?.uploadedAt) {
+      const finalized = await docClient.send(new UpdateCommand({
+        TableName: TABLES.INSPECTIONS,
+        Key: { inspectionId },
+        UpdateExpression: 'SET #state = :readOnly, updatedAt = :updatedAt',
+        ExpressionAttributeNames: { '#state': 'state' },
+        ExpressionAttributeValues: { ':readOnly': 'READ_ONLY', ':underReview': 'UNDER_REVIEW', ':updatedAt': new Date().toISOString() },
+        ConditionExpression: '#state = :underReview AND attribute_exists(landlordSignature.uploadedAt) AND attribute_exists(tenantSignature.uploadedAt)',
+        ReturnValues: 'ALL_NEW',
+      }));
+      finalInspection = finalized.Attributes as IInspection;
+    }
+
+    const [landlordSignature, tenantSignature] = await Promise.all([
+      finalInspection.landlordSignature?.uploadedAt
+        ? { ...finalInspection.landlordSignature, url: await presignEvidenceGet(evidenceBucket, finalInspection.landlordSignature.objectKey, 900) }
+        : undefined,
+      finalInspection.tenantSignature?.uploadedAt
+        ? { ...finalInspection.tenantSignature, url: await presignEvidenceGet(evidenceBucket, finalInspection.tenantSignature.objectKey, 900) }
+        : undefined,
+    ]);
+    writeAuditEvent({
+      eventType: 'inspection.signature_saved',
+      outcome: 'success',
+      actorId: req.user!.userId,
+      resourceType: 'inspection',
+      resourceId: inspectionId,
+      details: { role },
+    });
+
+    return res.status(201).json({
+      message: 'Signature saved successfully',
+      inspectionId,
+      signatures: { landlord: landlordSignature?.uploadedAt ? landlordSignature : null, tenant: tenantSignature?.uploadedAt ? tenantSignature : null },
+      signingStatus: {
+        landlordSigned: Boolean(landlordSignature?.uploadedAt),
+        tenantSigned: Boolean(tenantSignature?.uploadedAt),
+        fullySigned: Boolean(landlordSignature?.uploadedAt && tenantSignature?.uploadedAt),
+      },
+      approvalSummary: approvalSummary(finalInspection),
+      state: finalInspection.state,
+    });
+  } catch (error) {
+    return next(error);
+  }
+};
 export const createInspection = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { propertyId, mode, participantIds } = req.body;
@@ -100,7 +307,9 @@ export const createInspection = async (req: AuthRequest, res: Response, next: Ne
     const newInspection: IInspection = {
       inspectionId,
       propertyId,
-      ...(req.user!.role === 'Tenant' ? { tenantId: req.user!.userId } : { landlordId: req.user!.userId }),
+      ...(req.user!.role === 'Tenant'
+        ? { tenantId: req.user!.userId, tenantRole: req.user!.role }
+        : { landlordId: req.user!.userId, landlordRole: req.user!.role }),
       createdBy: req.user!.userId,
       participantIds: selectedParticipantIds,
       mode: mode || 'Full',
@@ -172,6 +381,7 @@ export const updateInspectionState = async (req: AuthRequest, res: Response, nex
     if (!canAccess(inspection, req.user!.userId)) return res.status(403).json({ message: 'Not authorized' });
     if (inspection.state === 'READ_ONLY') return res.status(409).json({ message: 'Inspection is already read-only' });
     if (state === 'READ_ONLY' && (inspection.createdBy || inspection.landlordId) !== req.user!.userId) return res.status(403).json({ message: 'Only the inspection creator can finalize it' });
+    if (state === 'READ_ONLY' && (!inspection.landlordSignature?.uploadedAt || !inspection.tenantSignature?.uploadedAt)) return res.status(409).json({ message: 'Both landlord and tenant must sign before finalization' });
 
     const previousState = inspection.state;
     const updated = await docClient.send(new UpdateCommand({
@@ -184,6 +394,7 @@ export const updateInspectionState = async (req: AuthRequest, res: Response, nex
         ':updatedAt': new Date().toISOString(),
       },
       ReturnValues: 'ALL_NEW',
+      ...(state === 'READ_ONLY' ? { ConditionExpression: 'attribute_exists(landlordSignature.uploadedAt) AND attribute_exists(tenantSignature.uploadedAt)' } : {}),
     }));
 
     writeAuditEvent({ eventType: 'inspection.state_changed', outcome: 'success', actorId: req.user!.userId, resourceType: 'inspection', resourceId: req.params.id as string, details: { previousState, newState: state } });
@@ -367,14 +578,8 @@ export const approveInspection = async (req: AuthRequest, res: Response, next: N
     const totalParties = [...new Set([saved.landlordId, saved.tenantId, ...(saved.participantIds || [])].filter(Boolean))].length;
     const approvalCount = saved.approvalCount || 0;
     const fullyAcknowledged = totalParties > 0 && approvalCount >= totalParties;
-    if (fullyAcknowledged) await docClient.send(new UpdateCommand({
-      TableName: TABLES.INSPECTIONS, Key: { inspectionId },
-      UpdateExpression: 'SET #state = :finalState, updatedAt = :now',
-      ExpressionAttributeNames: { '#state': 'state' },
-      ExpressionAttributeValues: { ':finalState': 'READ_ONLY', ':now': new Date().toISOString() },
-    }));
     writeAuditEvent({ eventType: 'inspection.acknowledged', outcome: 'success', actorId: req.user!.userId, resourceType: 'inspection', resourceId: inspectionId, details: { approvalCount, totalParties } });
-    return res.status(201).json({ inspectionId, approvals: saved.approvals || [], approvalCount, totalParties, fullyAcknowledged, state: fullyAcknowledged ? 'READ_ONLY' : saved.state });
+    return res.status(201).json({ inspectionId, approvals: saved.approvals || [], approvalCount, totalParties, fullyAcknowledged, state: saved.state });
   } catch (error) {
     if ((error as { name?: string }).name === 'ConditionalCheckFailedException') return res.status(409).json({ message: 'You already acknowledged this inspection' });
     return next(error);
@@ -387,7 +592,22 @@ export const downloadInspectionReport = async (req: AuthRequest, res: Response, 
     const inspection = await loadInspection(req.params.id as string);
     if (!inspection) return res.status(404).json({ message: 'Inspection not found' });
     if (!canAccess(inspection, req.user!.userId)) return res.status(403).json({ message: 'Not authorized to download this report' });
-    const pdf = createInspectionPdf(inspection);
+    const signatureImages = await Promise.all(
+      ([inspection.landlordSignature, inspection.tenantSignature]
+        .filter((signature): signature is IInspectionSignature & { url: string } => Boolean(signature?.uploadedAt && signature.url)))
+        .map(async (signature) => {
+          const response = await fetch(signature.url);
+          if (!response.ok) throw new Error('Could not load a saved signature image for the report');
+          return {
+            role: signature.role,
+            name: signature.name,
+            signedAt: signature.signedAt,
+            contentType: signature.contentType,
+            bytes: Buffer.from(await response.arrayBuffer()),
+          };
+        }),
+    );
+    const pdf = createInspectionPdf(inspection, signatureImages);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="inspection-${inspection.inspectionId}.pdf"`);
     return res.status(200).send(pdf);

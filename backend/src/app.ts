@@ -7,12 +7,13 @@ import propertyRoutes from './routes/propertyRoutes';
 import inspectionRoutes from './routes/inspectionRoutes';
 import evidenceRoutes from './routes/evidenceRoutes';
 import invitationRoutes from './routes/invitationRoutes';
+import userRoutes from './routes/userRoutes';
 import { errorHandler } from './middlewares/errorMiddleware';
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -23,6 +24,7 @@ app.use('/api/properties', propertyRoutes);
 app.use('/api/inspections', inspectionRoutes);
 app.use('/api/evidence', evidenceRoutes);
 app.use('/api/invitations', invitationRoutes);
+app.use('/api/users', userRoutes);
 
 
 // Root status endpoint

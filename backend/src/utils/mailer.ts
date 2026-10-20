@@ -103,3 +103,36 @@ export async function sendInviteEmail({
   });
 }
 
+
+/** Sends a password reset code using the HTTPS email API when configured, or SMTP otherwise. */
+export async function sendPasswordResetEmail(to: string, code: string): Promise<void> {
+  const subject = 'HomeTrust password reset code';
+  const text = 'Your HomeTrust verification code is ' + code + '. It expires in 10 minutes. If you did not request this, you can ignore this email.';
+  const html = '<p>Your HomeTrust verification code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">' +
+    code + '</p><p>This code expires in 10 minutes. If you did not request this, you can ignore this email.</p>';
+
+  if (process.env.RESEND_API_KEY) {
+    if (!process.env.EMAIL_FROM) throw new Error('EMAIL_FROM must be configured when using the email API');
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + process.env.RESEND_API_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from: process.env.EMAIL_FROM, to: [to], subject, text, html }),
+    });
+    if (!response.ok) throw new Error('Email API rejected the message with status ' + response.status);
+    return;
+  }
+
+  if (!isConfigured || !process.env.SMTP_USER) {
+    throw new Error('Configure RESEND_API_KEY and EMAIL_FROM or SMTP_USER and SMTP_PASS');
+  }
+  await transporter.sendMail({
+    from: 'HomeTrust <' + process.env.SMTP_USER + '>',
+    to,
+    subject,
+    text,
+    html,
+  });
+}

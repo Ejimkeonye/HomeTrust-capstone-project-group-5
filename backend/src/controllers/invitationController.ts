@@ -157,19 +157,32 @@ export const resolveInvitation = async (req: AuthRequest, res: Response, next: N
         },
       });
     }
-    const partyLinks = inviteeRole === 'Landlord'
-      ? { landlordId: user.userId, tenantId: invitation.inviterId }
-      : { landlordId: invitation.inviterId, tenantId: user.userId };
+    const inviterRole: UserRole = invitation.inviterRole || (inviteeRole === 'Landlord' ? 'Tenant' : 'Landlord');
+    const partyLinks = inviterRole === 'Tenant'
+      ? {
+          landlordId: user.userId,
+          tenantId: invitation.inviterId,
+          landlordRole: user.role,
+          tenantRole: inviterRole,
+        }
+      : {
+          landlordId: invitation.inviterId,
+          tenantId: user.userId,
+          landlordRole: inviterRole,
+          tenantRole: user.role,
+        };
     const acceptedAt = new Date().toISOString();
     transactionItems.push(
       {
         Update: {
           TableName: TABLES.INSPECTIONS,
           Key: { inspectionId: invitation.inspectionId },
-          UpdateExpression: 'SET landlordId = :landlordId, tenantId = :tenantId, updatedAt = :updatedAt',
+          UpdateExpression: 'SET landlordId = :landlordId, tenantId = :tenantId, landlordRole = :landlordRole, tenantRole = :tenantRole, updatedAt = :updatedAt',
           ExpressionAttributeValues: {
             ':landlordId': partyLinks.landlordId,
             ':tenantId': partyLinks.tenantId,
+            ':landlordRole': partyLinks.landlordRole,
+            ':tenantRole': partyLinks.tenantRole,
             ':updatedAt': acceptedAt,
           },
           ConditionExpression: 'attribute_exists(inspectionId) AND (attribute_not_exists(landlordId) OR landlordId = :landlordId) AND (attribute_not_exists(tenantId) OR tenantId = :tenantId)',
@@ -179,9 +192,9 @@ export const resolveInvitation = async (req: AuthRequest, res: Response, next: N
         Update: {
           TableName: TABLES.INVITATIONS,
           Key: { token },
-          UpdateExpression: 'SET #status = :accepted, updatedAt = :updatedAt',
+          UpdateExpression: 'SET #status = :accepted, acceptedBy = :acceptedBy, acceptedAt = :acceptedAt, updatedAt = :updatedAt',
           ExpressionAttributeNames: { '#status': 'status' },
-          ExpressionAttributeValues: { ':accepted': 'ACCEPTED', ':updatedAt': acceptedAt, ':pending': 'PENDING', ':now': acceptedAt },
+          ExpressionAttributeValues: { ':accepted': 'ACCEPTED', ':acceptedBy': user.userId, ':acceptedAt': acceptedAt, ':updatedAt': acceptedAt, ':pending': 'PENDING', ':now': acceptedAt },
           ConditionExpression: '#status = :pending AND expiresAt >= :now',
         },
       },

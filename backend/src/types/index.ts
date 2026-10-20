@@ -59,12 +59,26 @@ export interface IItemCondition {
   createdAt: string;
   updatedAt: string;
 }
+export interface IInspectionSignature {
+  userId: string;
+  role: 'Landlord' | 'Tenant';
+  name: string;
+  signedAt: string;
+  uploadedAt?: string;
+  objectKey: string;
+  contentType: 'image/png' | 'image/jpeg';
+  url?: string;
+}
 export interface IInspection {
   inspectionId: string;
   propertyId: string;
   landlordId?: string;
+  landlordRole?: UserRole;
+  landlordSignature?: IInspectionSignature;
+  tenantSignature?: IInspectionSignature;
   createdBy?: string;
   tenantId?: string;
+  tenantRole?: UserRole;
   participantIds?: string[];
   approvedBy?: string[];
   approvals?: Array<{ userId: string; approvedAt: string }>;
@@ -84,6 +98,8 @@ export interface IInvitation {
   inviterId: string;
   inviterRole?: UserRole;
   inviteeRole?: UserRole;
+  acceptedBy?: string;
+  acceptedAt?: string;
   email: string;
   expiresAt: string;
   status: 'PENDING' | 'ACCEPTED' | 'REVOKED';

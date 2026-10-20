@@ -64,45 +64,82 @@ export const createProperty = async (req: AuthRequest, res: Response, next: Next
   }
 };
 
+async function getAcceptedPropertyIds(userId: string): Promise<Set<string>> {
+  const result = await docClient.send(new QueryCommand({
+    TableName: TABLES.INVITATIONS,
+    IndexName: 'acceptedByIndex',
+    KeyConditionExpression: 'acceptedBy = :userId',
+    FilterExpression: '#status = :accepted',
+    ExpressionAttributeNames: { '#status': 'status' },
+    ExpressionAttributeValues: { ':userId': userId, ':accepted': 'ACCEPTED' },
+  }));
+  return new Set((result.Items || [])
+    .map((invitation) => invitation.propertyId)
+    .filter((propertyId): propertyId is string => typeof propertyId === 'string'));
+}
+
 export const getProperties = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    // Query using ownerIndex GSI to get all properties for this user
-    const result = await docClient.send(new QueryCommand({
-      TableName: TABLES.PROPERTIES,
-      IndexName: 'ownerIndex',
-      KeyConditionExpression: 'ownerId = :ownerId',
-      ExpressionAttributeValues: { ':ownerId': req.user!.userId },
-    }));
+    const userId = req.user!.userId;
+    const [ownerResult, sharedPropertyIds] = await Promise.all([
+      docClient.send(new QueryCommand({
+        TableName: TABLES.PROPERTIES,
+        IndexName: 'ownerIndex',
+        KeyConditionExpression: 'ownerId = :ownerId',
+        ExpressionAttributeValues: { ':ownerId': userId },
+      })),
+      getAcceptedPropertyIds(userId),
+    ]);
 
-    const properties = (result.Items || []) as IProperty[];
+    const propertiesById = new Map<string, IProperty>();
+    for (const property of (ownerResult.Items || []) as IProperty[]) {
+      propertiesById.set(property.propertyId, property);
+    }
 
-    res.json({
-      properties,
-      total: properties.length,
-    });
+    const sharedIdsToLoad = [...sharedPropertyIds].filter((propertyId) => !propertiesById.has(propertyId));
+    const sharedResults = await Promise.all(sharedIdsToLoad.map((propertyId) =>
+      docClient.send(new GetCommand({
+        TableName: TABLES.PROPERTIES,
+        Key: { propertyId },
+      })),
+    ));
+    for (const result of sharedResults) {
+      if (result.Item) {
+        const property = result.Item as IProperty;
+        propertiesById.set(property.propertyId, property);
+      }
+    }
+
+    const properties = [...propertiesById.values()];
+    return res.json({ properties, total: properties.length });
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
 export const getPropertyById = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    const propertyId = req.params.id as string;
     const result = await docClient.send(new GetCommand({
       TableName: TABLES.PROPERTIES,
-      Key: { propertyId: req.params.id },
+      Key: { propertyId },
     }));
 
-    if (!result.Item) {
-      res.status(404);
-      throw new Error('Property not found');
+    if (!result.Item) return res.status(404).json({ message: 'Property not found' });
+
+    const property = result.Item as IProperty;
+    if (property.ownerId !== req.user!.userId) {
+      const sharedPropertyIds = await getAcceptedPropertyIds(req.user!.userId);
+      if (!sharedPropertyIds.has(propertyId)) {
+        return res.status(404).json({ message: 'Property not found' });
+      }
     }
 
-    res.json(result.Item);
+    return res.json(property);
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
-
 export const updateProperty = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const propertyId = req.params.id as string;
