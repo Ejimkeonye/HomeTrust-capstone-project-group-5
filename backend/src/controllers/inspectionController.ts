@@ -1,9 +1,9 @@
 import { Response, NextFunction } from 'express';
-import { PutCommand, GetCommand, QueryCommand, UpdateCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, GetCommand, QueryCommand, UpdateCommand, DeleteCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { docClient, TABLES } from '../config/dynamodb';
 import { AuthRequest } from '../middlewares/authMiddleware';
-import { IInspection, IInspectionSignature, IItemCondition, IProperty, IEvidence, InspectionCondition } from '../types';
+import { IInspection, IInspectionSignature, IItemCondition, IProperty, IEvidence, InspectionCondition, ItemStatus, IItemDispute, DisputeSeverity } from '../types';
 import { writeAuditEvent } from '../utils/auditLogger';
 import { createInspectionPdf } from '../utils/inspectionPdf';
 import { presignEvidenceGet } from '../utils/s3Presigner';
@@ -429,6 +429,7 @@ export const addItemCondition = async (req: AuthRequest, res: Response, next: Ne
     const newItem: IItemCondition = {
       inspectionId, roomItemId, itemId: roomItemId, roomId: room.roomId,
       itemName: String(itemName).trim(), condition, notes: notes?.trim() || undefined,
+      status: condition === 'no_issue' ? 'Normal' : 'Under Review',
       evidence: [], createdAt: now, updatedAt: now,
     };
     await docClient.send(new PutCommand({ TableName: TABLES.ROOM_ITEMS, Item: newItem }));
@@ -446,12 +447,79 @@ export const addItemCondition = async (req: AuthRequest, res: Response, next: Ne
     next(error);
   }
 };
-
 export const updateItemCondition = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const { condition, notes } = req.body;
+    const body = req.body;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return res.status(400).json({ message: 'Request body must be an object' });
+    const allowedFields = new Set(['condition', 'notes', 'dispute', 'status']);
+    const unsupportedFields = Object.keys(body).filter(field => !allowedFields.has(field));
+    if (unsupportedFields.length) return res.status(400).json({ message: 'Only condition, notes, dispute, and status can be updated here', fields: unsupportedFields });
+    if (Object.keys(body).length === 0) return res.status(400).json({ message: 'Provide at least one item field to update' });
+
+    const { condition, notes, status } = body;
     if (condition !== undefined && !VALID_CONDITIONS.includes(condition)) return res.status(400).json({ message: 'Invalid condition', validConditions: VALID_CONDITIONS });
     if (notes !== undefined && (typeof notes !== 'string' || notes.length > 2000)) return res.status(400).json({ message: 'notes must be text up to 2000 characters' });
+    const validStatuses: ItemStatus[] = ['Normal', 'Under Review'];
+    if (status !== undefined && !validStatuses.includes(status)) return res.status(400).json({ message: 'status must be Normal or Under Review', validStatuses });
+
+    const hasDispute = Object.prototype.hasOwnProperty.call(body, 'dispute');
+    let dispute: IItemDispute | undefined;
+    if (hasDispute && body.dispute !== null) {
+      const input = body.dispute;
+      const validSeverities: DisputeSeverity[] = ['Minor', 'Moderate', 'Major', 'Critical'];
+      if (!input || typeof input !== 'object' || Array.isArray(input) ||
+          typeof input.description !== 'string' || !input.description.trim() || input.description.length > 2000 ||
+          !validSeverities.includes(input.severity)) {
+        return res.status(400).json({ message: 'dispute must include a description and valid severity', validSeverities });
+      }
+      // Use authenticated identity and server time; do not trust client-supplied attribution.
+      dispute = {
+        description: input.description.trim(),
+        severity: input.severity,
+        raisedBy: req.user!.role,
+        timestamp: new Date().toISOString(),
+      };
+    }
+
+    const inspectionId = req.params.id as string;
+    const roomItemId = req.params.itemId as string;
+    const inspection = await loadInspection(inspectionId);
+    if (!inspection) return res.status(404).json({ message: 'Inspection not found' });
+    if (!canAccess(inspection, req.user!.userId)) return res.status(403).json({ message: 'Not authorized to modify this inspection' });
+    if (inspection.state === 'READ_ONLY') return res.status(409).json({ message: 'Inspection is locked and cannot be changed' });
+    const existingItem = inspection.items.find(item => item.roomItemId === roomItemId);
+    if (!existingItem) return res.status(404).json({ message: 'Room item not found' });
+
+    const now = new Date().toISOString();
+    const names: Record<string, string> = { '#updatedAt': 'updatedAt' };
+    const values: Record<string, any> = { ':updatedAt': now };
+    const updates = ['#updatedAt = :updatedAt'];
+    const removals: string[] = [];
+    if (condition !== undefined) { names['#condition'] = 'condition'; values[':condition'] = condition; updates.push('#condition = :condition'); }
+    if (notes !== undefined) { names['#notes'] = 'notes'; values[':notes'] = notes.trim(); updates.push('#notes = :notes'); }
+    if (status !== undefined) { names['#status'] = 'status'; values[':status'] = status; updates.push('#status = :status'); }
+    if (hasDispute) {
+      names['#dispute'] = 'dispute';
+      if (body.dispute === null) removals.push('#dispute');
+      else { values[':dispute'] = dispute; updates.push('#dispute = :dispute'); }
+    }
+    const updateExpression = 'SET ' + updates.join(', ') + (removals.length ? ' REMOVE ' + removals.join(', ') : '');
+    const result = await docClient.send(new UpdateCommand({
+      TableName: TABLES.ROOM_ITEMS, Key: { inspectionId, roomItemId },
+      UpdateExpression: updateExpression,
+      ExpressionAttributeNames: names,
+      ExpressionAttributeValues: values,
+      ConditionExpression: 'attribute_exists(roomItemId)',
+      ReturnValues: 'ALL_NEW',
+    }));
+    await docClient.send(new UpdateCommand({ TableName: TABLES.INSPECTIONS, Key: { inspectionId }, UpdateExpression: 'SET updatedAt = :updatedAt', ExpressionAttributeValues: { ':updatedAt': now } }));
+    writeAuditEvent({ eventType: 'inspection.item_updated', outcome: 'success', actorId: req.user!.userId, resourceType: 'inspection_item', resourceId: roomItemId, details: { inspectionId } });
+    return res.json({ ...result.Attributes, itemId: roomItemId, evidence: existingItem.evidence || [] });
+  } catch (error) { return next(error); }
+};
+
+export const deleteItemCondition = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
     const inspectionId = req.params.id as string;
     const roomItemId = req.params.itemId as string;
     const inspection = await loadInspection(inspectionId);
@@ -460,23 +528,25 @@ export const updateItemCondition = async (req: AuthRequest, res: Response, next:
     if (inspection.state === 'READ_ONLY') return res.status(409).json({ message: 'Inspection is locked and cannot be changed' });
     if (!inspection.items.some(item => item.roomItemId === roomItemId)) return res.status(404).json({ message: 'Room item not found' });
 
-    const now = new Date().toISOString();
-    const names: Record<string, string> = { '#updatedAt': 'updatedAt' };
-    const values: Record<string, any> = { ':updatedAt': now };
-    const fields = ['#updatedAt = :updatedAt'];
-    if (condition !== undefined) { names['#condition'] = 'condition'; values[':condition'] = condition; fields.push('#condition = :condition'); }
-    if (notes !== undefined) { names['#notes'] = 'notes'; values[':notes'] = notes.trim(); fields.push('#notes = :notes'); }
-    const result = await docClient.send(new UpdateCommand({
-      TableName: TABLES.ROOM_ITEMS, Key: { inspectionId, roomItemId },
-      UpdateExpression: 'SET ' + fields.join(', '), ExpressionAttributeNames: names,
-      ExpressionAttributeValues: values, ConditionExpression: 'attribute_exists(roomItemId)', ReturnValues: 'ALL_NEW',
+    await docClient.send(new DeleteCommand({
+      TableName: TABLES.ROOM_ITEMS,
+      Key: { inspectionId, roomItemId },
+      ConditionExpression: 'attribute_exists(roomItemId)',
     }));
-    await docClient.send(new UpdateCommand({ TableName: TABLES.INSPECTIONS, Key: { inspectionId }, UpdateExpression: 'SET updatedAt = :updatedAt', ExpressionAttributeValues: { ':updatedAt': now } }));
-    writeAuditEvent({ eventType: 'inspection.item_updated', outcome: 'success', actorId: req.user!.userId, resourceType: 'inspection_item', resourceId: roomItemId, details: { inspectionId } });
-    res.json({ ...result.Attributes, itemId: roomItemId, evidence: inspection.items.find(item => item.roomItemId === roomItemId)?.evidence || [] });
-  } catch (error) { next(error); }
+    const now = new Date().toISOString();
+    await docClient.send(new UpdateCommand({
+      TableName: TABLES.INSPECTIONS,
+      Key: { inspectionId },
+      UpdateExpression: 'SET updatedAt = :updatedAt',
+      ExpressionAttributeValues: { ':updatedAt': now },
+    }));
+    writeAuditEvent({ eventType: 'inspection.item_deleted', outcome: 'success', actorId: req.user!.userId, resourceType: 'inspection_item', resourceId: roomItemId, details: { inspectionId } });
+    return res.json({ success: true, roomItemId });
+  } catch (error) {
+    if ((error as { name?: string }).name === 'ConditionalCheckFailedException') return res.status(404).json({ message: 'Room item not found' });
+    return next(error);
+  }
 };
-
 export const submitInspection = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const inspectionId = req.params.id as string;
