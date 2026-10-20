@@ -26,14 +26,20 @@ variable "allowed_origins" {
 }
 
 variable "auth_type" {
-  description = "NONE = public route, AWS_IAM = SigV4-signed callers only"
+  description = "Route authorization: NONE, AWS_IAM, or CUSTOM"
   type        = string
   default     = "NONE"
 
   validation {
-    condition     = contains(["NONE", "AWS_IAM"], var.auth_type)
-    error_message = "auth_type must be NONE or AWS_IAM."
+    condition     = contains(["NONE", "AWS_IAM", "CUSTOM"], var.auth_type)
+    error_message = "auth_type must be NONE, AWS_IAM, or CUSTOM."
   }
+}
+
+variable "jwt_secret_arn" {
+  description = "ARN of the JWT secret in AWS Secrets Manager"
+  type        = string
+  sensitive   = true
 }
 
 variable "throttle_rate_limit" {

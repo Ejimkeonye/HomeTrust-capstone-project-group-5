@@ -22,13 +22,14 @@ module "presigned_upload" {
 module "presigned_upload_api" {
   source = "../../modules/http-api-lambda"
 
-  api_name      = "hometrust-presigned-upload-api"
-  function_name = module.presigned_upload.function_name
-  function_arn  = module.presigned_upload.function_arn
+  api_name       = "hometrust-presigned-upload-api"
+  function_name  = module.presigned_upload.function_name
+  function_arn   = module.presigned_upload.function_arn
+  jwt_secret_arn = var.jwt_secret_arn
 
   route_key       = "POST /presigned-upload"
   allowed_origins = ["*"] # replace with your frontend URL when you have one
-  auth_type       = "NONE"
+  auth_type       = "CUSTOM"
 
   tags = {
     Project     = "HomeTrust"

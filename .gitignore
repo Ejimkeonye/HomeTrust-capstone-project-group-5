@@ -19,7 +19,7 @@ crash.*.log
 
 # Lambda build artifacts
 *.zip
-
+*.auto.tfvars
 # OS/editor files
 .DS_Store
 .vscode/
