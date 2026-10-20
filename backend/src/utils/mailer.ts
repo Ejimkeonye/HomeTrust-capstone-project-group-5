@@ -7,7 +7,8 @@ dotenv.config();
 // Uses Gmail SMTP by default. To use another provider, change the host/port.
 // For Gmail: enable 2FA on your Google account, then generate an App Password
 // at https://myaccount.google.com/apppasswords and put it in SMTP_PASS.
-const isConfigured = Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+const useBrevo = Boolean(process.env.BREVO_API_KEY && process.env.MAIL_FROM);
+const isConfigured = useBrevo || Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
 
 const transporter = nodemailer.createTransport(
   process.env.SMTP_HOST
@@ -93,6 +94,28 @@ export async function sendInviteEmail({
   `;
 
   const text = `HomeTrust Invitation\n\n${inviterName} has invited you as the ${role} to a property inspection at ${propertyAddress}.\n\nAccept your invitation here: ${inviteLink}\n\nThis link expires in 7 days.`;
+
+  if (useBrevo) {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': process.env.BREVO_API_KEY as string,
+        'content-type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: 'HomeTrust', email: process.env.MAIL_FROM },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+        textContent: text,
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`[Mailer] Brevo send failed: ${res.status} ${await res.text()}`);
+    }
+    return;
+  }
 
   await transporter.sendMail({
     from: `"HomeTrust" <${process.env.SMTP_USER}>`,
