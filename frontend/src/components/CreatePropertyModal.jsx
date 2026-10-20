@@ -44,7 +44,8 @@ export default function CreatePropertyModal({
   const handleAddRoom = (roomName) => {
     const trimmed = roomName.trim();
     if (!trimmed) return;
-    if (rooms.includes(trimmed)) {
+
+    if (rooms.some((room) => room.toLowerCase() === trimmed.toLowerCase())) {
       setErrorMessage(`"${trimmed}" has already been added.`);
       return;
     }
@@ -88,15 +89,11 @@ export default function CreatePropertyModal({
         rooms: rooms,
       });
 
-      const createdProperty = response.data?.property || response.data || {
-        id: `prop-${Date.now()}`,
-        name: propertyName.trim(),
-        address: address.trim(),
-        flatNo: flatNo.trim() || "1",
-        type: propertyType,
-        rooms,
-        createdAt: new Date().toLocaleDateString(),
-      };
+      const createdProperty = response.data?.property || response.data;
+
+      if (!createdProperty?.propertyId && !createdProperty?.id) {
+        throw new Error("The server did not return a valid property record.");
+      }
 
       onPropertyCreated(createdProperty);
       onClose();
@@ -107,12 +104,14 @@ export default function CreatePropertyModal({
       setFlatNo("");
       setPropertyType("Apartment");
       setRooms(["Living Room", "Kitchen", "Master Bedroom"]);
+      setCustomRoomInput("");
+      setErrorMessage("");
     } catch (err) {
       console.error("Failed to save property to backend:", err);
       setErrorMessage(
-        err.response?.data?.message || 
-        err.message || 
-        "Failed to save property to server. Please try again."
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to save property to server. Please try again.",
       );
     } finally {
       setIsSubmitting(false);
@@ -122,7 +121,6 @@ export default function CreatePropertyModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in text-slate-900">
       <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl border border-slate-200 relative max-h-[90vh] overflow-y-auto">
-        
         {/* Header */}
         <div className="flex justify-between items-center border-b border-slate-100 pb-4">
           <div>
@@ -288,7 +286,6 @@ export default function CreatePropertyModal({
               </button>
             </div>
           </div>
-
           {/* Buttons */}
           <div className="flex gap-3 pt-3 border-t border-slate-100">
             <button

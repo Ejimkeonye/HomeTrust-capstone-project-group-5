@@ -2,10 +2,7 @@ import { useState } from "react";
 import { Building2, CheckCircle, Lock, User, ArrowRight } from "lucide-react";
 import api from "../api/client"; // Live API client connected to Render backend
 
-export default function PartyOnboardingPage({
-  token,
-  onCompleteOnboarding,
-}) {
+export default function PartyOnboardingPage({ token, onCompleteOnboarding }) {
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -14,7 +11,9 @@ export default function PartyOnboardingPage({
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!fullName.trim() || password.length < 8) {
-      setError("Please provide your full name and a password with at least 8 characters.");
+      setError(
+        "Please provide your full name and a password with at least 8 characters.",
+      );
       return;
     }
 
@@ -25,56 +24,52 @@ export default function PartyOnboardingPage({
 
     setLoading(true);
     setError("");
-
     try {
-      let sessionData = null;
+      const res = await api.post(`/invitations/resolve/${token}`, {
+        name: fullName.trim(),
+        password,
+      });
 
-      try {
-        // Try real backend endpoint first
-        const res = await api.post(`/invitations/resolve/${token}`, {
-          name: fullName.trim(),
-          password: password,
-        });
+      const { token: jwtToken, user, propertyId, inspectionId } = res.data;
 
-        const { token: jwtToken, user, propertyId, inspectionId, role: backendRole, inviterRole = "landlord" } = res.data;
-        localStorage.setItem("hometrust_token", jwtToken);
-        
-        // 🛠️ DYNAMIC INVERSE ROLE MAPPING
-        const resolvedRole = backendRole || (inviterRole.toLowerCase().includes("tenant") ? "landlord" : "tenant");
-
-        sessionData = {
-          ...user,
-          name: user?.name || fullName.trim(),
-          email: user?.email || `${fullName.trim().toLowerCase().replace(/\s+/g, '')}@invited.hometrust`,
-          role: resolvedRole, 
-          activePropertyId: propertyId || token,
-          activeInspectionId: inspectionId,
-          isInvitedParticipant: true,
-        };
-      } catch (backendErr) {
-        console.warn("Backend invite resolution fallback triggered:", backendErr);
-        
-        sessionData = {
-          id: `user-${Date.now()}`,
-          name: fullName.trim(),
-          email: `${fullName.trim().toLowerCase().replace(/\s+/g, '')}@invited.hometrust`,
-          role: "tenant", 
-          activePropertyId: token, 
-          isInvitedParticipant: true,
-        };
+      if (!jwtToken || !user?.role || !propertyId || !inspectionId) {
+        throw new Error(
+          "The invitation response is missing required user, property, or inspection details.",
+        );
       }
 
-      // 🛠️ ISOLATED STORAGE: Save with a user-specific session key to prevent global overrides
+      localStorage.setItem("token", jwtToken);
+
+      const sessionData = {
+        ...user,
+        name: user.name || fullName.trim(),
+        email: user.email,
+        role: user.role,
+        activePropertyId: propertyId,
+        activeInspectionId: inspectionId,
+        isInvitedParticipant: true,
+      };
+
       const userKey = sessionData.email || sessionData.id;
-      localStorage.setItem(`hometrust_session_${userKey}`, JSON.stringify(sessionData));
-      localStorage.setItem("hometrust_current_session", JSON.stringify(sessionData));
+      localStorage.setItem(
+        `hometrust_session_${userKey}`,
+        JSON.stringify(sessionData),
+      );
+      localStorage.setItem(
+        "hometrust_current_session",
+        JSON.stringify(sessionData),
+      );
 
       if (onCompleteOnboarding) {
-        onCompleteOnboarding(sessionData);
+        await onCompleteOnboarding(sessionData);
       }
     } catch (err) {
       console.error("Failed to resolve invitation:", err);
-      setError(err?.response?.data?.message || "Failed to accept invitation. Token may be expired.");
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to accept invitation. Token may be expired.",
+      );
     } finally {
       setLoading(false);
     }
@@ -104,7 +99,8 @@ export default function PartyOnboardingPage({
             Welcome to Hometrust
           </h2>
           <p className="text-xs text-slate-600">
-            You've been invited to participate in a collaborative property inspection workspace.
+            You've been invited to participate in a collaborative property
+            inspection workspace.
           </p>
         </div>
 
@@ -170,7 +166,9 @@ export default function PartyOnboardingPage({
             disabled={loading}
             className="w-full bg-purple-800 hover:bg-purple-900 text-white font-semibold py-3 rounded-lg text-sm transition-colors shadow flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
-            <span>{loading ? "Joining Workspace..." : "Access Property Inspection"}</span>
+            <span>
+              {loading ? "Joining Workspace..." : "Access Property Inspection"}
+            </span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>

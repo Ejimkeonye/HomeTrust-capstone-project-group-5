@@ -1,141 +1,783 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+
 import SignatureCanvas from "../components/SignatureCanvas";
-import api from "../api/client"; // Live API client connected to Render backend
+
+import api from "../api/client";
+
 import { triggerNotification } from "../utils/notifications";
 
-export default function SignInspectionPage({
-  property,
-  inspectionId,
-  userRole = "tenant", // "landlord" or "tenant"
-  onBack,
-  onSignaturesComplete,
-  initialSignatures,
-}) {
-  const safeProperty = property || null;
-  const propertyKey = safeProperty?.propertyId || safeProperty?.id;
 
-  const [signatures, setSignatures] = useState(
-    initialSignatures || { landlord: null, tenant: null },
+
+const emptySignatures = { landlord: null, tenant: null };
+
+
+
+function getPayload(response) {
+  const body = response?.data || {};
+
+  // Keep top-level signingStatus/state/signatures when the API also nests
+  // the inspection object in the response.
+  if (body.inspection && typeof body.inspection === "object") {
+    return { ...body.inspection, ...body };
+  }
+  if (body.data?.inspection && typeof body.data.inspection === "object") {
+    return { ...body.data.inspection, ...body.data };
+  }
+  return body.data ?? body;
+}
+
+function selectInspection(payload, propertyKey, roleKey) {
+  const candidates = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.inspections)
+      ? payload.inspections
+      : Array.isArray(payload?.data)
+        ? payload.data
+        : [payload];
+
+  // The property endpoint returns { inspections: [...], total }, and a property
+  // may have multiple inspections. Prefer one under review that this party has
+  // not signed yet; otherwise use the most recently updated matching inspection.
+  const matching = candidates.filter((item) =>
+    item && typeof item === "object" &&
+    (!propertyKey || String(item?.propertyId ?? item?.property?.propertyId ?? item?.property?.id) === String(propertyKey))
   );
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  if (!matching.length) return null;
 
-  const currentRole = String(userRole).toLowerCase();
-  const isLandlord = currentRole.includes("landlord");
-  const isTenant = currentRole.includes("tenant");
+  const signatureField = roleKey === "landlord" ? "landlordSignature" : "tenantSignature";
+  const signable = matching.filter((item) =>
+    item.state === "UNDER_REVIEW" &&
+    !(item.signatures?.[roleKey] ?? item[signatureField])
+  );
+  const pool = signable.length ? signable : matching;
+  pool.sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
+  return pool[0] || null;
+}
 
-  // ✨ KEY LOGIC: Users only need to fill their OWN respective signature field to complete!
-  const isComplete = isLandlord ? Boolean(signatures.landlord) : isTenant ? Boolean(signatures.tenant) : Boolean(signatures.landlord && signatures.tenant);
 
-  const handleLockAndSign = async () => {
-    if (!isComplete) return;
-    setIsSubmitting(true);
 
-    try {
-      if (inspectionId) {
-        await api.post(`/inspections/${inspectionId}/acknowledge`, {
-          signatures,
-        });
-      }
+function getSignatureImageUrl(signature) {
 
-      if (propertyKey) {
-        triggerNotification(
-          propertyKey,
-          "Signature Recorded",
-          `${isLandlord ? "Landlord" : "Tenant"} signed the inspection report.`,
-          "invite"
-        );
+  if (typeof signature === "string") {
 
-        const isBothSigned = Boolean(signatures.landlord && signatures.tenant);
-        if (isBothSigned) {
-          triggerNotification(
-            propertyKey,
-            "Inspection Sealed",
-            "Both parties have signed. Move-out compartment is now unlocked.",
-            "system"
-          );
-        }
-      }
-    } catch (err) {
-      console.warn("Backend signature acknowledgement notice:", err?.response?.data || err?.message);
-    } finally {
-      setIsSubmitting(false);
-      onSignaturesComplete(signatures);
-    }
-  };
+    return signature.startsWith("data:image/") ||
+
+      /^https?:\/\//i.test(signature)
+
+      ? signature
+
+      : null;
+
+  }
+
+
+
+  if (!signature || typeof signature !== "object") return null;
+
+
+
+  const candidate =
+
+    signature.url ||
+
+    signature.imageUrl ||
+
+    signature.signatureUrl ||
+
+    signature.signedImageUrl ||
+
+    signature.dataUrl ||
+
+    signature.signature;
+
+
+
+  return typeof candidate === "string" &&
+
+    (candidate.startsWith("data:image/") ||
+
+      /^https?:\/\//i.test(candidate))
+
+    ? candidate
+
+    : null;
+
+}
+
+
+
+function getErrorMessage(error, fallback) {
 
   return (
+
+    error?.response?.data?.message ||
+
+    error?.response?.data?.error ||
+
+    error?.message ||
+
+    fallback
+
+  );
+
+}
+
+
+
+export default function SignInspectionPage({
+
+  property,
+
+  inspectionId,
+
+  userRole = "tenant",
+
+  onBack,
+
+  onSignaturesComplete,
+
+}) {
+
+  const propertyKey = property?.propertyId || property?.id;
+
+  const currentRole = String(userRole).toLowerCase();
+
+  const isLandlord = currentRole.includes("landlord");
+
+  const isTenant = currentRole.includes("tenant");
+
+  const roleKey = isLandlord ? "landlord" : isTenant ? "tenant" : null;
+
+  const roleLabel = isLandlord ? "Landlord" : "Tenant";
+
+
+
+  const [activeInspectionId, setActiveInspectionId] = useState(inspectionId || null);
+  const [savedSignatures, setSavedSignatures] = useState(emptySignatures);
+
+  const [draftSignature, setDraftSignature] = useState(null);
+
+  const [inspectionState, setInspectionState] = useState(null);
+
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [loadError, setLoadError] = useState("");
+
+  const [submitError, setSubmitError] = useState("");
+
+
+
+  const loadInspection = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError("");
+
+    try {
+      let resolvedId = inspectionId || activeInspectionId || null;
+      let response;
+
+      if (resolvedId) {
+        response = await api.get(`/inspections/${resolvedId}`);
+      } else if (propertyKey) {
+        // Backend-supported recovery path when the parent has lost the ID.
+        response = await api.get(`/inspections/property/${propertyKey}`);
+      } else {
+        throw new Error("The inspection ID and property ID are both missing.");
+      }
+
+      let inspection = selectInspection(getPayload(response), propertyKey, roleKey);
+      if (!inspection || typeof inspection !== "object") {
+        throw new Error("The backend did not return an inspection for this property.");
+      }
+
+      const returnedId = inspection.inspectionId || inspection.id;
+      if (!resolvedId && returnedId) {
+        resolvedId = returnedId;
+        setActiveInspectionId(returnedId);
+      }
+
+      if (!resolvedId) {
+        throw new Error("The inspection was found, but the backend response did not include its inspection ID.");
+      }
+
+      if (
+        inspection.inspectionId &&
+        String(inspection.inspectionId) !== String(resolvedId)
+      ) {
+        throw new Error("The requested inspection could not be verified.");
+      }
+
+      // GET /inspections/:id is the source of truth for saved signatures/state.
+      setSavedSignatures({
+        landlord: inspection.signatures?.landlord ?? inspection.landlordSignature ?? null,
+        tenant: inspection.signatures?.tenant ?? inspection.tenantSignature ?? null,
+      });
+      setInspectionState(inspection.state || null);
+      setDraftSignature(null);
+    } catch (error) {
+      setLoadError(
+        getErrorMessage(error, "Unable to load saved signatures. Please try again.")
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [inspectionId, activeInspectionId, propertyKey, roleKey]);
+
+
+
+  useEffect(() => {
+
+    let isActive = true;
+
+
+
+    Promise.resolve().then(() => {
+
+      if (isActive) loadInspection();
+
+    });
+
+
+
+    return () => {
+
+      isActive = false;
+
+    };
+
+  }, [loadInspection]);
+
+
+
+  const alreadySigned = Boolean(roleKey && savedSignatures[roleKey]);
+
+  const isFinalized = inspectionState === "READ_ONLY";
+
+  const canSubmit =
+
+    Boolean(roleKey) &&
+
+    Boolean(activeInspectionId) &&
+
+    Boolean(draftSignature) &&
+
+    !alreadySigned &&
+
+    !isFinalized &&
+
+    !isLoading &&
+
+    !isSubmitting &&
+
+    !loadError;
+
+
+
+  const handleSaveSignature = async () => {
+
+    if (!canSubmit) return;
+
+
+
+    if (!draftSignature?.startsWith("data:image/png;base64,")) {
+
+      setSubmitError("Please draw and save your signature before continuing.");
+
+      return;
+
+    }
+
+
+
+    setIsSubmitting(true);
+
+    setSubmitError("");
+
+
+
+    try {
+
+      // Submit only this party's signature. The backend identifies the signer.
+
+      const response = await api.post(
+
+        `/inspections/${activeInspectionId}/signatures`,
+
+        { signature: draftSignature }
+
+      );
+
+
+
+      const result = getPayload(response);
+
+      const returnedSignatures = result.signatures;
+
+
+
+      // Require the backend to confirm this party's saved signature.
+
+      if (!returnedSignatures || !returnedSignatures[roleKey]) {
+
+        throw new Error(
+
+          "The server did not confirm that your signature was saved. Please reload and check the inspection before trying again."
+
+        );
+
+      }
+
+
+
+      const confirmedSignatures = {
+
+        landlord: returnedSignatures.landlord ?? null,
+
+        tenant: returnedSignatures.tenant ?? null,
+
+      };
+
+
+
+      setSavedSignatures(confirmedSignatures);
+
+      setInspectionState(result.state || null);
+
+      setDraftSignature(null);
+
+
+
+      if (propertyKey) {
+
+        triggerNotification(
+
+          propertyKey,
+
+          "Signature Recorded",
+
+          `${roleLabel} signature saved to the inspection.`,
+
+          "invite"
+
+        );
+
+
+
+        // Finalization is determined only by the backend state.
+
+        if (result.state === "READ_ONLY") {
+
+          triggerNotification(
+
+            propertyKey,
+
+            "Inspection Sealed",
+
+            "Both parties' signatures have been saved. The inspection is finalized.",
+
+            "system"
+
+          );
+
+        }
+
+      }
+
+
+
+      // The parent can update its UI, but must not infer finalization
+
+      // from the presence of two signature records.
+
+      onSignaturesComplete?.(confirmedSignatures, {
+
+        state: result.state || null,
+
+        signingStatus: result.signingStatus || null,
+
+        inspection: result,
+
+      });
+
+    } catch (error) {
+
+      setSubmitError(
+
+        getErrorMessage(
+
+          error,
+
+          "Your signature could not be saved. Please try again."
+
+        )
+
+      );
+
+    } finally {
+
+      setIsSubmitting(false);
+
+    }
+
+  };
+
+  const landlordImage = getSignatureImageUrl(savedSignatures.landlord);
+
+  const tenantImage = getSignatureImageUrl(savedSignatures.tenant);
+
+  return (
+
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4 font-sans">
+
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 space-y-6">
+
         <div className="flex items-center justify-between border-b pb-4">
+
           <button
+
+            type="button"
+
             onClick={onBack}
-            className="text-xs font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
+
+            className="text-xs font-bold text-slate-600 hover:text-slate-900"
+
           >
+
             ← Back
+
           </button>
+
+
+
           <h2 className="text-sm font-extrabold text-[#4A1E6D]">
-            {isLandlord ? "Landlord Signature" : "Tenant Signature"}
+
+            {roleKey ? `${roleLabel} Signature` : "Inspection Signatures"}
+
           </h2>
+
         </div>
+
+
 
         <p className="text-xs text-slate-600 font-medium">
-          Please provide your digital signature to acknowledge and lock your portion of this report.
+
+          Sign to acknowledge the inspection. Your signature will be saved to
+
+          the inspection record.
+
         </p>
 
-        {/* Signature Canvas Components with Role Gating */}
-        <div className="space-y-4">
-          
-          {/* Landlord Field: Editable ONLY if user is landlord */}
-          <div className="space-y-1">
-            {isLandlord ? (
-              <SignatureCanvas
-                label="Landlord Signature (Your Role)"
-                savedSignature={signatures.landlord}
-                onSave={(sig) =>
-                  setSignatures((prev) => ({ ...prev, landlord: sig }))
-                }
-              />
-            ) : (
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-600">Landlord Signature</span>
-                <span className={`text-xs font-extrabold ${signatures.landlord ? "text-emerald-700" : "text-amber-600"}`}>
-                  {signatures.landlord ? "Signed ✓" : "Awaiting Landlord"}
-                </span>
-              </div>
-            )}
+
+
+        {!roleKey && (
+
+          <div role="alert" className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+
+            Your account role could not be identified as landlord or tenant.
+
           </div>
 
-          {/* Tenant Field: Editable ONLY if user is tenant */}
-          <div className="space-y-1">
-            {isTenant ? (
-              <SignatureCanvas
-                label="Tenant Signature (Your Role)"
-                savedSignature={signatures.tenant}
-                onSave={(sig) =>
-                  setSignatures((prev) => ({ ...prev, tenant: sig }))
-                }
-              />
-            ) : (
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-600">Tenant Signature</span>
-                <span className={`text-xs font-extrabold ${signatures.tenant ? "text-emerald-700" : "text-amber-600"}`}>
-                  {signatures.tenant ? "Signed ✓" : "Awaiting Tenant"}
-                </span>
-              </div>
-            )}
+        )}
+
+
+
+        {isLoading && (
+
+          <p role="status" className="text-sm text-slate-500">
+
+            Loading saved inspection and signatures...
+
+          </p>
+
+        )}
+
+
+
+        {loadError && (
+
+          <div role="alert" className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700 space-y-2">
+
+            <p>{loadError}</p>
+
+            <button
+
+              type="button"
+
+              onClick={loadInspection}
+
+              className="font-bold underline"
+
+            >
+
+              Retry loading
+
+            </button>
+
           </div>
 
-        </div>
+        )}
 
-        <button
-          type="button"
-          disabled={!isComplete || isSubmitting}
-          onClick={handleLockAndSign}
-          className="w-full bg-[#4A1E6D] hover:bg-purple-950 disabled:opacity-40 text-white font-extrabold py-3.5 rounded-2xl text-xs transition-colors shadow-lg cursor-pointer"
-        >
-          {isSubmitting ? "Locking to Database..." : "Save Signature & Proceed →"}
-        </button>
+
+
+        {!isLoading && !loadError && (
+
+          <>
+
+            {isFinalized && (
+
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800">
+
+                This inspection is finalized and read-only according to the
+
+                backend.
+
+              </div>
+
+            )}
+
+
+
+            <div className="space-y-4">
+
+              <div className="space-y-2">
+
+                <p className="text-xs font-bold text-slate-700">
+
+                  Landlord signature
+
+                </p>
+
+
+
+                {savedSignatures.landlord ? (
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+
+                    {landlordImage ? (
+
+                      <img
+
+                        src={landlordImage}
+
+                        alt="Saved landlord signature"
+
+                        className="h-20 max-w-full object-contain"
+
+                      />
+
+                    ) : (
+
+                      <p className="text-sm text-emerald-700">
+
+                        Signature saved
+
+                      </p>
+
+                    )}
+
+                    <p className="text-xs font-semibold text-emerald-700">
+
+                      Saved on the backend ✓
+
+                    </p>
+
+                  </div>
+
+                ) : (
+
+                  <p className="text-xs text-amber-700">
+
+                    Awaiting landlord signature
+
+                  </p>
+
+                )}
+
+
+
+                {isLandlord && !alreadySigned && !isFinalized && (
+
+                  <SignatureCanvas
+
+                    label="Draw your landlord signature"
+
+                    savedSignature={draftSignature}
+
+                    onSave={setDraftSignature}
+
+                    disabled={isLoading || isSubmitting || Boolean(loadError)}
+
+                  />
+
+                )}
+
+              </div>
+
+
+
+              <div className="space-y-2">
+
+                <p className="text-xs font-bold text-slate-700">
+
+                  Tenant signature
+
+                </p>
+
+
+
+                {savedSignatures.tenant ? (
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+
+                    {tenantImage ? (
+
+                      <img
+
+                        src={tenantImage}
+
+                        alt="Saved tenant signature"
+
+                        className="h-20 max-w-full object-contain"
+
+                      />
+
+                    ) : (
+
+                      <p className="text-sm text-emerald-700">
+
+                        Signature saved
+
+                      </p>
+
+                    )}
+
+                    <p className="text-xs font-semibold text-emerald-700">
+
+                      Saved on the backend ✓
+
+                    </p>
+
+                  </div>
+
+                ) : (
+
+                  <p className="text-xs text-amber-700">
+
+                    Awaiting tenant signature
+
+                  </p>
+
+                )}
+
+
+
+                {isTenant && !alreadySigned && !isFinalized && (
+
+                  <SignatureCanvas
+
+                    label="Draw your tenant signature"
+
+                    savedSignature={draftSignature}
+
+                    onSave={setDraftSignature}
+
+                    disabled={isLoading || isSubmitting || Boolean(loadError)}
+
+                  />
+
+                )}
+
+              </div>
+
+            </div>
+
+
+
+            {alreadySigned && !isFinalized && (
+
+              <p className="text-sm text-emerald-700">
+
+                Your signature is already saved. The other linked party may
+
+                still need to sign.
+
+              </p>
+
+            )}
+
+
+
+            {submitError && (
+
+              <div role="alert" className="rounded-xl bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+
+                {submitError}
+
+                <button
+
+                  type="button"
+
+                  onClick={loadInspection}
+
+                  className="ml-2 font-bold underline"
+
+                >
+
+                  Reload saved state
+
+                </button>
+
+              </div>
+
+            )}
+
+
+
+            <button
+
+              type="button"
+
+              disabled={!canSubmit}
+
+              onClick={handleSaveSignature}
+
+              className="w-full bg-[#4A1E6D] hover:bg-purple-950 disabled:opacity-40 text-white font-extrabold py-3.5 rounded-2xl text-xs transition-colors shadow-lg"
+
+            >
+
+              {isSubmitting
+
+                ? "Saving signature to database..."
+
+                : alreadySigned
+
+                  ? "Your Signature Is Saved"
+
+                  : isFinalized
+
+                    ? "Inspection Finalized"
+
+                    : "Submit My Signature →"}
+
+            </button>
+
+
+
+            <p className="text-xs text-slate-500">
+
+              Backend inspection state: {inspectionState || "Not specified"}
+
+            </p>
+
+          </>
+
+        )}
+
       </div>
+
     </div>
+
   );
+
 }

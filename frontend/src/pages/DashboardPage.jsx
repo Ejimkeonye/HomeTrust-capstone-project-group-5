@@ -1,4 +1,5 @@
 import { useState } from "react";
+import CreatePropertyModal from "../components/CreatePropertyModal";
 import {
   Home,
   Search,
@@ -14,7 +15,6 @@ import {
   Building2,
   Bell,
 } from "lucide-react";
-import api from "../api/client"; // Live API client connected to Render backend
 
 export default function DashboardPage({
   user,
@@ -36,10 +36,6 @@ export default function DashboardPage({
   const [activeTab, setActiveTab] = useState("home");
   const [showPropertyDropdown, setShowPropertyDropdown] = useState(false);
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
-
-  // New Property Form State
-  const [newAddress, setNewAddress] = useState("");
-  const [newFlatNo, setNewFlatNo] = useState("");
 
   // Check if user joined via an invitation link
   const isInvitedParticipant = Boolean(user?.isInvitedParticipant);
@@ -63,78 +59,6 @@ export default function DashboardPage({
     if (hour < 18) return "Good afternoon";
     return "Good evening";
   };
-
-  const handleCreatePropertySubmit = async (e) => {
-    e.preventDefault();
-    if (!newAddress.trim()) return;
-
-    const normalizedNewAddress = newAddress.trim().toLowerCase();
-    const normalizedNewFlat = (newFlatNo || "1").trim().toLowerCase();
-
-    // 🛠️ BUG #5 FIXED: Prevent duplicate property additions
-    const isDuplicate = properties.some((p) => {
-      const existingAddress = (p.address || "").trim().toLowerCase();
-      const existingFlat = (p.flatNo || "1").trim().toLowerCase();
-      return (
-        existingAddress === normalizedNewAddress &&
-        existingFlat === normalizedNewFlat
-      );
-    });
-
-    if (isDuplicate) {
-      alert("You have already added this property unit to your portfolio!");
-      return;
-    }
-
-    const propertyPayload = {
-      name: newAddress,
-      address: newAddress,
-      type: "Apartment",
-      flatNo: newFlatNo || "1",
-      image: defaultImage,
-      rooms: [
-        {
-          roomId: `room-${Date.now()}-1`,
-          name: "Living Room",
-          category: "Rooms",
-          items: [],
-        },
-        {
-          roomId: `room-${Date.now()}-2`,
-          name: "Master Bedroom",
-          category: "Rooms",
-          items: [],
-        },
-        {
-          roomId: `room-${Date.now()}-3`,
-          name: "Kitchen",
-          category: "Kitchen",
-          items: [],
-        },
-      ],
-    };
-
-    try {
-      // 1. Post directly to your live backend endpoint
-      const response = await api.post("/properties", propertyPayload);
-      const createdProperty = response.data.property || response.data;
-
-      // 2. Pass the successfully created backend property up to App.jsx
-      onAddNewProperty(createdProperty);
-    } catch (err) {
-      console.error("Failed to create property on backend:", err);
-      // Fallback local creation if offline or testing
-      onAddNewProperty({
-        propertyId: `prop-${Date.now()}`,
-        ...propertyPayload,
-      });
-    }
-
-    setNewAddress("");
-    setNewFlatNo("");
-    setShowAddPropertyModal(false);
-  };
-
   // Check if move-in is fully signed and locked by BOTH parties
   const moveInSignatures = activeProperty?.signatures || {};
   const isMoveInFullySigned = Boolean(
@@ -151,57 +75,15 @@ export default function DashboardPage({
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
       <div className="w-full max-w-md bg-white min-h-screen sm:min-h-211 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative pb-24">
-        {/* ADD PROPERTY MODAL (Restricted for invited participants) */}
-        {!isInvitedParticipant && showAddPropertyModal && (
-          <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-4xl max-w-sm w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in duration-200">
-              <h3 className="text-sm font-extrabold text-purple-900">
-                Add New Property / Unit
-              </h3>
-              <form onSubmit={handleCreatePropertySubmit} className="space-y-3">
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700">
-                    Property Address
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newAddress}
-                    onChange={(e) => setNewAddress(e.target.value)}
-                    placeholder="e.g. 14 Admiralty Way, Lekki"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-purple-800"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700">
-                    Unit / Flat Number
-                  </label>
-                  <input
-                    type="text"
-                    value={newFlatNo}
-                    onChange={(e) => setNewFlatNo(e.target.value)}
-                    placeholder="e.g. Flat 3B"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-purple-800"
-                  />
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddPropertyModal(false)}
-                    className="flex-1 bg-slate-100 text-slate-600 font-bold py-2.5 rounded-xl text-xs cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 bg-purple-800 text-white font-bold py-2.5 rounded-xl text-xs hover:bg-purple-900 cursor-pointer"
-                  >
-                    Save Property
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+        {!isInvitedParticipant && (
+          <CreatePropertyModal
+            isOpen={showAddPropertyModal}
+            onClose={() => setShowAddPropertyModal(false)}
+            onPropertyCreated={(createdProperty) => {
+              onAddNewProperty(createdProperty);
+              setShowAddPropertyModal(false);
+            }}
+          />
         )}
 
         {/* Header */}
