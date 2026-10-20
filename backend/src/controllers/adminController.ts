@@ -78,3 +78,39 @@ export const getAdminStats = async (_req: Request, res: Response) => {
     res.status(500).json({ message: 'Could not load stats' });
   }
 };
+
+const maskEmail = (email?: string) => {
+  if (!email || !email.includes('@')) return '';
+  const [local, domain] = email.split('@');
+  return `${local.slice(0, 2)}***@${domain}`;
+};
+
+export const getAdminUsers = async (_req: Request, res: Response) => {
+  try {
+    const users: Array<Record<string, any>> = [];
+    let startKey: Record<string, any> | undefined;
+    do {
+      const result = await docClient.send(
+        new ScanCommand({
+          TableName: TABLES.USERS,
+          ProjectionExpression: '#n, #r, email, createdAt',
+          ExpressionAttributeNames: { '#n': 'name', '#r': 'role' },
+          ExclusiveStartKey: startKey,
+        }),
+      );
+      for (const item of result.Items ?? []) {
+        users.push({
+          name: item.name,
+          role: item.role,
+          email: maskEmail(item.email),
+          createdAt: item.createdAt,
+        });
+      }
+      startKey = result.LastEvaluatedKey;
+    } while (startKey);
+    res.status(200).json({ generatedAt: new Date().toISOString(), count: users.length, users });
+  } catch (err) {
+    console.error('Admin users failed:', err);
+    res.status(500).json({ message: 'Could not load users' });
+  }
+};
