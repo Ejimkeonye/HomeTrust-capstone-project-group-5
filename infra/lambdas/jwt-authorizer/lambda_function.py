@@ -1,5 +1,6 @@
 
 import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -7,6 +8,7 @@ import os
 import time
 
 import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 
 secrets_client = boto3.client("secretsmanager")
 SECRET_ARN = os.environ["JWT_SECRET_ARN"]
@@ -108,6 +110,15 @@ def lambda_handler(event, context):
             },
         }
 
-    except Exception:
+    except (
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        UnicodeDecodeError,
+        binascii.Error,
+        BotoCoreError,
+        ClientError,
+    ):
         # Fail closed. Do not return token, secret, or exception details.
         return {"isAuthorized": False}
