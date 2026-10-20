@@ -23,7 +23,7 @@ const tables: TableDefinition[] = [
   { name: TABLES.INSPECTIONS, partitionKey: 'inspectionId', indexes: [{ name: 'byProperty', partitionKey: 'propertyId' }] },
   { name: TABLES.ROOM_ITEMS, partitionKey: 'inspectionId', sortKey: 'roomItemId' },
   { name: TABLES.EVIDENCE, partitionKey: 'inspectionId', sortKey: 'evidenceId' },
-  { name: TABLES.INVITATIONS, partitionKey: 'token' },
+  { name: TABLES.INVITATIONS, partitionKey: 'token', indexes: [{ name: 'acceptedByIndex', partitionKey: 'acceptedBy' }] },
 ];
 
 export async function setupTables(): Promise<void> {

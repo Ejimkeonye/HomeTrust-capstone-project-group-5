@@ -10,6 +10,7 @@ import {
   reviewInspectionItem,
   reviewRoomEvidence,
   approveInspection,
+  saveInspectionSignature,
   downloadInspectionReport,
 } from "../controllers/inspectionController";
 import { protect, authorize } from "../middlewares/authMiddleware";
@@ -32,5 +33,7 @@ router.post("/:id/submit", protect, submitInspection);
 router.post("/:id/items/:itemId/review", protect, reviewInspectionItem);
 router.post("/:id/rooms/:roomId/evidence-decision", protect, reviewRoomEvidence);
 router.post("/:id/approvals", protect, approveInspection);
+router.post("/:id/acknowledge", protect, approveInspection);
+router.post("/:id/signatures", protect, saveInspectionSignature);
 
 export default router;

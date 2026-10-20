@@ -86,10 +86,11 @@ Invitations work in both directions: a Tenant inviting someone creates a Landlor
 | POST | `/api/inspections/:id/submit` | Yes; owner | Submit a non-empty inspection for review; state becomes `UNDER_REVIEW`. |
 | POST | `/api/inspections/:id/items/:itemId/review` | Yes; inspection participant | Record item decision: `{ "decision": "ACCEPTED", "note": "Optional" }`. Decision is `ACCEPTED` or `DISPUTED`. |
 | POST | `/api/inspections/:id/rooms/:roomId/evidence-decision` | Yes; inspection participant | Apply `{ "decision": "ACCEPTED", "note": "Optional" }` to evidence-bearing items in that room. |
-| POST | `/api/inspections/:id/approvals` | Yes; inspection participant | Acknowledge an `UNDER_REVIEW` inspection; no request body. Each party can acknowledge once. Response includes approval count and whether everyone acknowledged. |
-| GET | `/api/inspections/:id/report.pdf` | Yes; inspection participant | Download the inspection PDF summary. It reports evidence metadata/counts; photo/video bytes are not embedded. |
+| POST | `/api/inspections/:id/approvals` or `/api/inspections/:id/acknowledge` | Yes; inspection participant | Record a separate acknowledgement for an `UNDER_REVIEW` inspection; no request body. Each user can acknowledge once. This does not save a signature or finalize the inspection. |
+| POST | `/api/inspections/:id/signatures` | Yes; linked landlord or tenant | Save only the caller’s signature. Body: `{ "signature": "data:image/png;base64,..." }` (PNG or JPEG data URL, max 1 MB decoded). Only available in `UNDER_REVIEW`; role comes from the inspection’s linked `landlordId`/`tenantId`. Returns both saved signature records, temporary `url` values, `signingStatus`, and inspection `state`. Each party can sign once. |
+| GET | `/api/inspections/:id/report.pdf` | Yes; inspection participant | Download the inspection PDF summary, including saved landlord and tenant signature images, names, and signing times when available. |
 
-Inspection access is limited to the landlord, tenant, creator, and IDs in `participantIds`. Tenants can create inspections for properties they own; their ID is initially saved as `tenantId`, and the invited landlord is linked as `landlordId` when the invite is accepted. The inspection creator submits it. Both landlord and tenant must be linked before acknowledgement. When all configured parties acknowledge, the inspection is finalized as `READ_ONLY`. The inspection response contains each evidence entry's `downloadUrl` API path, not a public S3 URL.
+Inspection access is limited to the landlord, tenant, creator, and IDs in `participantIds`. Tenants can create inspections for properties they own; their ID is initially saved as `tenantId`, and the invited landlord is linked as `landlordId` when the invite is accepted. The inspection creator submits it. Both landlord and tenant must be linked before acknowledgement or signing. Acknowledgements are recorded separately and do not finalize the inspection. Signatures can be saved only in `UNDER_REVIEW`; the backend changes the inspection to `READ_ONLY` only after both linked parties have successfully saved their own signatures. The inspection response contains each evidence entry's `downloadUrl` API path, not a public S3 URL.
 
 ### Evidence upload and display
 
@@ -154,7 +155,7 @@ The application uses these keys/index names (string attributes):
 | `DYNAMODB_EVIDENCE_TABLE` | `inspectionId` + `evidenceId` | None |
 | `DYNAMODB_INVITATIONS_TABLE` | `token` | None |
 
-The configured AWS role needs the required DynamoDB read/write access and access to the evidence bucket through the presigned-upload Lambda flow. The Lambda's API URL is configured in the backend as `PRESIGNED_UPLOAD_URL`.
+The configured AWS role needs the required DynamoDB read/write access and `s3:GetObject` on the signature/evidence object prefix so the API can create temporary signed download URLs. The presigned-upload Lambda role needs `s3:PutObject` on that prefix. The Lambda API URL is configured in the backend as `PRESIGNED_UPLOAD_URL`. Signature objects are stored under `evidence/signatures/`; signature URLs expire after 15 minutes and are refreshed when an inspection is fetched.
 
 ## Current integration notes
 

@@ -129,4 +129,15 @@ resource "aws_dynamodb_table" "invitations" {
     name = "token"
     type = "S"
   }
+
+  attribute {
+    name = "acceptedBy"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "acceptedByIndex"
+    hash_key        = "acceptedBy"
+    projection_type = "ALL"
+  }
 }
