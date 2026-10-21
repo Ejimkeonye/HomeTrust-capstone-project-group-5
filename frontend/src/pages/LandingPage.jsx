@@ -24,8 +24,8 @@ export default function LandingPage({ onGetStarted, onLogin }) {
               <Shield className="w-6 h-6" />
             </div>
             <span className="text-xl font-black text-slate-900 tracking-tight">
-            Home<span className="text-purple-700">Trust</span>
-          </span>
+              Home<span className="text-purple-700">Trust</span>
+            </span>
             <p className="text-sm font-semibold text-slate-500 mt-0.5">
               Move In Evidence
             </p>

@@ -41,13 +41,17 @@ export default function LoginPage({
         password: password,
       });
 
-      // Backend returns user profile data + the JWT token
-      const { token, ...userData } = response.data;
+      // Verify that the backend returned a usable authentication token.
+      const { token, ...userData } = response.data || {};
 
-      // Save real JWT token and user session data
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(userData));
+      if (!token || typeof token !== "string") {
+        throw new Error(
+          "The server did not return a valid authentication token. Please try again.",
+        );
+      }
 
+      // Pass the authenticated session to App.jsx.
+      // App.jsx is responsible for saving the token and session.
       const sessionData = {
         ...userData,
         token,
@@ -58,7 +62,10 @@ export default function LoginPage({
       }
     } catch (error) {
       console.error("Login error:", error);
-      const errorMsg = error.response?.data?.message || "Invalid email or password. Please try again.";
+      const errorMsg =
+        error.response?.data?.message ||
+        error.message ||
+        "Invalid email or password. Please try again.";
       setErrorMessage(errorMsg);
     } finally {
       setIsLoading(false);

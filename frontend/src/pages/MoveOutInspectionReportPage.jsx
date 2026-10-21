@@ -1,167 +1,336 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  Printer,
-  Lock,
-  Check,
-  LogOut,
-  ShieldCheck,
   Camera,
+  Check,
+  Lock,
+  Printer,
+  ShieldCheck,
+  LogOut,
+  AlertCircle,
 } from "lucide-react";
-import { triggerNotification } from "../utils/notifications";
+import api from "../api/client";
+
+const unwrapInspection = (response) =>
+  response?.data?.inspection ||
+  response?.data?.data?.inspection ||
+  response?.data?.data ||
+  response?.data ||
+  response;
+
+const getSignatureUrl = (signature) => {
+  if (!signature) return null;
+  if (typeof signature === "string")
+    return signature.startsWith("data:image/") ||
+      /^https?:\/\//i.test(signature)
+      ? signature
+      : null;
+  if (typeof signature === "object") {
+    if (!signature.uploadedAt) return null;
+    return (
+      signature.url ||
+      signature.imageUrl ||
+      signature.signatureUrl ||
+      signature.signedImageUrl ||
+      signature.dataUrl ||
+      null
+    );
+  }
+  return null;
+};
+
+const normalizeEvidence = (item) => {
+  const entries = [
+    ...(Array.isArray(item?.evidence) ? item.evidence : []),
+    ...(Array.isArray(item?.photos) ? item.photos : []),
+  ];
+  return entries
+    .map((entry) =>
+      typeof entry === "string"
+        ? entry
+        : entry?.url || entry?.imageUrl || entry?.photoUrl,
+    )
+    .filter(Boolean);
+};
+
+const buildRooms = (inspection, propertyRooms = []) => {
+  const rooms = new Map();
+  (Array.isArray(propertyRooms) ? propertyRooms : []).forEach((room) => {
+    const id = String(room.roomId || room.id || room.name || "unassigned");
+    rooms.set(id, {
+      id,
+      name: room.name || "Unnamed Room",
+      category: room.category || "Room",
+      items: [],
+    });
+  });
+  (Array.isArray(inspection?.items) ? inspection.items : []).forEach(
+    (item, index) => {
+      const id = String(item.roomId || "unassigned");
+      if (!rooms.has(id)) {
+        rooms.set(id, {
+          id,
+          name: item.roomName || "Other / Unassigned Items",
+          category: "Room",
+          items: [],
+        });
+      }
+      rooms.get(id).items.push({
+        ...item,
+        id: item.itemId || item.roomItemId || item.id || index,
+        name: item.itemName || item.name || "Unnamed Item",
+        evidence: item.evidence || [],
+        photos: item.photos || [],
+      });
+    },
+  );
+  return [...rooms.values()];
+};
+
+function SignatureCard({ label, signature }) {
+  const image = getSignatureUrl(signature);
+  const saved = Boolean(
+    signature && (typeof signature !== "object" || signature.uploadedAt),
+  );
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+      <div className="min-w-0">
+        <div className="text-[10px] font-bold uppercase text-slate-500">
+          {label}
+        </div>
+        <div
+          className={`mt-1 text-xs font-extrabold ${saved ? "text-emerald-700" : "text-slate-400"}`}
+        >
+          {saved ? "Signature saved" : "Pending signature"}
+        </div>
+        {signature?.signedAt && (
+          <div className="mt-1 text-[10px] text-slate-500">
+            {new Date(signature.signedAt).toLocaleString()}
+          </div>
+        )}
+      </div>
+      {image ? (
+        <img
+          src={image}
+          alt={`${label} image`}
+          className="max-h-16 max-w-[45%] object-contain"
+        />
+      ) : (
+        <span className="text-[10px] text-slate-400">No image available</span>
+      )}
+    </div>
+  );
+}
+
+function RecordColumn({ title, room, accent }) {
+  const items = Array.isArray(room?.items) ? room.items : [];
+  const firstPhoto =
+    room?.imageUrl || items.flatMap(normalizeEvidence)[0] || null;
+  return (
+    <div className="min-w-0 space-y-2 rounded-xl border border-slate-200 bg-white p-2.5">
+      <div
+        className={`text-[10px] font-extrabold uppercase tracking-wider ${accent}`}
+      >
+        {title}
+      </div>
+      <div className="flex h-24 items-center justify-center overflow-hidden rounded-lg bg-slate-100 text-slate-400">
+        {firstPhoto ? (
+          <img
+            src={firstPhoto}
+            alt={`${title} evidence`}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <Camera className="h-5 w-5 text-slate-300" />
+        )}
+      </div>
+      {items.length ? (
+        items.map((item, index) => {
+          const photos = normalizeEvidence(item);
+          return (
+            <div
+              key={item.id || item.itemId || index}
+              className="space-y-1 border-t border-slate-100 pt-2"
+            >
+              <div className="flex items-start justify-between gap-2 text-[10px]">
+                <span className="min-w-0 wrap-break-word text-slate-700">
+                  {item.name || item.itemName || "Item"}
+                </span>
+                <span className="shrink-0 font-bold capitalize text-slate-900">
+                  {String(
+                    item.condition || item.status || "Not recorded",
+                  ).replaceAll("_", " ")}
+                </span>
+              </div>
+              {item.notes && (
+                <p className="text-[10px] text-slate-500">{item.notes}</p>
+              )}
+              {photos.length > 1 && (
+                <div className="grid grid-cols-3 gap-1">
+                  {photos.slice(1, 4).map((src, photoIndex) => (
+                    <a
+                      key={`${src}-${photoIndex}`}
+                      href={src}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <img
+                        src={src}
+                        alt={`${title} evidence ${photoIndex + 2}`}
+                        className="h-12 w-full rounded object-cover"
+                        loading="lazy"
+                      />
+                    </a>
+                  ))}
+                </div>
+              )}
+              {!photos.length && (
+                <p className="text-[10px] italic text-slate-400">
+                  No photo evidence attached
+                </p>
+              )}
+            </div>
+          );
+        })
+      ) : (
+        <p className="text-[10px] italic text-slate-400">
+          No checklist items recorded
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function MoveOutInspectionReportPage({
   property,
+  inspectionId,
+  moveInInspectionId,
   moveInInspectionData = [],
-  moveOutInspectionData: initialMoveOutInspectionData = [],
-  signatures = {},
+  moveOutInspectionData = [],
   onBack,
   onFinalize,
 }) {
-  const propertyId = property?.propertyId || property?.id || "default";
-  const reportStorageKey = `hometrust_moveout_report_${propertyId}`;
+  const propertyId = property?.propertyId || property?.id || null;
+  const [moveInRecord, setMoveInRecord] = useState(null);
+  const [moveOutRecord, setMoveOutRecord] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  const [showSuccessScreen, setShowSuccessScreen] = useState(false);
-
-  // 1. Resolve Move-In Data: Check props first, fallback to property or storage
-  const [resolvedMoveIn] = useState(() => {
-    if (moveInInspectionData && (Array.isArray(moveInInspectionData) ? moveInInspectionData.length > 0 : Object.keys(moveInInspectionData).length > 0)) {
-      return moveInInspectionData;
-    }
-    try {
-      const savedReport = localStorage.getItem(`hometrust_report_${propertyId}`);
-      if (savedReport) {
-        const parsed = JSON.parse(savedReport);
-        if (parsed.inspectionData) return parsed.inspectionData;
+  useEffect(() => {
+    let cancelled = false;
+    const loadRecords = async () => {
+      setIsLoading(true);
+      setLoadError("");
+      setMoveInRecord(null);
+      setMoveOutRecord(null);
+      try {
+        if (!propertyId || !moveInInspectionId || !inspectionId) {
+          throw new Error(
+            "Both saved inspection IDs and the selected property are required to load this report.",
+          );
+        }
+        const [moveInResponse, moveOutResponse] = await Promise.all([
+          api.get(`/inspections/${moveInInspectionId}`),
+          api.get(`/inspections/${inspectionId}`),
+        ]);
+        const moveIn = unwrapInspection(moveInResponse);
+        const moveOut = unwrapInspection(moveOutResponse);
+        const valid = (record, id) =>
+          record &&
+          String(record.inspectionId || record.id || "") === String(id) &&
+          (!record.propertyId ||
+            String(record.propertyId) === String(propertyId)) &&
+          record.status !== "ARCHIVED" &&
+          record.state !== "ARCHIVED";
+        if (!valid(moveIn, moveInInspectionId) || moveIn.mode === "MoveOut") {
+          throw new Error(
+            "The saved Move-In inspection could not be verified for this property.",
+          );
+        }
+        if (!valid(moveOut, inspectionId) || moveOut.mode !== "MoveOut") {
+          throw new Error(
+            "The saved Move-Out inspection could not be verified for this property.",
+          );
+        }
+        if (!cancelled) {
+          setMoveInRecord(moveIn);
+          setMoveOutRecord(moveOut);
+        }
+      } catch (error) {
+        if (!cancelled)
+          setLoadError(
+            error?.response?.data?.message ||
+              error?.message ||
+              "Unable to load the saved Move-Out report.",
+          );
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
-    } catch (e) {
-      console.error(e);
-    }
-    return property?.inspectionData || [];
-  });
-
-  // 2. Resolve Move-Out Data: Check props first, fallback to property-scoped move-out storage, else empty array []
-  const [resolvedMoveOut] = useState(() => {
-    if (initialMoveOutInspectionData && (Array.isArray(initialMoveOutInspectionData) ? initialMoveOutInspectionData.length > 0 : Object.keys(initialMoveOutInspectionData).length > 0)) {
-      return initialMoveOutInspectionData;
-    }
-    try {
-      const savedMoveOut = localStorage.getItem(reportStorageKey);
-      if (savedMoveOut) {
-        const parsed = JSON.parse(savedMoveOut);
-        if (parsed.moveOutInspectionData) return parsed.moveOutInspectionData;
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return [];
-  });
-
-  const landlordSig = signatures.landlord || property?.moveOutSignatures?.landlord;
-  const tenantSig = signatures.tenant || property?.moveOutSignatures?.tenant;
-
-  // Check if this property actually has valid signatures or a completed move-out inspection
-  const isActuallyLocked = Boolean(
-    (signatures.landlord && signatures.tenant) || 
-    property?.moveOutStatus === "READ_ONLY" ||
-    property?.moveOutStatus === "LOCKED" ||
-    (landlordSig && tenantSig)
-  );
-
-  // Normalize data helper
-  const normalizeData = (data) => {
-    return Array.isArray(data)
-      ? data
-      : Object.keys(data || {}).map((k) => ({
-          name: k,
-          ...data[k],
-        }));
-  };
-
-  const moveInRooms = normalizeData(resolvedMoveIn);
-  const moveOutRooms = normalizeData(resolvedMoveOut);
-  const allRoomNames = Array.from(
-    new Set([...moveInRooms.map((r) => r.name), ...moveOutRooms.map((r) => r.name)])
-  );
-
-  const handleFinalLockAndSave = () => {
-    const timestamp = new Date().toLocaleString();
-    const finalReport = {
-      propertyId,
-      propertyName: property?.name || property?.address,
-      landlordSig,
-      tenantSig,
-      isCompleted: true,
-      completedTimestamp: timestamp,
-      moveInInspectionData: resolvedMoveIn,
-      moveOutInspectionData: resolvedMoveOut,
     };
+    loadRecords();
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId, inspectionId, moveInInspectionId]);
 
-    localStorage.setItem(reportStorageKey, JSON.stringify(finalReport));
+  const moveInRooms = useMemo(
+    () =>
+      moveInRecord
+        ? buildRooms(moveInRecord, property?.rooms || [])
+        : Array.isArray(moveInInspectionData)
+          ? moveInInspectionData
+          : [],
+    [moveInRecord, property?.rooms, moveInInspectionData],
+  );
+  const moveOutRooms = useMemo(
+    () =>
+      moveOutRecord
+        ? buildRooms(moveOutRecord, property?.rooms || [])
+        : Array.isArray(moveOutInspectionData)
+          ? moveOutInspectionData
+          : [],
+    [moveOutRecord, property?.rooms, moveOutInspectionData],
+  );
+  const allRoomNames = useMemo(
+    () => [
+      ...new Set(
+        [...moveInRooms, ...moveOutRooms]
+          .map((room) => room?.name || room?.roomName)
+          .filter(Boolean),
+      ),
+    ],
+    [moveInRooms, moveOutRooms],
+  );
+  const isActuallyLocked = moveOutRecord?.state === "READ_ONLY";
+  const landlordSignature = moveOutRecord?.landlordSignature || null;
+  const tenantSignature = moveOutRecord?.tenantSignature || null;
 
-    if (propertyId) {
-      triggerNotification(
-        propertyId,
-        "Move-Out Report Sealed",
-        "The final move-out comparison record is legally sealed and locked.",
-        "system"
-      );
-    }
-
-    // Update master properties list in local storage safely
-    try {
-      const savedProps = JSON.parse(
-        localStorage.getItem("hometrust_properties") || "[]",
-      );
-      const updatedProps = savedProps.map((p) =>
-        (p.propertyId === propertyId || p.id === propertyId)
-          ? {
-              ...p,
-              moveOutStatus: "READ_ONLY",
-              moveOutSignatures: { landlord: landlordSig, tenant: tenantSig },
-              completedTimestamp: timestamp,
-            }
-          : p,
-      );
-      localStorage.setItem("hometrust_properties", JSON.stringify(updatedProps));
-    } catch (e) {
-      console.error(e);
-    }
-
-    setShowSuccessScreen(true);
-
-    if (onFinalize) {
-      onFinalize(finalReport);
-    }
+  const finish = () => {
+    if (!isActuallyLocked || isLoading || loadError) return;
+    setShowSuccess(true);
+    onFinalize?.({ inspection: moveOutRecord, moveInInspection: moveInRecord });
   };
 
-  const handlePrint = () => window.print();
-
-  // Success Screen View
-  if (showSuccessScreen) {
+  if (showSuccess) {
     return (
-      <div className="min-h-screen bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-        <div className="bg-white rounded-[40px] max-w-sm w-full p-8 text-center space-y-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-200">
-          <div className="w-20 h-20 bg-[#4A1E6D] text-white rounded-full flex items-center justify-center mx-auto shadow-lg shadow-purple-900/30">
-            <ShieldCheck className="w-10 h-10" />
-          </div>
-          <div className="space-y-3">
-            <h2 className="text-xl font-black text-slate-950">
-              Move-Out Finalized!
-            </h2>
-            <p className="text-xs text-slate-600 leading-relaxed px-2 font-medium">
-              Both parties have verified and signed. The move-out comparison record is legally sealed and locked.
-            </p>
-          </div>
+      <div className="flex min-h-screen items-center justify-center bg-slate-900/60 p-4">
+        <div className="w-full max-w-sm space-y-6 rounded-4xl bg-white p-8 text-center shadow-2xl">
+          <ShieldCheck className="mx-auto h-12 w-12 text-[#4A1E6D]" />
+          <h2 className="text-xl font-black text-slate-950">
+            Move-Out Report Confirmed
+          </h2>
+          <p className="text-xs leading-relaxed text-slate-600">
+            The backend confirms that both parties' signatures have been saved
+            and the Move-Out inspection is read-only.
+          </p>
           <button
             type="button"
-            onClick={() => {
-              if (onBack) onBack();
-              else window.location.reload();
-            }}
-            className="w-full inline-flex items-center justify-center gap-2 bg-[#4A1E6D] hover:bg-purple-950 text-white font-bold py-3.5 rounded-2xl transition-colors text-xs cursor-pointer shadow-md"
+            onClick={onBack}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#4A1E6D] py-3.5 text-xs font-bold text-white"
           >
-            <LogOut className="w-4 h-4" /> Back Home
+            <LogOut className="h-4 w-4" /> Back to Dashboard
           </button>
         </div>
       </div>
@@ -169,201 +338,159 @@ export default function MoveOutInspectionReportPage({
   }
 
   return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
-      <div className="w-full max-w-md bg-white min-h-screen sm:min-h-200 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative text-slate-900">
-        
-        {/* Header */}
-        <div className="p-4 flex items-center justify-between z-10 gap-2 bg-[#4A1E6D] text-white">
+    <div className="min-h-screen bg-white p-0 font-sans sm:p-6">
+      <div className="relative mx-auto flex min-h-screen w-full max-w-3xl flex-col overflow-hidden border border-slate-200 bg-white text-slate-900 shadow-2xl sm:min-h-[85vh] sm:rounded-3xl">
+        <header className="flex items-center justify-between gap-3 bg-[#4A1E6D] p-4 text-white">
           <button
             type="button"
             onClick={onBack}
-            className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 cursor-pointer transition-colors"
+            aria-label="Back"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 hover:bg-white/20"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="h-5 w-5" />
           </button>
-          <h1 className="text-base font-extrabold text-white text-center truncate">
+          <h1 className="text-center text-sm font-extrabold">
             Final Move-Out Report
           </h1>
           <button
             type="button"
-            onClick={handlePrint}
-            className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
-            title="Print Report"
+            onClick={() => window.print()}
+            aria-label="Print report"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 hover:bg-white/20"
           >
-            <Printer className="w-4 h-4" />
+            <Printer className="h-4 w-4" />
           </button>
-        </div>
-
-        {/* Content Area */}
-        <div className="px-6 py-4 flex-1 overflow-y-auto space-y-6 bg-white">
-          <div className="border-b border-slate-200 pb-4">
-            <div className="text-[10px] font-bold tracking-wider text-[#4A1E6D] uppercase mb-1">
-              Verified Side-by-Side Record
+        </header>
+        <main className="flex-1 space-y-6 overflow-y-auto p-5 sm:p-6">
+          <section className="border-b border-slate-200 pb-4">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-[#4A1E6D]">
+              Backend-verified side-by-side record
             </div>
-            <h2 className="text-lg font-extrabold text-slate-900">
-              {property?.name || property?.address}
+            <h2 className="mt-1 text-lg font-extrabold">
+              {property?.name || property?.address || "Property"}
             </h2>
-
-            <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
-              <span className="text-xs font-semibold text-slate-500">
-                Processed on:{" "}
-                {new Date().toLocaleString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                  hour12: true,
-                })}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs text-slate-500">
+                {moveOutRecord?.submittedAt || moveOutRecord?.createdAt
+                  ? new Date(
+                      moveOutRecord.submittedAt || moveOutRecord.createdAt,
+                    ).toLocaleString()
+                  : "Date not recorded"}
               </span>
-              <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full border ${
-                isActuallyLocked 
-                  ? "bg-emerald-100 text-emerald-800 border-emerald-300" 
-                  : "bg-slate-100 text-slate-600 border-slate-300"
-              }`}>
-                <Lock className="w-3 h-3" /> {isActuallyLocked ? "Signed & Locked (READ_ONLY)" : "Draft / Pending Move-Out"}
+              <span
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold ${isActuallyLocked ? "border-emerald-300 bg-emerald-100 text-emerald-800" : "border-slate-300 bg-slate-100 text-slate-600"}`}
+              >
+                <Lock className="h-3 w-3" />
+                {isActuallyLocked
+                  ? "Signed & Locked (READ_ONLY)"
+                  : "Pending signatures / review"}
               </span>
             </div>
-          </div>
-  
-          {/* Side-by-Side Room Walkthrough Breakdown */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
-              Move-In vs. Move-Out Comparison
-            </h3>
-            {allRoomNames.length === 0 ? (
-              <div className="text-center py-6 text-slate-400 text-xs font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                No move-out inspection details found.
-              </div>
-            ) : (
-              allRoomNames.map((roomName, idx) => {
-                const moveInRoom = moveInRooms.find((r) => r.name === roomName);
-                const moveOutRoom = moveOutRooms.find((r) => r.name === roomName);
-
-                const moveInPhoto =
-                  moveInRoom?.imageUrl ||
-                  moveInRoom?.items?.flatMap((i) => i.photos || [])?.[0]?.url;
-
-                const moveOutPhoto =
-                  moveOutRoom?.imageUrl ||
-                  moveOutRoom?.items?.flatMap((i) => i.photos || [])?.[0]?.url;
-
-                return (
-                  <div
-                    key={idx}
-                    className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3"
-                  >
-                    <div className="flex justify-between items-center border-b pb-2">
-                      <h4 className="text-xs font-extrabold text-slate-900">
-                        {roomName}
-                      </h4>
-                      <span className="text-[10px] font-extrabold text-purple-900 bg-purple-200/60 px-2 py-0.5 rounded-md">
-                        {moveOutRoom?.category || moveInRoom?.category || "Rooms"}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      {/* Move-In Column */}
-                      <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5">
-                        <span className="text-[9px] font-extrabold text-[#4A1E6D] uppercase block">Move-In State</span>
-                        <div className="w-full h-12 bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center">
-                          {moveInPhoto ? (
-                            <img src={moveInPhoto} alt="Move-In" className="w-full h-full object-cover" />
-                          ) : (
-                            <Camera className="w-4 h-4 text-slate-300" />
-                          )}
-                        </div>
-                        {moveInRoom?.items?.map((item, i) => (
-                          <div key={i} className="flex justify-between text-[10px] text-slate-700 py-0.5 border-b border-slate-100 last:border-0">
-                            <span className="truncate">{item.name}:</span>
-                            <span className="font-bold capitalize">{item.condition?.replace("_", " ")}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Move-Out Column */}
-                      <div className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1.5">
-                        <span className="text-[9px] font-extrabold text-purple-900 uppercase block">Move-Out State</span>
-                        <div className="w-full h-12 bg-slate-100 rounded-lg overflow-hidden flex items-center justify-center">
-                          {moveOutPhoto ? (
-                            <img src={moveOutPhoto} alt="Move-Out" className="w-full h-full object-cover" />
-                          ) : (
-                            <Camera className="w-4 h-4 text-slate-300" />
-                          )}
-                        </div>
-                        {moveOutRoom?.items?.map((item, i) => (
-                          <div key={i} className="flex justify-between text-[10px] text-slate-700 py-0.5 border-b border-slate-100 last:border-0">
-                            <span className="truncate">{item.name}:</span>
-                            <span className="font-bold capitalize text-[#4A1E6D]">{item.condition?.replace("_", " ")}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Display Verified Signatures */}
-          <div className="space-y-3 pt-4 border-t border-slate-200">
-            <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
-              Digital Verification
-            </h3>
-            <div className="grid grid-cols-1 gap-3">
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase block">
-                    Landlord Signature
-                  </span>
-                  <span className={`text-xs font-extrabold ${landlordSig ? "text-emerald-700" : "text-slate-400"}`}>
-                    {landlordSig ? "Verified & Signed ✓" : "Pending Signature"}
-                  </span>
-                </div>
-                {landlordSig &&
-                  typeof landlordSig === "string" &&
-                  landlordSig.startsWith("data:image") && (
-                    <img
-                      src={landlordSig}
-                      alt="Landlord Signature"
-                      className="h-8 object-contain"
-                    />
-                  )}
-              </div>
-
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase block">
-                    Tenant Signature
-                  </span>
-                  <span className={`text-xs font-extrabold ${tenantSig ? "text-emerald-700" : "text-slate-400"}`}>
-                    {tenantSig ? "Verified & Signed ✓" : "Pending Signature"}
-                  </span>
-                </div>
-                {tenantSig &&
-                  typeof tenantSig === "string" &&
-                  tenantSig.startsWith("data:image") && (
-                    <img
-                      src={tenantSig}
-                      alt="Tenant Signature"
-                      className="h-8 object-contain"
-                    />
-                  )}
+          </section>
+          {isLoading && (
+            <p role="status" className="text-sm text-slate-500">
+              Loading and verifying both saved inspections…
+            </p>
+          )}
+          {loadError && (
+            <div
+              role="alert"
+              className="flex gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+            >
+              <AlertCircle className="h-5 w-5 shrink-0" />{" "}
+              <div>
+                {loadError}
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="ml-2 font-bold underline"
+                >
+                  Retry
+                </button>
               </div>
             </div>
-          </div>
-
-          {/* Finalize Button */}
-          <div className="pt-4 border-t border-slate-200">
+          )}
+          {!isLoading && !loadError && (
+            <>
+              <section className="space-y-3">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider">
+                  Move-In vs Move-Out Comparison
+                </h3>
+                {!allRoomNames.length ? (
+                  <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-xs text-slate-400">
+                    No room or checklist details were found in the saved
+                    inspections.
+                  </p>
+                ) : (
+                  allRoomNames.map((roomName) => {
+                    const moveInRoom = moveInRooms.find(
+                      (room) => (room.name || room.roomName) === roomName,
+                    );
+                    const moveOutRoom = moveOutRooms.find(
+                      (room) => (room.name || room.roomName) === roomName,
+                    );
+                    return (
+                      <div
+                        key={roomName}
+                        className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4"
+                      >
+                        <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <h4 className="text-xs font-extrabold">{roomName}</h4>
+                          <span className="rounded-md bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-900">
+                            {moveOutRoom?.category ||
+                              moveInRoom?.category ||
+                              "Room"}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <RecordColumn
+                            title="Move-In State"
+                            room={moveInRoom}
+                            accent="text-[#4A1E6D]"
+                          />
+                          <RecordColumn
+                            title="Move-Out State"
+                            room={moveOutRoom}
+                            accent="text-purple-900"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </section>
+              <section className="space-y-3 border-t border-slate-200 pt-4">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider">
+                  Digital Verification
+                </h3>
+                <SignatureCard
+                  label="Landlord Signature"
+                  signature={landlordSignature}
+                />
+                <SignatureCard
+                  label="Tenant Signature"
+                  signature={tenantSignature}
+                />
+              </section>
+            </>
+          )}
+          <section className="border-t border-slate-200 pt-4">
             <button
               type="button"
-              onClick={handleFinalLockAndSave}
-              className="w-full bg-[#4A1E6D] hover:bg-purple-950 text-white font-extrabold py-3.5 rounded-2xl text-xs transition-colors shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+              onClick={finish}
+              disabled={!isActuallyLocked || isLoading || Boolean(loadError)}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#4A1E6D] py-3.5 text-xs font-extrabold text-white shadow-lg transition-colors hover:bg-purple-950 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <Check className="w-4 h-4" /> Save & Return to Dashboard
+              <Check className="h-4 w-4" /> Confirm & Return to Dashboard
             </button>
-          </div>
-        </div>
+            {!isActuallyLocked && !loadError && !isLoading && (
+              <p className="mt-2 text-center text-[11px] text-slate-500">
+                This report remains pending until the backend marks the Move-Out
+                inspection READ_ONLY.
+              </p>
+            )}
+          </section>
+        </main>
       </div>
     </div>
   );

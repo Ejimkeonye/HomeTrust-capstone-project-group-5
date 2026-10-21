@@ -1,22 +1,23 @@
-import axios from 'axios';
+import axios from "axios";
 
-// Automatically pulls your live Render URL from the .env file, or defaults to local backend
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-console.log("CHECKING VITE_API_URL:", API_URL);
+const API_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const api = axios.create({
-  baseURL: `${API_URL}/api`, // Appends /api to the live Render backend URL
+  baseURL: `${API_URL.replace(/\/+$/, "")}/api`,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
-// Automatically attach the JWT token to requests if the user is logged in
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token'); // Gets the JWT stored after login
+  const token = localStorage.getItem("token");
+
   if (token) {
+    config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;
   }
+
   return config;
 });
 

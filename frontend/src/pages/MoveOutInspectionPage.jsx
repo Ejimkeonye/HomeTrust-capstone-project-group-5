@@ -21,27 +21,63 @@ import { triggerNotification } from "../utils/notifications";
 const INITIAL_CATEGORIES = ["All", "Rooms", "Kitchen", "Bathrooms"];
 
 const CONDITION_OPTIONS = [
-  { id: "no_issue", label: "No issue", icon: CheckCircle2, color: "text-emerald-600" },
-  { id: "stains", label: "Stains", icon: AlertTriangle, color: "text-amber-600" },
-  { id: "cracks", label: "Cracks", icon: AlertTriangle, color: "text-orange-600" },
+  {
+    id: "no_issue",
+    label: "No issue",
+    icon: CheckCircle2,
+    color: "text-emerald-600",
+  },
+  {
+    id: "stains",
+    label: "Stains",
+    icon: AlertTriangle,
+    color: "text-amber-600",
+  },
+  {
+    id: "cracks",
+    label: "Cracks",
+    icon: AlertTriangle,
+    color: "text-orange-600",
+  },
   { id: "broken", label: "Broken", icon: XCircle, color: "text-red-600" },
 ];
 
 const SEVERITIES = [
-  { id: "Minor", label: "Minor", style: "bg-blue-50 text-blue-700 border-blue-200" },
-  { id: "Moderate", label: "Moderate", style: "bg-amber-50 text-amber-700 border-amber-200" },
-  { id: "Major", label: "Major", style: "bg-orange-50 text-orange-700 border-orange-200" },
-  { id: "Critical", label: "Critical", style: "bg-red-50 text-red-700 border-red-200" },
+  {
+    id: "Minor",
+    label: "Minor",
+    style: "bg-blue-50 text-blue-700 border-blue-200",
+  },
+  {
+    id: "Moderate",
+    label: "Moderate",
+    style: "bg-amber-50 text-amber-700 border-amber-200",
+  },
+  {
+    id: "Major",
+    label: "Major",
+    style: "bg-orange-50 text-orange-700 border-orange-200",
+  },
+  {
+    id: "Critical",
+    label: "Critical",
+    style: "bg-red-50 text-red-700 border-red-200",
+  },
 ];
 
-const DEFAULT_IMAGE = "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80";
+const DEFAULT_IMAGE =
+  "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80";
 
 const compressImage = (file) => {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    reader.onerror = () =>
+      reject(new Error("Could not read the selected image."));
     reader.readAsDataURL(file);
     reader.onload = (event) => {
       const img = new Image();
+      img.onerror = () =>
+        reject(new Error("Could not process the selected image."));
       img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement("canvas");
@@ -49,7 +85,8 @@ const compressImage = (file) => {
         const scaleFactor = MAX_WIDTH / img.width;
 
         canvas.width = img.width > MAX_WIDTH ? MAX_WIDTH : img.width;
-        canvas.height = img.width > MAX_WIDTH ? img.height * scaleFactor : img.height;
+        canvas.height =
+          img.width > MAX_WIDTH ? img.height * scaleFactor : img.height;
 
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -58,6 +95,34 @@ const compressImage = (file) => {
     };
   });
 };
+
+const normalizePropertyRooms = (rooms = []) =>
+  (Array.isArray(rooms) ? rooms : []).map((room, index) => {
+    const roomObject = typeof room === "string" ? { name: room } : room;
+    const name = String(roomObject?.name || `Room ${index + 1}`).trim();
+    const roomId =
+      roomObject?.roomId || roomObject?.id || `room-${index}-${name}`;
+    const category = String(roomObject?.category || "").trim();
+    const lowerName = name.toLowerCase();
+    const inferredCategory =
+      category ||
+      (lowerName.includes("kitchen")
+        ? "Kitchen"
+        : lowerName.includes("bath") || lowerName.includes("toilet")
+          ? "Bathrooms"
+          : lowerName.includes("balcony") || lowerName.includes("terrace")
+            ? "Balcony"
+            : "Rooms");
+
+    return {
+      ...roomObject,
+      id: roomId,
+      roomId,
+      name,
+      category: inferredCategory,
+      items: Array.isArray(roomObject?.items) ? roomObject.items : [],
+    };
+  });
 
 export default function MoveOutInspectionPage({
   property,
@@ -68,7 +133,9 @@ export default function MoveOutInspectionPage({
   const safeProperty = property || null;
   const propertyKey = safeProperty?.propertyId || safeProperty?.id;
 
-  const isReadOnly = safeProperty?.moveOutStatus === "READ_ONLY";
+  const [inspectionState, setInspectionState] = useState("DRAFT");
+  const isReadOnly = inspectionState === "READ_ONLY";
+  const [isLoadingInspection, setIsLoadingInspection] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [inspectionId, setInspectionId] = useState(null);
@@ -77,7 +144,9 @@ export default function MoveOutInspectionPage({
   const [propertyImage, setPropertyImage] = useState(() => {
     if (!propertyKey) return DEFAULT_IMAGE;
     try {
-      const saved = localStorage.getItem(`hometrust_moveout_property_image_${propertyKey}`);
+      const saved = localStorage.getItem(
+        `hometrust_moveout_property_image_${propertyKey}`,
+      );
       if (saved) return saved;
     } catch (e) {
       console.error(e);
@@ -114,7 +183,9 @@ export default function MoveOutInspectionPage({
     if (!propertyKey) return [];
 
     try {
-      const saved = localStorage.getItem(`hometrust_moveout_inspection_v6_${propertyKey}`);
+      const saved = localStorage.getItem(
+        `hometrust_moveout_inspection_v6_${propertyKey}`,
+      );
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.error(e);
@@ -124,37 +195,167 @@ export default function MoveOutInspectionPage({
   });
 
   // Background Backend Sync Initialization
+
   useEffect(() => {
+    let cancelled = false;
+
     const initInspectionBackend = async () => {
-      if (!propertyKey) return;
+      setIsLoadingInspection(true);
+      setRoomsData([]);
+      setInspectionId(null);
+
+      if (!propertyKey) {
+        setIsLoadingInspection(false);
+        return;
+      }
 
       try {
-        const res = await api.get(`/inspections/property/${propertyKey}`);
-        const inspections = res.data?.inspections || res.data || [];
-        
-        if (inspections.length > 0) {
-          setInspectionId(inspections[0].inspectionId || inspections[0].id);
-        } else {
-          const createRes = await api.post("/inspections", {
+        // 1. Load this property's rooms.
+        const propertyResponse = await api.get(`/properties/${propertyKey}`);
+
+        const propertyRecord =
+          propertyResponse.data?.property || propertyResponse.data;
+
+        if (cancelled) return;
+
+        const propertyRooms = normalizePropertyRooms(
+          propertyRecord?.rooms || safeProperty?.rooms || [],
+        );
+
+        // 2. Find this property's Move-Out inspection.
+        const listResponse = await api.get(
+          `/inspections/property/${propertyKey}`,
+        );
+
+        const inspections =
+          listResponse.data?.inspections || listResponse.data || [];
+
+        let inspection = inspections.find((entry) => entry.mode === "MoveOut");
+
+        // 3. Create one only if a Move-Out inspection does not exist.
+        if (!inspection) {
+          const createResponse = await api.post("/inspections", {
             propertyId: propertyKey,
             mode: "MoveOut",
           });
-          const newInsp = createRes.data?.inspection || createRes.data;
-          setInspectionId(newInsp.inspectionId || newInsp.id);
+
+          inspection = createResponse.data?.inspection || createResponse.data;
+        }
+
+        const id = inspection?.inspectionId || inspection?.id;
+
+        if (!id) {
+          throw new Error("The backend did not return an inspection ID.");
+        }
+
+        // 4. Load the inspection and its saved items/evidence.
+        const detailResponse = await api.get(`/inspections/${id}`);
+
+        const detail = detailResponse.data?.inspection || detailResponse.data;
+
+        if (cancelled) return;
+
+        setInspectionId(id);
+        setInspectionState(detail?.state || "DRAFT");
+
+        const backendItems = Array.isArray(detail?.items) ? detail.items : [];
+
+        // 5. Match backend items to the property's rooms.
+        const mergedRooms = propertyRooms.map((room) => {
+          const matchingItems = backendItems.filter((item) => {
+            const backendRoomId = item.roomId || item.room?.roomId;
+            const backendRoomName = item.roomName || item.room?.name;
+
+            return (
+              (backendRoomId &&
+                String(backendRoomId) === String(room.roomId)) ||
+              (backendRoomName &&
+                String(backendRoomName).trim().toLowerCase() ===
+                  String(room.name).trim().toLowerCase())
+            );
+          });
+
+          const items = matchingItems.map((item) => {
+            const itemId = item.roomItemId || item.id;
+            const evidence = item.evidence || item.photos || [];
+
+            return {
+              id: itemId,
+              roomItemId: itemId,
+              name: item.itemName || item.name || "Inspection Item",
+              condition: item.condition || "no_issue",
+              notes: item.notes || "",
+              dispute: item.dispute ?? null,
+              status:
+                item.status ||
+                (item.condition && item.condition !== "no_issue"
+                  ? "Under Review"
+                  : "Normal"),
+              photos: evidence.map((entry) => ({
+                id: entry.evidenceId || entry.id,
+                evidenceId: entry.evidenceId || entry.id,
+                objectKey: entry.objectKey,
+                url: entry.url,
+                downloadUrl: entry.downloadUrl,
+                fileName:
+                  entry.clientMetadata?.fileName ||
+                  entry.metadata?.fileName ||
+                  "",
+                type:
+                  entry.type || entry.contentType || entry.content_type || "",
+                contentType: entry.contentType || entry.content_type || "",
+                timestamp: entry.createdAt || entry.timestamp || "",
+              })),
+            };
+          });
+
+          return { ...room, items };
+        });
+
+        setRoomsData(mergedRooms);
+
+        try {
+          localStorage.setItem(
+            `hometrust_moveout_inspection_v6_${propertyKey}`,
+            JSON.stringify(mergedRooms),
+          );
+        } catch (storageError) {
+          console.warn(
+            "Could not cache Move-Out inspection data:",
+            storageError,
+          );
         }
       } catch (err) {
-        console.warn("Backend sync notice (running offline/local mode):", err?.message);
+        if (cancelled) return;
+
+        console.error(
+          "Move-Out inspection initialization failed:",
+          err?.response?.data || err?.message,
+        );
+
+        // Fall back to the selected property's room definitions.
+        setRoomsData(normalizePropertyRooms(safeProperty?.rooms || []));
+      } finally {
+        if (!cancelled) {
+          setIsLoadingInspection(false);
+        }
       }
     };
 
     initInspectionBackend();
-  }, [propertyKey]);
 
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyKey, safeProperty?.rooms]);
   const saveRooms = (updatedData) => {
     setRoomsData(updatedData);
     try {
       if (propertyKey) {
-        localStorage.setItem(`hometrust_moveout_inspection_v6_${propertyKey}`, JSON.stringify(updatedData));
+        localStorage.setItem(
+          `hometrust_moveout_inspection_v6_${propertyKey}`,
+          JSON.stringify(updatedData),
+        );
       }
     } catch (e) {
       console.error(e);
@@ -162,14 +363,26 @@ export default function MoveOutInspectionPage({
   };
 
   const handlePropertyPhotoChange = async (e) => {
+    if (isReadOnly || isLoadingInspection || !inspectionId) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const compressedUrl = await compressImage(file);
+    let compressedUrl;
+    try {
+      compressedUrl = await compressImage(file);
+    } catch (err) {
+      console.error("Property photo processing failed:", err);
+      alert("The selected photo could not be processed.");
+      e.target.value = "";
+      return;
+    }
     setPropertyImage(compressedUrl);
     try {
       if (propertyKey) {
-        localStorage.setItem(`hometrust_moveout_property_image_${propertyKey}`, compressedUrl);
+        localStorage.setItem(
+          `hometrust_moveout_property_image_${propertyKey}`,
+          compressedUrl,
+        );
       }
     } catch (err) {
       console.error(err);
@@ -178,6 +391,8 @@ export default function MoveOutInspectionPage({
 
   const handleAddRoom = async (e) => {
     e.preventDefault();
+    if (isReadOnly || isLoadingInspection || !inspectionId || !propertyKey)
+      return;
     if (!newRoomName.trim()) return;
 
     const finalCategory =
@@ -187,7 +402,7 @@ export default function MoveOutInspectionPage({
 
     const roomNameTrimmed = newRoomName.trim();
     const newRoomId = `room-${Date.now()}`;
-    
+
     const newRoom = {
       id: newRoomId,
       roomId: newRoomId,
@@ -217,31 +432,71 @@ export default function MoveOutInspectionPage({
         propertyKey,
         "Move-Out Section Added",
         `Added departure section: "${roomNameTrimmed}".`,
-        "system"
+        "system",
       );
 
       try {
-        const currentRoomsList = updated.map((r) => ({ 
-          roomId: r.id || r.roomId, 
-          name: r.name, 
-          category: r.category 
+        const currentRoomsList = updated.map((r) => ({
+          roomId: r.id || r.roomId,
+          name: r.name,
+          category: r.category,
         }));
-        
+
         await api.put(`/properties/${propertyKey}`, {
-          name: safeProperty.name || "Property",
-          address: safeProperty.address,
-          type: safeProperty.type || "Apartment",
-          flatNo: safeProperty.flatNo || "1",
-          image: safeProperty.image || DEFAULT_IMAGE,
+          name: safeProperty?.name || "Property",
+          address: safeProperty?.address,
+          type: safeProperty?.type || "Apartment",
+          flatNo: safeProperty?.flatNo || "1",
+          image: safeProperty?.image || DEFAULT_IMAGE,
           rooms: currentRoomsList,
         });
+
+        const initialItem = newRoom.items[0];
+        const itemResponse = await api.post(
+          `/inspections/${inspectionId}/items`,
+          {
+            roomId: newRoom.roomId,
+            itemName: initialItem.name,
+            condition: initialItem.condition,
+            notes: initialItem.notes,
+          },
+        );
+        const savedItem =
+          itemResponse.data?.item ||
+          itemResponse.data?.roomItem ||
+          itemResponse.data;
+        const backendItemId =
+          savedItem?.roomItemId || savedItem?.itemId || savedItem?.id;
+        if (!backendItemId)
+          throw new Error("Backend did not return the initial room item ID.");
+
+        const withBackendItem = updated.map((room) =>
+          room.id === newRoomId
+            ? {
+                ...room,
+                items: room.items.map((item) =>
+                  item.id === initialItem.id
+                    ? { ...item, id: backendItemId, roomItemId: backendItemId }
+                    : item,
+                ),
+              }
+            : room,
+        );
+        saveRooms(withBackendItem);
       } catch (err) {
-        console.warn("Failed to register custom room on backend property:", err?.response?.data || err?.message);
+        console.error(
+          "Failed to save the new room and its initial inspection item:",
+          err?.response?.data || err?.message,
+        );
+        alert(
+          "The room was added locally, but could not be fully saved to the backend. Please refresh and check before continuing.",
+        );
       }
     }
   };
 
   const handleDeleteRoom = async (roomId, e) => {
+    if (isReadOnly || isLoadingInspection || !inspectionId) return;
     if (e) e.stopPropagation();
     if (
       !window.confirm(
@@ -258,11 +513,15 @@ export default function MoveOutInspectionPage({
 
     if (propertyKey) {
       try {
-        const currentRoomsList = updated.map((r) => ({ roomId: r.id, name: r.name, category: r.category }));
+        const currentRoomsList = updated.map((r) => ({
+          roomId: r.id,
+          name: r.name,
+          category: r.category,
+        }));
         await api.put(`/properties/${propertyKey}`, {
-          name: safeProperty.name || "Property",
-          address: safeProperty.address,
-          type: safeProperty.type || "Apartment",
+          name: safeProperty?.name || "Property",
+          address: safeProperty?.address,
+          type: safeProperty?.type || "Apartment",
           rooms: currentRoomsList,
         });
       } catch (err) {
@@ -271,87 +530,212 @@ export default function MoveOutInspectionPage({
     }
   };
 
-  const handleSaveRoomName = (roomId) => {
-    if (!editedRoomName.trim()) return;
-    const updated = roomsData.map((r) =>
-      r.id === roomId ? { ...r, name: editedRoomName.trim() } : r,
+  const handleSaveRoomName = async (roomId) => {
+    if (
+      isReadOnly ||
+      isLoadingInspection ||
+      !inspectionId ||
+      !propertyKey ||
+      !editedRoomName.trim()
+    )
+      return;
+    const roomToRename = roomsData.find((room) => room.id === roomId);
+    if (!roomToRename) return;
+
+    const previousName = roomToRename.name;
+    const updated = roomsData.map((room) =>
+      room.id === roomId ? { ...room, name: editedRoomName.trim() } : room,
     );
     saveRooms(updated);
     setIsEditingRoomName(false);
+
+    try {
+      const currentRoomsList = updated.map((room) => ({
+        roomId: room.roomId || room.id,
+        name: room.name,
+        category: room.category,
+      }));
+      await api.put(`/properties/${propertyKey}`, {
+        name: safeProperty?.name || "Property",
+        address: safeProperty?.address,
+        type: safeProperty?.type || "Apartment",
+        flatNo: safeProperty?.flatNo || "1",
+        image: safeProperty?.image || DEFAULT_IMAGE,
+        rooms: currentRoomsList,
+      });
+    } catch (err) {
+      console.error(
+        "Room rename could not be saved:",
+        err?.response?.data || err?.message,
+      );
+      alert("The room name could not be saved. Please try again.");
+      const reverted = updated.map((room) =>
+        room.id === roomId ? { ...room, name: previousName } : room,
+      );
+      saveRooms(reverted);
+    }
   };
 
+  const ensureBackendItemId = async (roomId, itemId) => {
+    const room = roomsData.find(
+      (entry) => entry.id === roomId || entry.roomId === roomId,
+    );
+
+    const item = room?.items?.find(
+      (entry) => entry.id === itemId || entry.roomItemId === itemId,
+    );
+
+    if (!room || !item) {
+      throw new Error("Could not find the room or item.");
+    }
+
+    if (!inspectionId) {
+      throw new Error("No backend inspection is available.");
+    }
+
+    if (item.roomItemId && !String(item.roomItemId).startsWith("item-")) {
+      return item.roomItemId;
+    }
+
+    const response = await api.post(`/inspections/${inspectionId}/items`, {
+      roomId: room.roomId || room.id || room.name,
+      itemName: item.name,
+      condition: item.condition || "no_issue",
+      notes: item.notes || "",
+    });
+
+    const savedItem =
+      response.data?.item || response.data?.roomItem || response.data;
+
+    const backendItemId = savedItem?.roomItemId || savedItem?.id;
+
+    if (!backendItemId) {
+      throw new Error("The backend did not return an item ID.");
+    }
+
+    const updatedRooms = roomsData.map((entry) => ({
+      ...entry,
+      items: (entry.items || []).map((existingItem) =>
+        entry.id === roomId &&
+        (existingItem.id === itemId || existingItem.roomItemId === itemId)
+          ? {
+              ...existingItem,
+              id: backendItemId,
+              roomItemId: backendItemId,
+            }
+          : existingItem,
+      ),
+    }));
+
+    saveRooms(updatedRooms);
+
+    return backendItemId;
+  };
   const handleAddItem = async (e) => {
     e.preventDefault();
-    if (!newItemName.trim() || !selectedRoomId) return;
+    if (isReadOnly || isLoadingInspection || !inspectionId) return;
 
-    const targetRoom = roomsData.find((r) => r.id === selectedRoomId);
-    const newItemId = `item-${Date.now()}`;
+    const itemName = newItemName.trim();
+    if (!itemName || !selectedRoomId) return;
 
-    const updated = roomsData.map((room) => {
-      if (room.id === selectedRoomId) {
-        return {
-          ...room,
-          items: [
-            ...room.items,
-            {
-              id: newItemId,
-              roomItemId: newItemId,
-              name: newItemName.trim(),
-              condition: "no_issue",
-              notes: "",
-              photos: [],
-              status: "Normal",
-            },
-          ],
-        };
-      }
-      return room;
-    });
+    const targetRoom = roomsData.find((room) => room.id === selectedRoomId);
+    if (!targetRoom) return;
 
-    saveRooms(updated);
-    setNewItemName("");
-    setAddItemModalOpen(false);
+    try {
+      const response = await api.post(`/inspections/${inspectionId}/items`, {
+        roomId: targetRoom.roomId || targetRoom.id || targetRoom.name,
+        itemName,
+        condition: "no_issue",
+        notes: "",
+      });
 
-    if (propertyKey) {
-      triggerNotification(
-        propertyKey,
-        "Departure Amenity Added",
-        `Added "${newItemName.trim()}" to ${targetRoom?.name || "section"}.`,
-        "system"
+      const savedItem =
+        response.data?.item || response.data?.roomItem || response.data;
+      const backendItemId =
+        savedItem?.roomItemId || savedItem?.itemId || savedItem?.id;
+      if (!backendItemId)
+        throw new Error("Backend did not return the new item ID.");
+
+      const newItem = {
+        id: backendItemId,
+        roomItemId: backendItemId,
+        name: itemName,
+        condition: "no_issue",
+        notes: "",
+        dispute: null,
+        photos: [],
+        status: "Normal",
+      };
+      const updated = roomsData.map((room) =>
+        room.id === selectedRoomId
+          ? { ...room, items: [...(room.items || []), newItem] }
+          : room,
       );
-    }
+      saveRooms(updated);
+      setNewItemName("");
+      setAddItemModalOpen(false);
 
-    if (inspectionId) {
-      try {
-        await api.post(`/inspections/${inspectionId}/items`, {
-          roomId: targetRoom?.name || "General Area",
-          itemName: newItemName.trim(),
-          condition: "no_issue",
-          notes: "",
-        });
-      } catch (err) {
-        console.warn("Backend item sync note:", err?.message);
+      if (propertyKey) {
+        triggerNotification(
+          propertyKey,
+          "Departure Amenity Added",
+          `Added "${itemName}" to ${targetRoom.name || "section"}.`,
+          "system",
+        );
       }
+    } catch (error) {
+      console.error(
+        "Failed to save new inspection item:",
+        error?.response?.data || error?.message,
+      );
+      alert("The item could not be saved. Please try again.");
     }
   };
 
-  const handleDeleteItem = (roomId, itemId) => {
-    const updated = roomsData.map((room) => {
-      if (room.id === roomId) {
-        return {
-          ...room,
-          items: room.items.filter((i) => i.id !== itemId && i.roomItemId !== itemId),
-        };
+  const handleDeleteItem = async (roomId, itemId) => {
+    if (isReadOnly || isLoadingInspection || !inspectionId) return;
+    const room = roomsData.find((entry) => entry.id === roomId);
+    const item = room?.items?.find(
+      (entry) => entry.id === itemId || entry.roomItemId === itemId,
+    );
+    if (!room || !item) return;
+    if (!window.confirm("Remove this item from the inspection?")) return;
+
+    if (
+      inspectionId &&
+      item.roomItemId &&
+      !String(item.roomItemId).startsWith("item-")
+    ) {
+      try {
+        await api.delete(
+          `/inspections/${inspectionId}/items/${item.roomItemId}`,
+        );
+      } catch (err) {
+        console.error(
+          "Item deletion failed:",
+          err?.response?.data || err?.message,
+        );
+        alert("The item could not be deleted from the saved inspection.");
+        return;
       }
-      return room;
-    });
+    }
+
+    const updated = roomsData.map((entry) =>
+      entry.id === roomId
+        ? {
+            ...entry,
+            items: (entry.items || []).filter(
+              (candidate) =>
+                candidate.id !== itemId && candidate.roomItemId !== itemId,
+            ),
+          }
+        : entry,
+    );
     saveRooms(updated);
   };
 
   const updateItemData = async (roomId, itemId, fields) => {
-    const targetRoom = roomsData.find((r) => r.id === roomId);
-    const targetItem = targetRoom?.items.find((i) => i.id === itemId || i.roomItemId === itemId);
-
+    if (isReadOnly || isLoadingInspection || !inspectionId) return;
     const updated = roomsData.map((room) => {
       if (room.id === roomId) {
         return {
@@ -377,79 +761,166 @@ export default function MoveOutInspectionPage({
 
     if (inspectionId) {
       try {
-        let backendRoomItemId = targetItem?.roomItemId;
+        const backendRoomItemId = await ensureBackendItemId(roomId, itemId);
 
-        if (!backendRoomItemId || String(backendRoomItemId).startsWith("item-")) {
-          const createRes = await api.post(`/inspections/${inspectionId}/items`, {
-            roomId: targetRoom?.name || "Living Room",
-            itemName: targetItem?.name || "General Amenity",
-            condition: fields.condition || targetItem?.condition || "no_issue",
-            notes: fields.notes !== undefined ? fields.notes : targetItem?.notes || "",
-          });
-          
-          backendRoomItemId = createRes.data?.roomItemId;
-          if (backendRoomItemId) {
-            targetItem.roomItemId = backendRoomItemId;
-          }
-          return; 
-        }
-
-        await api.patch(`/inspections/${inspectionId}/items/${backendRoomItemId}`, {
-          condition: fields.condition !== undefined ? fields.condition : undefined,
-          notes: fields.notes !== undefined ? fields.notes : undefined,
-        });
+        await api.patch(
+          `/inspections/${inspectionId}/items/${backendRoomItemId}`,
+          {
+            condition:
+              fields.condition !== undefined ? fields.condition : undefined,
+            notes: fields.notes !== undefined ? fields.notes : undefined,
+            dispute: fields.dispute !== undefined ? fields.dispute : undefined,
+            status: fields.status !== undefined ? fields.status : undefined,
+          },
+        );
       } catch (err) {
-        console.warn("Backend sync notice:", err?.response?.data || err?.message);
+        console.error(
+          "Move-Out item update failed:",
+          err?.response?.data || err?.message,
+        );
       }
     }
   };
 
   const handleClearDispute = (roomId, itemId) => {
-    updateItemData(roomId, itemId, { condition: "no_issue", notes: "" });
+    if (isReadOnly || isLoadingInspection || !inspectionId) return;
+
+    updateItemData(roomId, itemId, {
+      condition: "no_issue",
+      notes: "",
+      dispute: null,
+      status: "Normal",
+    });
   };
 
   const handlePhotoUpload = async (roomId, itemId, e) => {
-    const files = Array.from(e.target.files);
+    const input = e.target;
+    const files = Array.from(input.files || []);
+
     if (!files.length) return;
 
-    const compressedPhotos = [];
-    for (let i = 0; i < files.length; i++) {
-      const compressedUrl = await compressImage(files[i]);
-      compressedPhotos.push({
-        id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${i}`,
-        url: compressedUrl,
-        timestamp: new Date().toLocaleDateString(),
-      });
+    if (isReadOnly) {
+      alert("This inspection is read-only. Evidence cannot be uploaded.");
+      input.value = "";
+      return;
     }
 
-    const updated = roomsData.map((room) => {
-      if (room.id === roomId) {
-        return {
-          ...room,
-          items: room.items.map((item) => {
-            if (item.id === itemId || item.roomItemId === itemId) {
-              return {
-                ...item,
-                photos: [...(item.photos || []), ...compressedPhotos],
-              };
-            }
-            return item;
-          }),
-        };
+    if (!inspectionId) {
+      alert("The inspection has not finished loading.");
+      input.value = "";
+      return;
+    }
+
+    try {
+      const backendItemId = await ensureBackendItemId(roomId, itemId);
+
+      for (const file of files) {
+        const presignResponse = await api.post("/evidence/presigned-url", {
+          file_name: file.name,
+          content_type: file.type,
+          inspection_id: inspectionId,
+          item_id: backendItemId,
+        });
+
+        const { upload_url: uploadUrl, object_key: objectKey } =
+          presignResponse.data || {};
+
+        if (!uploadUrl || !objectKey) {
+          throw new Error("The backend did not return an upload URL.");
+        }
+
+        const uploadResponse = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": file.type },
+          body: file,
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Evidence upload failed (${uploadResponse.status}).`);
+        }
+
+        const confirmResponse = await api.post(
+          `/evidence/${inspectionId}/items/${backendItemId}/confirm`,
+          {
+            object_key: objectKey,
+            content_type: file.type,
+            metadata: { fileName: file.name },
+          },
+        );
+
+        const evidence =
+          confirmResponse.data?.evidence ||
+          confirmResponse.data?.data ||
+          confirmResponse.data;
+
+        if (!(evidence?.evidenceId || evidence?.id) || !evidence?.url) {
+          throw new Error(
+            "The backend did not return the confirmed evidence ID and URL.",
+          );
+        }
+
+        setRoomsData((previousRooms) => {
+          const updatedRooms = previousRooms.map((room) => ({
+            ...room,
+            items: (room.items || []).map((item) =>
+              room.id === roomId &&
+              (item.id === itemId || item.roomItemId === backendItemId)
+                ? {
+                    ...item,
+                    id: backendItemId,
+                    roomItemId: backendItemId,
+                    photos: [
+                      ...(item.photos || []),
+                      {
+                        id: evidence.evidenceId || evidence.id,
+                        evidenceId: evidence.evidenceId || evidence.id,
+                        objectKey,
+                        url: evidence.url,
+                        fileName: file.name,
+                        type: file.type,
+                        contentType: file.type,
+                        timestamp:
+                          evidence.createdAt || new Date().toISOString(),
+                      },
+                    ],
+                  }
+                : item,
+            ),
+          }));
+
+          try {
+            localStorage.setItem(
+              `hometrust_moveout_inspection_v6_${propertyKey}`,
+              JSON.stringify(updatedRooms),
+            );
+          } catch (storageError) {
+            console.warn("Could not cache Move-Out evidence:", storageError);
+          }
+
+          return updatedRooms;
+        });
       }
-      return room;
-    });
+    } catch (err) {
+      console.error(
+        "Move-Out evidence upload failed:",
+        err?.response?.data || err?.message,
+      );
 
-    saveRooms(updated);
+      alert("Evidence could not be saved. Please try again.");
+    } finally {
+      input.value = "";
+    }
   };
-
   const handleRaiseDispute = (e) => {
     e.preventDefault();
+    if (isReadOnly || isLoadingInspection || !inspectionId) return;
+    if (!disputeNote.trim()) return;
     if (!disputeTarget) return;
 
     const targetRoom = roomsData.find((r) => r.id === disputeTarget.roomId);
     const targetItem = targetRoom?.items.find(
-      (i) => i.id === disputeTarget.itemId || i.roomItemId === disputeTarget.itemId,
+      (i) =>
+        i.id === disputeTarget.itemId || i.roomItemId === disputeTarget.itemId,
     );
 
     const newCondition =
@@ -471,7 +942,7 @@ export default function MoveOutInspectionPage({
         propertyKey,
         "Move-Out Issue Flagged",
         `Departure issue flagged on ${targetItem?.name || "item"} (${disputeSeverity}).`,
-        "dispute"
+        "dispute",
       );
     }
 
@@ -487,7 +958,10 @@ export default function MoveOutInspectionPage({
 
   const filteredRooms = roomsData.filter((room) => {
     if (selectedCategory === "All") return true;
-    return room.category.toLowerCase() === selectedCategory.toLowerCase();
+    return (
+      String(room.category || "Rooms").toLowerCase() ===
+      selectedCategory.toLowerCase()
+    );
   });
 
   const activeRoom = roomsData.find((r) => r.id === selectedRoomId);
@@ -541,22 +1015,34 @@ export default function MoveOutInspectionPage({
             <button
               type="button"
               onClick={async () => {
-                if (propertyKey) {
-                  triggerNotification(
-                    propertyKey,
-                    "Move-Out Walkthrough Completed",
-                    "Departure condition has been recorded.",
-                    "system"
+                if (isReadOnly || isLoadingInspection || !inspectionId) return;
+                try {
+                  const response = await api.post(
+                    `/inspections/${inspectionId}/submit`,
+                  );
+                  const inspection = response.data?.inspection || response.data;
+                  setInspectionState(inspection?.state || "UNDER_REVIEW");
+                  if (propertyKey) {
+                    triggerNotification(
+                      propertyKey,
+                      "Move-Out Walkthrough Submitted",
+                      "The departure condition record has been submitted for review.",
+                      "system",
+                    );
+                  }
+                  if (onCompleteMoveOutInspection)
+                    onCompleteMoveOutInspection(roomsData);
+                } catch (err) {
+                  console.error(
+                    "Failed to submit Move-Out inspection:",
+                    err?.response?.data || err?.message,
+                  );
+                  alert(
+                    "The inspection could not be submitted. Please try again.",
                   );
                 }
-
-                if (inspectionId) {
-                  try { await api.post(`/inspections/${inspectionId}/submit`); } catch (err) { console.error(err); }
-                }
-                if (onCompleteMoveOutInspection) {
-                  onCompleteMoveOutInspection(roomsData);
-                }
               }}
+              disabled={isReadOnly || isLoadingInspection || !inspectionId}
               className="text-xs font-extrabold text-[#4A1E6D] bg-white hover:bg-slate-100 px-3.5 py-1.5 rounded-full cursor-pointer shrink-0 transition-colors shadow-md"
             >
               Review & Sign
@@ -567,7 +1053,8 @@ export default function MoveOutInspectionPage({
         {/* Collaborative Notice Banner */}
         {isReadOnly && (
           <div className="bg-amber-500/20 border-b border-amber-500/30 px-4 py-2 text-center text-amber-900 text-xs font-medium backdrop-blur-md">
-            🤝 <strong>Collaborative Mode:</strong> Baseline is saved, but you can still add departure notes, upload photos, or dispute items.
+            🔒 <strong>Inspection locked:</strong> This Move-Out inspection is
+            finalised and can no longer be edited.
           </div>
         )}
 
@@ -595,6 +1082,7 @@ export default function MoveOutInspectionPage({
                 accept="image/*"
                 capture="environment"
                 onChange={handlePropertyPhotoChange}
+                disabled={isReadOnly || isLoadingInspection || !inspectionId}
                 className="hidden"
               />
             </label>
@@ -624,6 +1112,7 @@ export default function MoveOutInspectionPage({
                 <button
                   type="button"
                   onClick={() => {
+                    if (isReadOnly || isLoadingInspection) return;
                     setIsAddingCustomCategory(false);
                     setAddRoomModalOpen(true);
                   }}
@@ -637,7 +1126,8 @@ export default function MoveOutInspectionPage({
               <div className="space-y-3">
                 {filteredRooms.length === 0 ? (
                   <div className="text-center py-10 text-slate-400 text-xs font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                    No inspection sections yet. Click "+ Add Section" or add a room to begin!
+                    No inspection sections yet. Click "+ Add Section" or add a
+                    room to begin!
                   </div>
                 ) : (
                   filteredRooms.map((room) => {
@@ -705,6 +1195,11 @@ export default function MoveOutInspectionPage({
                             <button
                               type="button"
                               onClick={(e) => handleDeleteRoom(room.id, e)}
+                              disabled={
+                                isReadOnly ||
+                                isLoadingInspection ||
+                                !inspectionId
+                              }
                               className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white/60 rounded-lg transition-colors cursor-pointer"
                               title="Delete Room"
                             >
@@ -730,11 +1225,17 @@ export default function MoveOutInspectionPage({
                         type="text"
                         value={editedRoomName}
                         onChange={(e) => setEditedRoomName(e.target.value)}
+                        disabled={
+                          isReadOnly || isLoadingInspection || !inspectionId
+                        }
                         className="border border-purple-300 rounded-lg px-2 py-1 text-xs font-extrabold text-slate-900 focus:outline-none focus:ring-1 focus:ring-purple-800 flex-1 bg-white"
                       />
                       <button
                         type="button"
                         onClick={() => handleSaveRoomName(activeRoom.id)}
+                        disabled={
+                          isReadOnly || isLoadingInspection || !inspectionId
+                        }
                         className="px-2 py-1 bg-[#4A1E6D] text-white rounded-lg text-[10px] font-bold cursor-pointer"
                       >
                         Save
@@ -748,6 +1249,7 @@ export default function MoveOutInspectionPage({
                       <button
                         type="button"
                         onClick={() => {
+                          if (isReadOnly || isLoadingInspection) return;
                           setEditedRoomName(activeRoom.name);
                           setIsEditingRoomName(true);
                         }}
@@ -770,6 +1272,9 @@ export default function MoveOutInspectionPage({
                   <button
                     type="button"
                     onClick={() => handleDeleteRoom(activeRoom.id)}
+                    disabled={
+                      isReadOnly || isLoadingInspection || !inspectionId
+                    }
                     className="p-1.5 text-red-600 bg-red-50 hover:bg-red-100 rounded-xl cursor-pointer transition-colors"
                     title="Delete whole room"
                   >
@@ -778,7 +1283,14 @@ export default function MoveOutInspectionPage({
 
                   <button
                     type="button"
-                    onClick={() => setAddItemModalOpen(true)}
+                    onClick={() =>
+                      !isReadOnly &&
+                      !isLoadingInspection &&
+                      setAddItemModalOpen(true)
+                    }
+                    disabled={
+                      isReadOnly || isLoadingInspection || !inspectionId
+                    }
                     className="inline-flex items-center gap-1 text-xs font-bold bg-[#4A1E6D] text-white px-3 py-1.5 rounded-xl hover:bg-purple-950 cursor-pointer shadow-xs"
                   >
                     <Plus className="w-3.5 h-3.5" /> Add Amenity
@@ -856,6 +1368,12 @@ export default function MoveOutInspectionPage({
                               onClick={() =>
                                 handleDeleteItem(activeRoom.id, item.id)
                               }
+                              disabled={
+                                isReadOnly ||
+                                isLoadingInspection ||
+                                !inspectionId
+                              }
+                              aria-label="Remove item"
                               className="text-slate-400 hover:text-red-600 p-1 cursor-pointer"
                               title="Remove item"
                             >
@@ -871,7 +1389,8 @@ export default function MoveOutInspectionPage({
                               <div className="flex items-center gap-1.5">
                                 <ShieldAlert className="w-4 h-4 text-amber-600" />
                                 <span className="text-xs font-extrabold text-amber-900">
-                                  Active Dispute Record ({item.dispute.raisedBy})
+                                  Active Dispute Record ({item.dispute.raisedBy}
+                                  )
                                 </span>
                               </div>
                               {activeSeverityObj && (
@@ -894,6 +1413,11 @@ export default function MoveOutInspectionPage({
                                 type="button"
                                 onClick={() =>
                                   handleClearDispute(activeRoom.id, item.id)
+                                }
+                                disabled={
+                                  isReadOnly ||
+                                  isLoadingInspection ||
+                                  !inspectionId
                                 }
                                 className="text-red-600 hover:underline cursor-pointer font-bold flex items-center gap-0.5"
                               >
@@ -927,6 +1451,11 @@ export default function MoveOutInspectionPage({
                               onChange={(e) =>
                                 handlePhotoUpload(activeRoom.id, item.id, e)
                               }
+                              disabled={
+                                isReadOnly ||
+                                isLoadingInspection ||
+                                !inspectionId
+                              }
                               className="hidden"
                             />
                           </label>
@@ -948,6 +1477,11 @@ export default function MoveOutInspectionPage({
                                     updateItemData(activeRoom.id, item.id, {
                                       condition: option.id,
                                     })
+                                  }
+                                  disabled={
+                                    isReadOnly ||
+                                    isLoadingInspection ||
+                                    !inspectionId
                                   }
                                   className={`flex items-center gap-2 p-2 rounded-xl text-left border cursor-pointer transition-all ${
                                     isChecked
@@ -988,6 +1522,9 @@ export default function MoveOutInspectionPage({
                                 notes: e.target.value,
                               })
                             }
+                            disabled={
+                              isReadOnly || isLoadingInspection || !inspectionId
+                            }
                             placeholder="Note condition details, scratches, stains..."
                             className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-purple-800 text-slate-800 placeholder-slate-400"
                           />
@@ -998,6 +1535,7 @@ export default function MoveOutInspectionPage({
                           <button
                             type="button"
                             onClick={() => {
+                              if (isReadOnly || isLoadingInspection) return;
                               setDisputeTarget({
                                 roomId: activeRoom.id,
                                 itemId: item.id,
@@ -1065,6 +1603,9 @@ export default function MoveOutInspectionPage({
                   <select
                     value={newRoomCategory}
                     onChange={(e) => setNewRoomCategory(e.target.value)}
+                    disabled={
+                      isReadOnly || isLoadingInspection || !inspectionId
+                    }
                     className="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-800 bg-white"
                   >
                     <option value="Rooms">Rooms</option>
@@ -1089,6 +1630,9 @@ export default function MoveOutInspectionPage({
                     placeholder="e.g. Terrace, Store Room, Basement"
                     value={customCategory}
                     onChange={(e) => setCustomCategory(e.target.value)}
+                    disabled={
+                      isReadOnly || isLoadingInspection || !inspectionId
+                    }
                     className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-purple-800 text-slate-800 bg-white"
                   />
                   <button
@@ -1112,6 +1656,7 @@ export default function MoveOutInspectionPage({
                 placeholder="e.g. Bedroom 2, Guest Bath, Back Balcony"
                 value={newRoomName}
                 onChange={(e) => setNewRoomName(e.target.value)}
+                disabled={isReadOnly || isLoadingInspection || !inspectionId}
                 className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-purple-800 text-slate-800 bg-white"
               />
             </div>
@@ -1126,6 +1671,7 @@ export default function MoveOutInspectionPage({
               </button>
               <button
                 type="submit"
+                disabled={isReadOnly || isLoadingInspection || !inspectionId}
                 className="px-4 py-2 text-xs font-bold text-white bg-[#4A1E6D] hover:bg-purple-950 rounded-xl cursor-pointer shadow-sm"
               >
                 Create Section
@@ -1156,6 +1702,7 @@ export default function MoveOutInspectionPage({
                 placeholder="e.g. Curtains, Wooden Cabinet, Sink, Railing"
                 value={newItemName}
                 onChange={(e) => setNewItemName(e.target.value)}
+                disabled={isReadOnly || isLoadingInspection || !inspectionId}
                 className="w-full border border-slate-300 rounded-xl p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-purple-800 text-slate-800 bg-white"
               />
             </div>
@@ -1170,6 +1717,7 @@ export default function MoveOutInspectionPage({
               </button>
               <button
                 type="submit"
+                disabled={isReadOnly || isLoadingInspection || !inspectionId}
                 className="px-4 py-2 text-xs font-bold text-white bg-[#4A1E6D] hover:bg-purple-950 rounded-xl cursor-pointer shadow-sm"
               >
                 Add Item
@@ -1199,7 +1747,14 @@ export default function MoveOutInspectionPage({
                   <button
                     key={s.id}
                     type="button"
-                    onClick={() => setDisputeSeverity(s.id)}
+                    onClick={() =>
+                      !isReadOnly &&
+                      !isLoadingInspection &&
+                      setDisputeSeverity(s.id)
+                    }
+                    disabled={
+                      isReadOnly || isLoadingInspection || !inspectionId
+                    }
                     className={`py-2 px-2 text-[11px] font-bold rounded-xl border text-center transition-all cursor-pointer ${
                       disputeSeverity === s.id
                         ? `${s.style} ring-2 ring-purple-800`
@@ -1221,6 +1776,7 @@ export default function MoveOutInspectionPage({
                 rows={3}
                 value={disputeNote}
                 onChange={(e) => setDisputeNote(e.target.value)}
+                disabled={isReadOnly || isLoadingInspection || !inspectionId}
                 placeholder="State your perspective or condition disagreement..."
                 className="w-full border border-slate-300 rounded-2xl p-3 text-xs focus:outline-none focus:ring-2 focus:ring-purple-800 text-slate-800 bg-white"
               />
@@ -1236,6 +1792,7 @@ export default function MoveOutInspectionPage({
               </button>
               <button
                 type="submit"
+                disabled={isReadOnly || isLoadingInspection || !inspectionId}
                 className="px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl cursor-pointer shadow-sm"
               >
                 Post Comment / Dispute

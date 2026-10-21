@@ -1,6 +1,26 @@
 import { useRef, useState, useEffect } from "react";
 import { RotateCcw, Check } from "lucide-react";
 
+function getImageSource(signature) {
+  if (typeof signature === "string") {
+    return signature.startsWith("data:image/") ||
+      /^https?:\/\//i.test(signature)
+      ? signature
+      : null;
+  }
+  if (!signature || typeof signature !== "object") return null;
+  const candidate =
+    signature.url ||
+    signature.imageUrl ||
+    signature.signatureUrl ||
+    signature.signedImageUrl ||
+    signature.dataUrl;
+  return typeof candidate === "string" &&
+    (candidate.startsWith("data:image/") || /^https?:\/\//i.test(candidate))
+    ? candidate
+    : null;
+}
+
 export default function SignatureCanvas({
   label,
   onSave,
@@ -9,7 +29,8 @@ export default function SignatureCanvas({
 }) {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [hasDrawn, setHasDrawn] = useState(!!savedSignature);
+  const [hasDrawn, setHasDrawn] = useState(false);
+  const imageSource = getImageSource(savedSignature);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -23,44 +44,40 @@ export default function SignatureCanvas({
   const getCoordinates = (e) => {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const point = e.touches ? e.touches[0] : e;
     return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
+      x: (point.clientX - rect.left) * (canvas.width / rect.width),
+      y: (point.clientY - rect.top) * (canvas.height / rect.height),
     };
   };
 
   const startDrawing = (e) => {
     if (disabled) return;
+    if (e.cancelable) e.preventDefault();
     setIsDrawing(true);
     const { x, y } = getCoordinates(e);
     const ctx = canvasRef.current.getContext("2d");
     ctx.beginPath();
     ctx.moveTo(x, y);
+    setHasDrawn(true);
   };
 
   const draw = (e) => {
     if (!isDrawing || disabled) return;
-    e.preventDefault();
+    if (e.cancelable) e.preventDefault();
     const { x, y } = getCoordinates(e);
     const ctx = canvasRef.current.getContext("2d");
     ctx.lineTo(x, y);
     ctx.stroke();
-    setHasDrawn(true);
   };
 
-  const stopDrawing = () => {
-    setIsDrawing(false);
-  };
+  const stopDrawing = () => setIsDrawing(false);
 
   const handleClear = () => {
     if (disabled) return;
     const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext("2d");
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
+    if (canvas)
+      canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
     setHasDrawn(false);
     onSave(null);
   };
@@ -68,26 +85,24 @@ export default function SignatureCanvas({
   const handleConfirm = () => {
     if (!hasDrawn || disabled) return;
     const canvas = canvasRef.current;
-    const dataUrl = canvas.toDataURL("image/png");
-    onSave(dataUrl);
+    if (canvas) onSave(canvas.toDataURL("image/png"));
   };
 
   return (
     <div className="space-y-2 border border-slate-200 rounded-2xl p-4 bg-slate-50">
       <div className="flex justify-between items-center">
         <label className="text-xs font-bold text-slate-700">{label}</label>
-        {savedSignature && (
-          <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
-            <Check className="w-3.5 h-3.5" /> Signature Saved
+        {imageSource && (
+          <span className="text-[11px] font-semibold text-amber-700 flex items-center gap-1">
+            <Check className="w-3.5 h-3.5" /> Ready to submit
           </span>
         )}
       </div>
-
-      {savedSignature ? (
-        <div className="bg-white border border-emerald-200 rounded-xl p-2 text-center relative group">
+      {imageSource ? (
+        <div className="bg-white border border-slate-200 rounded-xl p-2 text-center relative group">
           <img
-            src={savedSignature}
-            alt={`${label} signature`}
+            src={imageSource}
+            alt={`${label} signature preview`}
             className="h-20 mx-auto object-contain"
           />
           {!disabled && (
@@ -130,11 +145,17 @@ export default function SignatureCanvas({
                 onClick={handleConfirm}
                 className="bg-[#4A1E6D] hover:bg-purple-950 disabled:opacity-40 text-white font-bold px-3.5 py-1.5 rounded-xl transition-colors cursor-pointer"
               >
-                Save Signature
+                Use Signature
               </button>
             </div>
           )}
         </div>
+      )}
+      {imageSource && (
+        <p className="text-[11px] text-slate-500">
+          This is a local preview. It is not saved until you submit it and the
+          server confirms success.
+        </p>
       )}
     </div>
   );
