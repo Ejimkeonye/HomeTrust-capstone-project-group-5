@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import {
   ArrowLeft,
@@ -26,25 +25,17 @@ export default function ProfilePage({
   const [isSharing, setIsSharing] = useState(false);
   const [shareMessage, setShareMessage] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: user?.name || user?.firstName || "",
     phoneNumber: user?.phoneNumber || "",
   });
 
-  const formatName = (rawName) => {
-    if (!rawName) return "HomeTrust User";
-
-    return rawName.includes(" ")
-      ? rawName
-      : rawName.replace(/([a-z])([A-Z])/g, "$1 $2");
-  };
-
-  const userName = formatName(user?.name || user?.firstName);
+  const userName = user?.name || user?.firstName || "HomeTrust User";
   const userEmail = user?.email || "No email available";
   const userRole = user?.role || "User";
   const userPhone = user?.phoneNumber || "No phone number added";
   const propertyCount = Array.isArray(properties) ? properties.length : 0;
-
   const initials = userName
     .trim()
     .split(/\s+/)
@@ -52,7 +43,6 @@ export default function ProfilePage({
     .slice(0, 2)
     .map((part) => part[0].toUpperCase())
     .join("");
-
   const permissionText =
     userRole.toLowerCase() === "tenant"
       ? "Collaborative & Dispute Access"
@@ -67,29 +57,38 @@ export default function ProfilePage({
     setIsEditing(true);
   };
 
-  const handleSave = (event) => {
+  const handleSave = async (event) => {
     event.preventDefault();
-
-    const cleanedName = formData.name.trim();
-    const cleanedPhone = formData.phoneNumber.trim();
-
-    if (!cleanedName) {
+    if (isSaving) return;
+    const name = formData.name.trim();
+    const phoneNumber = formData.phoneNumber.trim();
+    if (!name) {
       setSaveMessage("Please enter your name.");
       return;
     }
-
     if (typeof onUpdateProfile !== "function") {
-      setSaveMessage("Profile updates are not connected yet.");
+      setSaveMessage("Profile updates are not connected to the backend.");
       return;
     }
-
-    onUpdateProfile({
-      name: cleanedName,
-      phoneNumber: cleanedPhone,
-    });
-
+    setIsSaving(true);
     setSaveMessage("");
-    setIsEditing(false);
+    try {
+      await onUpdateProfile({ name, phoneNumber });
+      setIsEditing(false);
+      setSaveMessage("");
+    } catch (error) {
+      const status = error?.response?.status;
+      const backendMessage = error?.response?.data?.message;
+      setSaveMessage(
+        backendMessage ||
+          error?.message ||
+          (status
+            ? `Profile update failed (${status}).`
+            : "Unable to save your profile. Please try again."),
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleShare = async () => {
@@ -98,7 +97,6 @@ export default function ProfilePage({
       text: "HomeTrust helps landlords and tenants document property conditions and work together on inspections.",
       url: window.location.origin,
     };
-
     try {
       if (navigator.share) {
         await navigator.share(shareData);
@@ -106,109 +104,77 @@ export default function ProfilePage({
         setIsSharing(false);
         return;
       }
-
       await navigator.clipboard.writeText(
         `${shareData.text}\n${shareData.url}`,
       );
-
       setShareMessage("HomeTrust introduction copied!");
       setIsSharing(true);
     } catch (error) {
       if (error?.name === "AbortError") return;
-
-      setShareMessage("Sharing isn't available here. Please copy the app URL from your browser.");
+      setShareMessage(
+        "Sharing isn't available here. You can copy the app URL below.",
+      );
       setIsSharing(true);
     }
   };
 
   const accountRows = [
-    {
-      label: "Email address",
-      value: userEmail,
-      icon: Mail,
-    },
-    {
-      label: "Phone number",
-      value: userPhone,
-      icon: Phone,
-    },
-    {
-      label: "Permissions",
-      value: permissionText,
-      icon: ShieldCheck,
-    },
+    { label: "Email address", value: userEmail, icon: Mail },
+    { label: "Phone number", value: userPhone, icon: Phone },
+    { label: "Permissions", value: permissionText, icon: ShieldCheck },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-100 sm:p-6 font-sans">
+    <div className="min-h-screen bg-slate-100 font-sans sm:p-6">
       <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col overflow-hidden bg-white text-slate-900 shadow-xl sm:min-h-190 sm:rounded-[36px] sm:border sm:border-slate-200">
-        {/* Purple hero section */}
         <section className="relative overflow-hidden bg-linear-to-br from-[#35104F] via-[#4A1E6D] to-[#7139A0] px-6 pb-10 pt-5 text-white">
-          {/* Decorative bubbles */}
-          <div className="pointer-events-none absolute -right-12 top-8 h-40 w-40 rounded-full border border-white/10 bg-white/5" />
-          <div className="pointer-events-none absolute -right-2 top-24 h-24 w-24 rounded-full border border-white/10" />
-          <div className="pointer-events-none absolute -bottom-12 -left-10 h-36 w-36 rounded-full bg-white/5" />
-          <div className="pointer-events-none absolute left-1/2 top-36 h-3 w-3 rounded-full bg-purple-200/40" />
-
           <header className="relative z-10 flex items-center justify-between">
             <button
               type="button"
               onClick={onBack}
               aria-label="Go back"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 transition hover:bg-white/20"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 hover:bg-white/20"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
-
             <h1 className="text-base font-extrabold tracking-wide">
               My Profile
             </h1>
-
             <button
               type="button"
               onClick={handleShare}
               aria-label="Share HomeTrust"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 transition hover:bg-white/20"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 hover:bg-white/20"
             >
               <Share2 className="h-4 w-4" />
             </button>
           </header>
-
           <div className="relative z-10 mt-8 flex flex-col items-center text-center">
-            <div className="relative">
-              <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-white/70 bg-purple-100 text-3xl font-extrabold text-[#4A1E6D] shadow-xl">
-                {initials || <UserRound className="h-10 w-10" />}
-              </div>
-
-              <span className="absolute bottom-1 right-0 h-5 w-5 rounded-full border-2 border-[#4A1E6D] bg-emerald-400" />
+            <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-white/70 bg-purple-100 text-3xl font-extrabold text-[#4A1E6D] shadow-xl">
+              {initials || <UserRound className="h-10 w-10" />}
             </div>
-
             <h2 className="mt-4 max-w-full wrap-break-word text-2xl font-extrabold">
               {userName}
             </h2>
-
             <span className="mt-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-[11px] font-bold uppercase tracking-widest">
               {userRole}
             </span>
-
             <p className="mt-3 max-w-xs text-sm leading-relaxed text-purple-100">
               Your HomeTrust account and property workspace
             </p>
-
             <div className="mt-5 flex w-full max-w-xs gap-3">
               <button
                 type="button"
                 onClick={handleEditOpen}
-                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-extrabold text-[#4A1E6D] shadow-md transition hover:bg-purple-50"
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-extrabold text-[#4A1E6D] shadow-md hover:bg-purple-50"
               >
                 <Pencil className="h-4 w-4" />
                 Edit profile
               </button>
-
               <button
                 type="button"
                 onClick={handleShare}
-                className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/20"
+                className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-bold text-white hover:bg-white/20"
               >
                 <Share2 className="h-4 w-4" />
                 Share
@@ -217,9 +183,7 @@ export default function ProfilePage({
           </div>
         </section>
 
-        {/* Main content */}
         <main className="flex-1 space-y-6 px-5 py-6">
-          {/* Property count only — no duplicate inspection/report stats */}
           <section className="flex items-center justify-between rounded-3xl border border-purple-100 bg-linear-to-r from-purple-50 to-white p-5">
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -229,16 +193,15 @@ export default function ProfilePage({
                 {propertyCount}
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                {propertyCount === 1 ? "Property in your workspace" : "Properties in your workspace"}
+                {propertyCount === 1
+                  ? "Property in your workspace"
+                  : "Properties in your workspace"}
               </p>
             </div>
-
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#4A1E6D] text-white shadow-lg shadow-purple-200">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#4A1E6D] text-white shadow-lg">
               <Building2 className="h-7 w-7" />
             </div>
           </section>
-
-          {/* Account information */}
           <section>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-extrabold text-slate-900">
@@ -252,21 +215,15 @@ export default function ProfilePage({
                 Edit details
               </button>
             </div>
-
             <div className="space-y-1 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
               {accountRows.map(({ label, value, icon: Icon }, index) => (
                 <div
                   key={label}
-                  className={`flex min-w-0 items-center gap-3 rounded-2xl p-3 ${
-                    index !== accountRows.length - 1
-                      ? "border-b border-slate-100"
-                      : ""
-                  }`}
+                  className={`flex min-w-0 items-center gap-3 rounded-2xl p-3 ${index !== accountRows.length - 1 ? "border-b border-slate-100" : ""}`}
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-[#5B267F]">
-                    <Icon className="h-4.5 w-4.5" />
+                    <Icon className="h-5 w-5" />
                   </div>
-
                   <div className="min-w-0 flex-1">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                       {label}
@@ -279,7 +236,6 @@ export default function ProfilePage({
               ))}
             </div>
           </section>
-
           {shareMessage && (
             <div
               role="status"
@@ -290,30 +246,26 @@ export default function ProfilePage({
           )}
         </main>
 
-        {/* Sign out */}
         <footer className="border-t border-slate-100 bg-white p-5">
           <button
             type="button"
             onClick={onLogout}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-100 bg-red-50 py-3.5 text-sm font-extrabold text-red-600 transition hover:bg-red-100"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-100 bg-red-50 py-3.5 text-sm font-extrabold text-red-600 hover:bg-red-100"
           >
             <LogOut className="h-4 w-4" />
             Sign out
           </button>
-
           <p className="mt-3 text-center text-[10px] font-medium tracking-wide text-slate-400">
             HOME TRUST · YOUR PROPERTY RECORDS, TOGETHER
           </p>
         </footer>
 
-        {/* Edit profile modal */}
         {isEditing && (
           <div
             className="absolute inset-0 z-30 flex items-end justify-center bg-slate-950/50 sm:items-center sm:p-4"
             onClick={(event) => {
-              if (event.target === event.currentTarget) {
+              if (event.target === event.currentTarget && !isSaving)
                 setIsEditing(false);
-              }
             }}
           >
             <section
@@ -331,20 +283,19 @@ export default function ProfilePage({
                     Edit profile
                   </h2>
                   <p className="mt-1 text-xs text-slate-500">
-                    Update your personal details.
+                    Changes are saved to your account.
                   </p>
                 </div>
-
                 <button
                   type="button"
+                  disabled={isSaving}
                   onClick={() => setIsEditing(false)}
                   aria-label="Close edit profile"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </div>
-
               <form onSubmit={handleSave} className="space-y-4">
                 <div>
                   <label
@@ -357,6 +308,7 @@ export default function ProfilePage({
                     id="profile-name"
                     type="text"
                     autoComplete="name"
+                    maxLength={120}
                     value={formData.name}
                     onChange={(event) =>
                       setFormData((previous) => ({
@@ -365,11 +317,10 @@ export default function ProfilePage({
                       }))
                     }
                     required
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
                     placeholder="Enter your full name"
                   />
                 </div>
-
                 <div>
                   <label
                     htmlFor="profile-phone"
@@ -388,11 +339,13 @@ export default function ProfilePage({
                         phoneNumber: event.target.value,
                       }))
                     }
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
-                    placeholder="Enter your phone number"
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-100"
+                    placeholder="e.g. +44 7700 900000"
                   />
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Enter 7–15 digits, optionally with a country code.
+                  </p>
                 </div>
-
                 <div>
                   <label
                     htmlFor="profile-email"
@@ -408,10 +361,9 @@ export default function ProfilePage({
                     className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500"
                   />
                   <p className="mt-1.5 text-[11px] text-slate-400">
-                    Email changes should be verified through your account settings.
+                    Email changes are not supported by this endpoint.
                   </p>
                 </div>
-
                 <div>
                   <label
                     htmlFor="profile-role"
@@ -427,30 +379,26 @@ export default function ProfilePage({
                     className="w-full cursor-not-allowed rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500"
                   />
                 </div>
-
                 {saveMessage && (
-                  <p role="alert" className="text-xs font-semibold text-red-600">
+                  <p
+                    role="alert"
+                    className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700"
+                  >
                     {saveMessage}
                   </p>
                 )}
-
                 <button
                   type="submit"
-                  className="w-full rounded-2xl bg-[#4A1E6D] py-3.5 text-sm font-extrabold text-white transition hover:bg-[#35104F]"
+                  disabled={isSaving}
+                  className="w-full rounded-2xl bg-[#4A1E6D] py-3.5 text-sm font-extrabold text-white transition hover:bg-[#35104F] disabled:cursor-wait disabled:opacity-60"
                 >
-                  Save changes
+                  {isSaving ? "Saving…" : "Save changes"}
                 </button>
-
-                <p className="text-center text-[11px] leading-relaxed text-slate-400">
-                  Profile saving currently updates this app session. Persistent
-                  account updates will be connected to the backend user API.
-                </p>
               </form>
             </section>
           </div>
         )}
 
-        {/* Share fallback */}
         {isSharing && (
           <div className="absolute inset-0 z-40 flex items-center justify-center bg-slate-950/50 p-5">
             <section
@@ -480,11 +428,9 @@ export default function ProfilePage({
                   <X className="h-4 w-4" />
                 </button>
               </div>
-
               <p className="mt-4 wrap-break-word rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
                 {shareMessage || window.location.origin}
               </p>
-
               <button
                 type="button"
                 onClick={async () => {

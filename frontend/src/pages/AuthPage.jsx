@@ -26,18 +26,14 @@ export default function AuthPage({
   // Password validation
   const hasEightChars = formData.password.length >= 8;
   const hasUpperCase = /[A-Z]/.test(formData.password);
-  const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(
-    formData.password
-  );
+  const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(formData.password);
 
-  const passwordIsValid =
-    hasEightChars && hasUpperCase && hasSpecialChar;
+  const passwordIsValid = hasEightChars && hasUpperCase && hasSpecialChar;
 
   // Email validation
   const cleanEmail = formData.email.trim().toLowerCase();
 
-  const isValidEmail =
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
+  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
 
   // International phone validation.
   // Numbers without a + country code default to Nigeria.
@@ -45,9 +41,7 @@ export default function AuthPage({
     ? parsePhoneNumberFromString(formData.phone.trim(), "NG")
     : undefined;
 
-  const isValidPhone = Boolean(
-    parsedPhoneNumber?.isValid()
-  );
+  const isValidPhone = Boolean(parsedPhoneNumber?.isValid());
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -64,10 +58,7 @@ export default function AuthPage({
     e.preventDefault();
     setErrorMessage("");
 
-    if (
-      !formData.firstName.trim() ||
-      !formData.lastName.trim()
-    ) {
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
       setErrorMessage("Please enter your first and last name.");
       return;
     }
@@ -79,7 +70,7 @@ export default function AuthPage({
 
     if (!isValidPhone) {
       setErrorMessage(
-        "Please enter a valid phone number. Include your country code for international numbers."
+        "Please enter a valid phone number. Include your country code for international numbers.",
       );
       return;
     }
@@ -97,7 +88,7 @@ export default function AuthPage({
     // Invitation acceptance belongs to the inspection invitation flow.
     if (inviteToken) {
       setErrorMessage(
-        "Please continue through the inspection invitation screen to accept this invitation."
+        "Please continue through the inspection invitation screen to accept this invitation.",
       );
       return;
     }
@@ -106,14 +97,14 @@ export default function AuthPage({
 
     if (typeof triggerSuccess !== "function") {
       setErrorMessage(
-        "Unable to continue. Please reload the page and try again."
+        "Unable to continue. Please reload the page and try again.",
       );
       return;
     }
 
     if (!passwordIsValid) {
       setErrorMessage(
-        "Your password must contain at least 8 characters, one uppercase letter, and one special character."
+        "Your password must contain at least 8 characters, one uppercase letter, and one special character.",
       );
       return;
     }
@@ -124,14 +115,11 @@ export default function AuthPage({
       return;
     }
 
-    const fullName = [
-      formData.firstName.trim(),
-      formData.lastName.trim(),
-    ].join(" ");
+    const fullName = [formData.firstName.trim(), formData.lastName.trim()].join(
+      " ",
+    );
 
-    const backendRole = formData.role
-      .toLowerCase()
-      .includes("landlord")
+    const backendRole = formData.role.toLowerCase().includes("landlord")
       ? "Landlord"
       : "Tenant";
 
@@ -152,7 +140,7 @@ export default function AuthPage({
 
       if (!token || !userData.userId) {
         throw new Error(
-          "The server returned an incomplete registration response."
+          "The server returned an incomplete registration response.",
         );
       }
 
@@ -170,7 +158,7 @@ export default function AuthPage({
 
       setErrorMessage(
         error.response?.data?.message ||
-          "Registration failed. Please check your details and try again."
+          "Registration failed. Please check your details and try again.",
       );
 
       setIsLoading(false);
@@ -185,7 +173,7 @@ export default function AuthPage({
       console.error("Post-registration callback error:", error);
 
       setErrorMessage(
-        "Your account was created, but we couldn't open your dashboard. Please sign in."
+        "Your account was created, but we couldn't open your dashboard. Please sign in.",
       );
     }
   };
@@ -206,17 +194,13 @@ export default function AuthPage({
                 onBack?.();
               }
             }}
-            aria-label={
-              step === 2 ? "Back to personal details" : "Go back"
-            }
+            aria-label={step === 2 ? "Back to personal details" : "Go back"}
             className="w-8 h-8 rounded-full border border-purple-400 flex items-center justify-center hover:bg-purple-700 transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4 text-white" />
           </button>
 
-          <h1 className="text-xl font-bold tracking-wide">
-            Create account
-          </h1>
+          <h1 className="text-xl font-bold tracking-wide">Create account</h1>
 
           <div className="w-8"></div>
         </div>
@@ -225,9 +209,7 @@ export default function AuthPage({
         <div className="px-6 pt-5">
           <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-2">
             <span
-              className={
-                step === 1 ? "text-purple-800" : "text-emerald-600"
-              }
+              className={step === 1 ? "text-purple-800" : "text-emerald-600"}
             >
               1. Personal details
             </span>
@@ -351,15 +333,13 @@ export default function AuthPage({
                 placeholder="e.g. +234 801 234 5678"
                 value={formData.phone}
                 onChange={handleChange}
-                aria-invalid={
-                  formData.phone.trim().length > 0 && !isValidPhone
-                }
+                aria-invalid={formData.phone.trim().length > 0 && !isValidPhone}
                 className="w-full bg-slate-100/80 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-700"
               />
 
               <p className="text-xs text-slate-500 mt-1">
-                Include your country code for international numbers,
-                for example +1 for the US or +44 for the UK.
+                Include your country code for international numbers, for example
+                +1 for the US or +44 for the UK.
               </p>
             </div>
 
@@ -401,12 +381,8 @@ export default function AuthPage({
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setShowPassword((previous) => !previous)
-                  }
-                  aria-label={
-                    showPassword ? "Hide password" : "Show password"
-                  }
+                  onClick={() => setShowPassword((previous) => !previous)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                   className="absolute right-3 top-3.5 text-slate-400 hover:text-slate-600"
                 >
                   {showPassword ? (
@@ -487,8 +463,7 @@ export default function AuthPage({
               </button>
 
               <p className="text-xs text-slate-500 text-center mt-3">
-                Your information will be used to create your HomeCompa
-                account.
+                Your information will be used to create your HomeCompa account.
               </p>
             </div>
           </form>

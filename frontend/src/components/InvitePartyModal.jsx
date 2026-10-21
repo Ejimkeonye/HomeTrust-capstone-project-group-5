@@ -36,12 +36,18 @@ export default function InvitePartyModal({
         targetRole: targetRole,
       });
 
-      const link = res.data?.inviteLink || `https://homebase-frontend-app.vercel.app/join?token=${res.data?.invitation?.token}`;
+      const link =
+        res.data?.inviteLink ||
+        `${window.location.origin}/invite?token=${encodeURIComponent(
+          res.data?.invitation?.token || "",
+        )}`;
       setGeneratedLink(link);
       setInvitedSuccess(true);
     } catch (err) {
       console.error("Failed to create invitation:", err);
-      setErrorMsg(err?.response?.data?.message || "Failed to generate invite link.");
+      setErrorMsg(
+        err?.response?.data?.message || "Failed to generate invite link.",
+      );
     } finally {
       setLoading(false);
     }
@@ -109,7 +115,8 @@ export default function InvitePartyModal({
                   Invitation Created Successfully!
                 </p>
                 <p className="text-[11px] text-emerald-600 font-medium">
-                  Copy the secure link below to share with your {targetRoleName.toLowerCase()}.
+                  Copy the secure link below to share with your{" "}
+                  {targetRoleName.toLowerCase()}.
                 </p>
               </div>
 
@@ -129,7 +136,11 @@ export default function InvitePartyModal({
                     onClick={handleCopyLink}
                     className="bg-purple-100 hover:bg-purple-200 text-purple-900 text-xs font-extrabold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 cursor-pointer shrink-0"
                   >
-                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copied ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
                     {copied ? "Copied" : "Copy"}
                   </button>
                 </div>
@@ -157,7 +168,8 @@ export default function InvitePartyModal({
                   disabled={loading}
                   className="bg-[#4A1E6D] hover:bg-purple-950 text-white text-xs font-extrabold px-4 py-2 rounded-xl transition-all flex items-center gap-1 cursor-pointer shrink-0 shadow-xs disabled:opacity-50"
                 >
-                  <Send className="w-3.5 h-3.5" /> {loading ? "Generating..." : "Generate"}
+                  <Send className="w-3.5 h-3.5" />{" "}
+                  {loading ? "Generating..." : "Generate"}
                 </button>
               </div>
             </form>

@@ -113,7 +113,7 @@ const normalizePropertyRooms = (rooms = []) =>
       roomId,
       name,
       category: inferRoomCategory(roomObject?.category, name),
-      items: [],
+      items: Array.isArray(roomObject?.items) ? roomObject.items : [],
     };
   });
 
@@ -201,8 +201,8 @@ export default function InspectionPage({
   onCompleteInspection,
 }) {
   const safeProperty = property || null;
-
-  const isReadOnly = safeProperty?.status === "READ_ONLY";
+  const [inspectionState, setInspectionState] = useState("DRAFT");
+  const isReadOnly = inspectionState === "READ_ONLY";
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [inspectionId, setInspectionId] = useState(null);
@@ -276,18 +276,18 @@ export default function InspectionPage({
 
     const initInspectionBackend = async () => {
       const targetPropId = safeProperty?.propertyId || safeProperty?.id;
-      setIsLoadingInspection(true);
 
-      // Never display the previous property's rooms while switching properties.
+      setIsLoadingInspection(true);
       setRoomsData([]);
       setInspectionId(null);
+
       if (!targetPropId) {
-        setRoomsData([]);
         setIsLoadingInspection(false);
         return;
       }
+
       try {
-        // 1. Fetch the canonical property record selected on the dashboard.
+        // 1. Load the selected property's rooms.
         const propertyResponse = await api.get(`/properties/${targetPropId}`);
 
         const propertyRecord =
@@ -296,43 +296,32 @@ export default function InspectionPage({
         if (cancelled) return;
 
         const propertyRooms = normalizePropertyRooms(
-          propertyRecord?.rooms || [],
+          propertyRecord?.rooms || safeProperty?.rooms || [],
         );
 
-        // 2. Fetch the inspections belonging to this exact property.
+        // 2. Find an existing inspection for this property.
         const listResponse = await api.get(
           `/inspections/property/${targetPropId}`,
         );
 
         const inspections =
           listResponse.data?.inspections || listResponse.data || [];
+        let inspection = inspections.find((entry) => entry.mode === "MoveIn");
 
-        let inspection = inspections.find(
-          (entry) =>
-            entry.state !== "READ_ONLY" && entry.status !== "READ_ONLY",
-        );
-
-        if (!inspection && inspections.length) {
-          inspection = inspections[0];
-        }
-
-        // 3. Create an inspection only if this property has none.
         if (!inspection) {
           const createResponse = await api.post("/inspections", {
             propertyId: targetPropId,
-            mode: "Full",
+            mode: "MoveIn",
           });
 
           inspection = createResponse.data?.inspection || createResponse.data;
         }
-
         const id = inspection?.inspectionId || inspection?.id;
-
         if (!id) {
           throw new Error("The backend did not return an inspection ID.");
         }
 
-        // 4. Fetch the saved inspection items and evidence.
+        // 4. Fetch saved inspection items and their evidence.
         const detailResponse = await api.get(`/inspections/${id}`);
 
         const detail = detailResponse.data?.inspection || detailResponse.data;
@@ -340,10 +329,11 @@ export default function InspectionPage({
         if (cancelled) return;
 
         setInspectionId(id);
+        setInspectionState(detail?.state || "DRAFT");
 
         const backendItems = Array.isArray(detail?.items) ? detail.items : [];
 
-        // 5. Property rooms define the sections; inspection records define their items.
+        // 5. Match saved items and evidence to the property's rooms.
         const mergedRooms = propertyRooms.map((room) => {
           const matchingItems = backendItems.filter((item) => {
             const backendRoomId = item.roomId || item.room?.roomId;
@@ -355,13 +345,12 @@ export default function InspectionPage({
                 String(backendRoomId) === String(room.roomId)) ||
               (backendRoomName &&
                 String(backendRoomName).trim().toLowerCase() ===
-                  room.name.toLowerCase())
+                  String(room.name).trim().toLowerCase())
             );
           });
 
           const items = matchingItems.map((item) => {
             const itemId = item.roomItemId || item.id;
-
             const evidence = item.evidence || item.photos || [];
 
             return {
@@ -376,8 +365,14 @@ export default function InspectionPage({
                 evidenceId: entry.evidenceId || entry.id,
                 objectKey: entry.objectKey,
                 url: entry.url,
-                fileName: entry.metadata?.fileName || "",
-                type: entry.contentType || entry.content_type || "",
+                downloadUrl: entry.downloadUrl,
+                fileName:
+                  entry.clientMetadata?.fileName ||
+                  entry.metadata?.fileName ||
+                  "",
+                type:
+                  entry.type || entry.contentType || entry.content_type || "",
+                contentType: entry.contentType || entry.content_type || "",
                 timestamp: entry.createdAt || entry.timestamp || "",
               })),
               status:
@@ -409,34 +404,10 @@ export default function InspectionPage({
           err?.response?.data || err?.message,
         );
 
-        // The cache is only a fallback; prefer the selected property's rooms
-        // over cached room definitions whenever those are available.
-        const propertyRooms = normalizePropertyRooms(safeProperty?.rooms || []);
+        // Show this property's rooms if the backend request fails.
+        const fallbackRooms = normalizePropertyRooms(safeProperty?.rooms || []);
 
-        try {
-          const saved = localStorage.getItem(
-            `hometrust_inspection_v6_${targetPropId}`,
-          );
-
-          const cachedRooms = saved ? JSON.parse(saved) : [];
-
-          const fallbackRooms = propertyRooms.map((room) => {
-            const cachedRoom = cachedRooms.find(
-              (entry) =>
-                String(entry.roomId || entry.id) === String(room.roomId) ||
-                entry.name?.trim().toLowerCase() === room.name.toLowerCase(),
-            );
-
-            return {
-              ...room,
-              items: cachedRoom?.items || [],
-            };
-          });
-
-          setRoomsData(fallbackRooms);
-        } catch {
-          setRoomsData(propertyRooms);
-        }
+        setRoomsData(fallbackRooms);
       } finally {
         if (!cancelled) {
           setIsLoadingInspection(false);
@@ -450,6 +421,7 @@ export default function InspectionPage({
       cancelled = true;
     };
   }, [safeProperty?.propertyId, safeProperty?.id, safeProperty?.rooms]);
+
   const saveRooms = (updatedData) => {
     setRoomsData(updatedData);
     try {
@@ -836,18 +808,15 @@ export default function InspectionPage({
           }
         }
         await api.patch(
-  `/inspections/${inspectionId}/items/${backendRoomItemId}`,
-  {
-    condition:
-      fields.condition !== undefined ? fields.condition : undefined,
-    notes:
-      fields.notes !== undefined ? fields.notes : undefined,
-    dispute:
-      fields.dispute !== undefined ? fields.dispute : undefined,
-    status:
-      fields.status !== undefined ? fields.status : undefined,
-  },
-);
+          `/inspections/${inspectionId}/items/${backendRoomItemId}`,
+          {
+            condition:
+              fields.condition !== undefined ? fields.condition : undefined,
+            notes: fields.notes !== undefined ? fields.notes : undefined,
+            dispute: fields.dispute !== undefined ? fields.dispute : undefined,
+            status: fields.status !== undefined ? fields.status : undefined,
+          },
+        );
       } catch (err) {
         console.warn(
           "Backend sync notice:",
@@ -858,13 +827,13 @@ export default function InspectionPage({
   };
 
   const handleClearDispute = (roomId, itemId) => {
-  updateItemData(roomId, itemId, {
-    condition: "no_issue",
-    notes: "",
-    dispute: null,
-    status: "Normal",
-  });
-};
+    updateItemData(roomId, itemId, {
+      condition: "no_issue",
+      notes: "",
+      dispute: null,
+      status: "Normal",
+    });
+  };
 
   const ensureBackendItemId = async (roomId, itemId) => {
     const room = roomsData.find(
@@ -1148,13 +1117,7 @@ export default function InspectionPage({
     setDisputeTarget(null);
   };
 
-  const normalizedRooms = roomsData.map((room) => ({
-    ...room,
-    id: room.id || room.roomId,
-    roomId: room.roomId || room.id,
-    category: normalizeCategory(room.category, room.name),
-    items: Array.isArray(room.items) ? room.items : [],
-  }));
+  const normalizedRooms = normalizePropertyRooms(roomsData);
 
   console.table(
     normalizedRooms.map((room) => ({
@@ -1281,7 +1244,13 @@ export default function InspectionPage({
                 }
 
                 try {
-                  await api.post(`/inspections/${inspectionId}/submit`);
+                  const submitResponse = await api.post(
+                    `/inspections/${inspectionId}/submit`,
+                  );
+
+                  setInspectionState(
+                    submitResponse.data?.state || "UNDER_REVIEW",
+                  );
 
                   const targetPropId =
                     safeProperty?.propertyId || safeProperty?.id;
@@ -1670,12 +1639,22 @@ export default function InspectionPage({
                               title="Click to enlarge evidence"
                               aria-label={`Enlarge evidence ${idx + 1} for ${item.name}`}
                             >
-                              <img
-                                src={p.url}
-                                alt={`Evidence for ${item.name}`}
-                                className="w-full h-full object-cover"
-                              />
-
+                              {p.type === "video" ||
+                              p.type?.startsWith("video/") ||
+                              p.contentType?.startsWith("video/") ? (
+                                <video
+                                  src={p.url}
+                                  className="w-full h-full object-cover"
+                                  muted
+                                  playsInline
+                                />
+                              ) : (
+                                <img
+                                  src={p.url}
+                                  alt={`Evidence for ${item.name}`}
+                                  className="w-full h-full object-cover"
+                                />
+                              )}
                               <span className="absolute bottom-1 right-1 rounded-md bg-black/60 text-white p-1">
                                 <Camera className="w-3 h-3" />
                               </span>
@@ -2019,29 +1998,27 @@ export default function InspectionPage({
       )}
 
       {/* Enlarged Evidence Viewer */}
-      {zoomedPhoto && (
-        <div
-          className="fixed inset-0 z-100 bg-black/90 flex items-center justify-center p-4"
-          onClick={() => setZoomedPhoto(null)}
-          role="presentation"
-        >
-          <button
-            type="button"
-            onClick={() => setZoomedPhoto(null)}
-            className="absolute top-4 right-4 text-white bg-white/15 hover:bg-white/25 rounded-full p-3"
-            aria-label="Close enlarged image"
-          >
-            <X className="w-6 h-6" />
-          </button>
 
+      {zoomedPhoto &&
+        (zoomedPhoto.type === "video" ||
+        zoomedPhoto.type?.startsWith("video/") ||
+        zoomedPhoto.contentType?.startsWith("video/") ? (
+          <video
+            src={zoomedPhoto.url}
+            controls
+            autoPlay
+            playsInline
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-full max-h-[85vh] rounded-lg"
+          />
+        ) : (
           <img
             src={zoomedPhoto.url}
             alt={zoomedPhoto.fileName || "Enlarged inspection evidence"}
             onClick={(e) => e.stopPropagation()}
             className="max-w-full max-h-[85vh] object-contain rounded-lg cursor-zoom-out"
           />
-        </div>
-      )}
+        ))}
 
       <InvitePartyModal
         isOpen={inviteModalOpen}

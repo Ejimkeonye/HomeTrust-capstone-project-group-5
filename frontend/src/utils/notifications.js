@@ -1,4 +1,3 @@
-
 const NOTIFICATION_EVENT = "hometrust-notifications-changed";
 
 const getStorageKey = (propertyKey) =>

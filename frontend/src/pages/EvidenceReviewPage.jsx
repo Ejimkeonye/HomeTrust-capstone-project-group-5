@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
 import {
   ArrowLeft,
   Camera,
@@ -11,13 +12,18 @@ import {
   LoaderCircle,
   Plus,
 } from "lucide-react";
+
 import { triggerNotification } from "../utils/notifications";
+
 import api from "../api/client";
 
 const CONDITIONS = [
   { value: "no_issue", label: "No Issue" },
+
   { value: "stains", label: "Stains" },
+
   { value: "cracks", label: "Cracks" },
+
   { value: "broken", label: "Broken" },
 ];
 
@@ -25,13 +31,17 @@ const getItemName = (item) => item.name || item.itemName || "Unnamed item";
 
 const getItemPhotos = (item) => {
   const evidence = Array.isArray(item.evidence) ? item.evidence : [];
+
   const photos = Array.isArray(item.photos) ? item.photos : [];
 
   return [
     ...evidence.map((photo) => ({
       ...photo,
-      url: photo.url || photo.downloadUrl,
+
+      // The controller's url is the signed S3 URL; downloadUrl returns JSON.
+      url: photo.url,
     })),
+
     ...photos,
   ].filter((photo) => Boolean(photo.url));
 };
@@ -44,40 +54,121 @@ const getErrorMessage = (error) =>
 
 export default function EvidenceReviewPage({
   property,
+
   inspectionData,
+
   inspectionId,
+
   onBack,
+
   onSubmitEvidence,
+
   onUpdateInspectionData,
 }) {
-  const isReadOnly = property?.status === "READ_ONLY";
+  const [inspectionState, setInspectionState] = useState(null);
+  const [inspectionStateLoading, setInspectionStateLoading] = useState(true);
+  const [inspectionStateError, setInspectionStateError] = useState(false);
+  const [verifiedInspectionId, setVerifiedInspectionId] = useState(null);
+  const isReadOnly = inspectionState === "READ_ONLY";
+  // Fail closed until the active inspection's authoritative state is known.
+  const canModifyInspection =
+    Boolean(inspectionId) &&
+    verifiedInspectionId === inspectionId &&
+    !inspectionStateLoading &&
+    !inspectionStateError &&
+    Boolean(inspectionState) &&
+    !isReadOnly;
+
   const [activeCategory, setActiveCategory] = useState("All");
+
   const [descriptiveNote, setDescriptiveNote] = useState("");
+
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+
   const [selectedImage, setSelectedImage] = useState(null);
+
   const [uploadingItemIds, setUploadingItemIds] = useState([]);
+
   const [uploadMessage, setUploadMessage] = useState("");
 
   // Add Evidence modal state.
+
   const [showAddModal, setShowAddModal] = useState(false);
+
   const [selectedRoomId, setSelectedRoomId] = useState("");
+
   const [newItemName, setNewItemName] = useState("");
+
   const [newItemCondition, setNewItemCondition] = useState("no_issue");
+
   const [newItemNotes, setNewItemNotes] = useState("");
+
   const [checklistItems, setChecklistItems] = useState([]);
+
   const [savingItem, setSavingItem] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
+
   const [errorMessage, setErrorMessage] = useState("");
+
   const [successMessage, setSuccessMessage] = useState("");
+
+  // Read the authoritative state from this inspection, not the property.
+  // Reset on every inspection change and fail closed if the request fails.
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!inspectionId) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    api
+      .get(`/inspections/${inspectionId}`)
+      .then((response) => {
+        const inspection =
+          response.data?.inspection || response.data?.data || response.data;
+        if (!inspection?.state) {
+          throw new Error("The backend did not return the inspection state.");
+        }
+        if (!cancelled) {
+          setInspectionState(inspection.state);
+          setVerifiedInspectionId(inspectionId);
+          setInspectionStateError(false);
+        }
+      })
+      .catch((error) => {
+        console.error(
+          "Could not load inspection state:",
+          getErrorMessage(error),
+        );
+        if (!cancelled) {
+          setInspectionStateError(true);
+          setErrorMessage(
+            "Could not verify the inspection state. Refresh the inspection before editing or uploading evidence.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setInspectionStateLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inspectionId]);
 
   const todaysFormattedDate = new Date().toLocaleDateString("en-US", {
     month: "long",
+
     day: "numeric",
+
     year: "numeric",
   });
 
   // Normalize inspection data without losing backend room/item IDs.
+
   const roomsList = useMemo(() => {
     const propertyRooms = Array.isArray(property?.rooms) ? property.rooms : [];
 
@@ -92,6 +183,7 @@ export default function EvidenceReviewPage({
       : propertyRooms;
 
     // InspectionPage may already provide rooms with their items grouped.
+
     if (
       Array.isArray(inspectionData) &&
       inspectionData.every(
@@ -100,13 +192,20 @@ export default function EvidenceReviewPage({
     ) {
       return inspectionData.map((room) => ({
         ...room,
+
         roomId: room.roomId || room.id,
+
         name: room.name || room.roomName || "Unnamed room",
+
         items: (room.items || room.roomItems || []).map((item) => ({
           ...item,
+
           id: item.roomItemId || item.itemId || item.id,
-          roomItemId: item.roomItemId || item.itemId || item.id,
+
+          roomItemId: item.roomItemId || item.itemId,
+
           name: getItemName(item),
+
           evidence: Array.isArray(item.evidence) ? item.evidence : [],
         })),
       }));
@@ -114,6 +213,7 @@ export default function EvidenceReviewPage({
 
     return suppliedRooms.map((room) => {
       const roomId = room.roomId || room.id;
+
       const existingItems = Array.isArray(room.items)
         ? room.items
         : Array.isArray(room.roomItems)
@@ -139,31 +239,43 @@ export default function EvidenceReviewPage({
 
         uniqueItems.set(id, {
           ...item,
+
           id,
-          roomItemId: item.roomItemId || item.itemId || item.id,
+
+          roomItemId: item.roomItemId || item.itemId,
+
           name: getItemName(item),
+
           evidence: Array.isArray(item.evidence) ? item.evidence : [],
         });
       });
 
       return {
         ...room,
+
         roomId,
+
         name: room.name || room.roomName || "Unnamed room",
+
         items: [...uniqueItems.values()],
       };
     });
   }, [inspectionData, property]);
 
   // Only allow real property room IDs when saving items to the backend.
+
   const propertyRooms = useMemo(() => {
     const rooms = Array.isArray(property?.rooms) ? property.rooms : [];
 
     return rooms
+
       .filter((room) => room.roomId || room.id)
+
       .map((room) => ({
         ...room,
+
         roomId: room.roomId || room.id,
+
         name: room.name || room.roomName || "Unnamed room",
       }));
   }, [property]);
@@ -185,7 +297,9 @@ export default function EvidenceReviewPage({
       (room.category || "Rooms").toLowerCase() === activeCategory.toLowerCase();
 
     const nameMatch = room.name
+
       ?.toLowerCase()
+
       .includes(activeCategory.toLowerCase());
 
     return categoryMatch || nameMatch;
@@ -193,44 +307,71 @@ export default function EvidenceReviewPage({
 
   const resetAddForm = () => {
     setSelectedRoomId("");
+
     setNewItemName("");
+
     setNewItemCondition("no_issue");
+
     setNewItemNotes("");
+
     setChecklistItems([]);
+
     setErrorMessage("");
+
     setSuccessMessage("");
   };
 
   const handleAddChecklistItem = () => {
+    if (!canModifyInspection) {
+      setErrorMessage(
+        "The inspection state is not verified or the inspection is read-only.",
+      );
+      return;
+    }
     setErrorMessage("");
+
     setSuccessMessage("");
 
     if (!newItemName.trim()) {
       setErrorMessage("Enter an item name before adding it.");
+
       return;
     }
 
     if (!CONDITIONS.some((condition) => condition.value === newItemCondition)) {
       setErrorMessage("Choose a valid condition.");
+
       return;
     }
 
     setChecklistItems((previous) => [
       ...previous,
+
       {
         localId: `${Date.now()}-${previous.length}`,
+
         name: newItemName.trim(),
+
         condition: newItemCondition,
+
         notes: newItemNotes.trim(),
       },
     ]);
 
     setNewItemName("");
+
     setNewItemCondition("no_issue");
+
     setNewItemNotes("");
   };
 
   const handleRemoveChecklistItem = (localId) => {
+    if (!canModifyInspection) {
+      setErrorMessage(
+        "The inspection state is not verified or the inspection is read-only.",
+      );
+      return;
+    }
     setChecklistItems((previous) =>
       previous.filter((item) => item.localId !== localId),
     );
@@ -238,42 +379,54 @@ export default function EvidenceReviewPage({
 
   const handleSaveNewEvidence = async (event) => {
     event.preventDefault();
+
     setErrorMessage("");
+
     setSuccessMessage("");
+
     if (isReadOnly) {
-  setErrorMessage(
-    "This inspection is read-only. New evidence items cannot be added.",
-  );
-  return;
-}
+      setErrorMessage(
+        "This inspection is read-only. New evidence items cannot be added.",
+      );
+
+      return;
+    }
 
     if (!inspectionId) {
       setErrorMessage(
         "The inspection ID is missing. Return to the inspection and try again.",
       );
+
       return;
     }
 
     if (!selectedRoomId) {
       setErrorMessage("Choose an existing property room.");
+
       return;
     }
 
     // Include the item currently in the input, even if the user
+
     // hasn't clicked the + button yet.
+
     const itemsToSave = [...checklistItems];
 
     if (newItemName.trim()) {
       itemsToSave.push({
         localId: `current-${Date.now()}`,
+
         name: newItemName.trim(),
+
         condition: newItemCondition,
+
         notes: newItemNotes.trim(),
       });
     }
 
     if (itemsToSave.length === 0) {
       setErrorMessage("Add at least one checklist item.");
+
       return;
     }
 
@@ -285,25 +438,33 @@ export default function EvidenceReviewPage({
       setErrorMessage(
         "That room could not be matched to the property. Refresh and try again.",
       );
+
       return;
     }
 
     setSavingItem(true);
 
     const savedItems = [];
+
     const failedItems = [];
 
     try {
       // Save items one by one. Keep the actual IDs returned by the API.
+
       // If a later item fails, preserve the items that were already saved.
+
       for (const item of itemsToSave) {
         try {
           const response = await api.post(
             `/inspections/${inspectionId}/items`,
+
             {
               roomId: selectedRoom.roomId,
+
               itemName: item.name,
+
               condition: item.condition,
+
               notes: item.notes || "",
             },
           );
@@ -321,17 +482,25 @@ export default function EvidenceReviewPage({
 
           savedItems.push({
             ...payload,
+
             id: savedItemId,
+
             roomItemId: savedItemId,
+
             name: payload.itemName || payload.name || item.name,
+
             condition: payload.condition || item.condition,
+
             notes: payload.notes ?? item.notes ?? "",
+
             photos: payload.photos || [],
+
             evidence: payload.evidence || [],
           });
         } catch (error) {
           failedItems.push({
             name: item.name,
+
             message: getErrorMessage(error),
           });
         }
@@ -355,7 +524,9 @@ export default function EvidenceReviewPage({
 
             const existingIds = new Set(
               currentItems
+
                 .map((item) => item.roomItemId || item.itemId || item.id)
+
                 .filter(Boolean),
             );
 
@@ -365,7 +536,9 @@ export default function EvidenceReviewPage({
 
             return {
               ...room,
+
               roomId: selectedRoom.roomId,
+
               items: [...currentItems, ...newUniqueItems],
             };
           });
@@ -373,29 +546,40 @@ export default function EvidenceReviewPage({
           updatedRooms = [
             {
               ...selectedRoom,
+
               id: selectedRoom.roomId,
+
               roomId: selectedRoom.roomId,
+
               category: selectedRoom.category || "Rooms",
+
               items: savedItems,
             },
+
             ...roomsList,
           ];
         }
 
         // Update the UI only with items confirmed by the backend.
+
         onUpdateInspectionData?.(updatedRooms);
 
         // Restore the property-scoped notification, but only after
+
         // the backend has successfully saved at least one item.
+
         const propertyKey = property?.propertyId || property?.id;
 
         if (propertyKey) {
           triggerNotification(
             propertyKey,
+
             savedItems.length === 1
               ? "New Evidence Item Added"
               : "New Evidence Items Added",
+
             `Added ${savedItems.length} item(s) to the ${selectedRoom.name} inspection.`,
+
             "system",
           );
         }
@@ -411,7 +595,9 @@ export default function EvidenceReviewPage({
         );
 
         // Remove successful entries from the checklist so retrying
+
         // doesn't unnecessarily submit them again.
+
         const successfulNames = new Set(savedItems.map((item) => item.name));
 
         setChecklistItems((previous) =>
@@ -419,15 +605,21 @@ export default function EvidenceReviewPage({
         );
 
         setNewItemName("");
+
         setNewItemNotes("");
+
         setNewItemCondition("no_issue");
       } else {
         setSuccessMessage(
           `${savedItems.length} item(s) saved to the inspection.`,
         );
+
         setChecklistItems([]);
+
         setNewItemName("");
+
         setNewItemNotes("");
+
         setNewItemCondition("no_issue");
       }
     } catch (error) {
@@ -439,9 +631,17 @@ export default function EvidenceReviewPage({
 
   const handleProceed = async () => {
     setErrorMessage("");
+    if (!canModifyInspection) {
+      setErrorMessage(
+        "The inspection state is not verified or the inspection is read-only.",
+      );
+      setShowConfirmationModal(false);
+      return;
+    }
 
     if (!inspectionId) {
       setErrorMessage("The inspection ID is missing.");
+
       return;
     }
 
@@ -449,6 +649,7 @@ export default function EvidenceReviewPage({
       setErrorMessage(
         "The next-step action is not configured. Please return to the inspection.",
       );
+
       return;
     }
 
@@ -456,6 +657,7 @@ export default function EvidenceReviewPage({
 
     try {
       await onSubmitEvidence(inspectionId, descriptiveNote.trim());
+
       setShowConfirmationModal(false);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -466,13 +668,16 @@ export default function EvidenceReviewPage({
 
   const handlePhotoUpload = async (roomId, itemId, event) => {
     const input = event.target;
+
     const files = Array.from(input.files || []);
 
     if (!files.length) return;
 
-    if (isReadOnly) {
+    if (!canModifyInspection) {
       setErrorMessage(
-        "This inspection is read-only. Evidence cannot be uploaded.",
+        inspectionStateError || inspectionStateLoading
+          ? "The inspection state has not been verified. Refresh and try again."
+          : "This inspection is read-only. Evidence cannot be uploaded.",
       );
       input.value = "";
       return;
@@ -480,16 +685,23 @@ export default function EvidenceReviewPage({
 
     if (!inspectionId) {
       setErrorMessage("No backend inspection is available for this upload.");
+
       input.value = "";
+
       return;
     }
 
     const supportedTypes = new Set([
       "image/jpeg",
+
       "image/png",
+
       "image/webp",
+
       "image/heic",
+
       "video/mp4",
+
       "video/quicktime",
     ]);
 
@@ -497,13 +709,16 @@ export default function EvidenceReviewPage({
       setErrorMessage(
         "Unsupported file format. Use JPEG, PNG, WebP, HEIC, MP4, or QuickTime video.",
       );
+
       input.value = "";
+
       return;
     }
 
     const uploadKey = `${roomId}:${itemId}`;
 
     setErrorMessage("");
+
     setUploadMessage("");
 
     setUploadingItemIds((current) =>
@@ -538,17 +753,26 @@ export default function EvidenceReviewPage({
       }
 
       // Reuse an existing backend ID whenever possible. If this item
-      // still has a temporary local ID, create it before uploading.
-      let latestRooms = roomsList;
-      let backendItemId = item.roomItemId || item.id;
 
-      if (!backendItemId || String(backendItemId).startsWith("item-")) {
+      // still has a temporary local ID, create it before uploading.
+
+      let latestRooms = roomsList;
+
+      // `id` can be a UI/local ID; only these explicit fields identify a
+      // backend ROOM_ITEMS record.
+      let backendItemId = item.roomItemId || item.itemId || null;
+
+      if (!backendItemId) {
         const itemResponse = await api.post(
           `/inspections/${inspectionId}/items`,
+
           {
             roomId: propertyRoom.roomId,
+
             itemName: item.name || item.itemName || "Unnamed item",
+
             condition: item.condition || "no_issue",
+
             notes: item.notes || "",
           },
         );
@@ -567,8 +791,10 @@ export default function EvidenceReviewPage({
         }
 
         // Replace the temporary ID in the displayed inspection data.
+
         const roomsWithBackendItem = roomsList.map((currentRoom) => ({
           ...currentRoom,
+
           items: (currentRoom.items || []).map((currentItem) => {
             const isTargetRoom =
               (currentRoom.roomId || currentRoom.id) === roomId;
@@ -582,15 +808,20 @@ export default function EvidenceReviewPage({
 
             return {
               ...currentItem,
+
               ...savedItem,
+
               id: backendItemId,
+
               roomItemId: backendItemId,
+
               name: savedItem.itemName || savedItem.name || currentItem.name,
             };
           }),
         }));
 
         latestRooms = roomsWithBackendItem;
+
         onUpdateInspectionData?.(latestRooms);
       }
 
@@ -598,10 +829,14 @@ export default function EvidenceReviewPage({
 
       for (const file of files) {
         // 1. Request the S3 presigned upload URL.
+
         const presignResponse = await api.post("/evidence/presigned-url", {
           file_name: file.name,
+
           content_type: file.type,
+
           inspection_id: inspectionId,
+
           item_id: backendItemId,
         });
 
@@ -615,11 +850,14 @@ export default function EvidenceReviewPage({
         }
 
         // 2. Upload the actual file to S3.
+
         const s3Response = await fetch(uploadUrl, {
           method: "PUT",
+
           headers: {
             "Content-Type": file.type,
           },
+
           body: file,
         });
 
@@ -628,11 +866,15 @@ export default function EvidenceReviewPage({
         }
 
         // 3. Confirm the upload with the backend.
+
         const confirmResponse = await api.post(
           `/evidence/${inspectionId}/items/${backendItemId}/confirm`,
+
           {
             object_key: objectKey,
+
             content_type: file.type,
+
             metadata: {
               fileName: file.name,
             },
@@ -645,6 +887,7 @@ export default function EvidenceReviewPage({
           confirmResponse.data;
 
         const evidenceId = evidence?.evidenceId || evidence?.id;
+
         const evidenceUrl = evidence?.url;
 
         if (!evidenceId || !evidenceUrl) {
@@ -655,17 +898,25 @@ export default function EvidenceReviewPage({
 
         const savedPhoto = {
           id: evidenceId,
+
           evidenceId,
+
           objectKey: evidence.objectKey || objectKey,
+
           url: evidenceUrl,
+
           type: file.type,
+
           fileName: file.name,
+
           timestamp: new Date().toLocaleString(),
         };
 
         // 4. Attach the confirmed record to the matching backend item.
+
         latestRooms = latestRooms.map((currentRoom) => ({
           ...currentRoom,
+
           items: (currentRoom.items || []).map((currentItem) => {
             const matchesRoom =
               (currentRoom.roomId || currentRoom.id) === roomId ||
@@ -693,30 +944,38 @@ export default function EvidenceReviewPage({
 
             return {
               ...currentItem,
+
               id: backendItemId,
+
               roomItemId: backendItemId,
+
               photos: [...existingPhotos, savedPhoto],
             };
           }),
         }));
 
         // Update React state through the parent callback after each
+
         // successful confirmation, not before the upload succeeds.
+
         onUpdateInspectionData?.(latestRooms);
 
         // Preserve the existing local cache behavior.
+
         try {
           const propertyKey = property?.propertyId || property?.id;
 
           if (propertyKey) {
             localStorage.setItem(
               `hometrust_inspection_v6_${propertyKey}`,
+
               JSON.stringify(latestRooms),
             );
           }
         } catch (storageError) {
           console.warn(
             "Could not cache evidence details locally:",
+
             storageError,
           );
         }
@@ -733,14 +992,18 @@ export default function EvidenceReviewPage({
       if (propertyKey && uploadedCount > 0) {
         triggerNotification(
           propertyKey,
+
           "Evidence Uploaded",
+
           `${uploadedCount} file(s) added to ${item.name || item.itemName || "an inspection item"}.`,
+
           "system",
         );
       }
     } catch (error) {
       console.error(
         "Evidence upload failed:",
+
         error.response?.data || error.message,
       );
 
@@ -757,6 +1020,7 @@ export default function EvidenceReviewPage({
       );
 
       // Allows selecting the same file again.
+
       input.value = "";
     }
   };
@@ -765,6 +1029,7 @@ export default function EvidenceReviewPage({
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
       <div className="w-full max-w-md bg-white min-h-screen sm:min-h-200 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative text-slate-900">
         {/* Full-size image preview */}
+
         {selectedImage && (
           <div
             onClick={() => setSelectedImage(null)}
@@ -792,6 +1057,7 @@ export default function EvidenceReviewPage({
         )}
 
         {/* Add Evidence modal: existing room + multiple backend-saved items */}
+
         {showAddModal && (
           <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-40 flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl sm:rounded-4xl max-w-sm w-full p-6 space-y-4 shadow-2xl overflow-y-auto max-h-[90vh]">
@@ -804,9 +1070,10 @@ export default function EvidenceReviewPage({
                   type="button"
                   onClick={() => {
                     setShowAddModal(false);
+
                     resetAddForm();
                   }}
-                  disabled={isReadOnly}
+                  disabled={!canModifyInspection}
                   aria-label="Close add evidence form"
                   className="w-7 h-7 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 hover:bg-slate-200"
                 >
@@ -832,6 +1099,7 @@ export default function EvidenceReviewPage({
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:outline-none focus:border-[#4A1E6D]"
                   >
                     <option value="">Choose a room</option>
+
                     {propertyRooms.map((room) => (
                       <option key={room.roomId} value={room.roomId}>
                         {room.name}
@@ -899,7 +1167,7 @@ export default function EvidenceReviewPage({
                 <button
                   type="button"
                   onClick={handleAddChecklistItem}
-                  disabled={isReadOnly}
+                  disabled={!canModifyInspection}
                   className="w-full bg-purple-50 text-[#4A1E6D] border border-purple-200 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 hover:bg-purple-100 transition-colors"
                 >
                   <Plus className="w-4 h-4" />
@@ -922,9 +1190,11 @@ export default function EvidenceReviewPage({
                             <p className="font-bold wrap-break-word">
                               {item.name}
                             </p>
+
                             <p className="font-bold capitalize text-[#4A1E6D] mt-1">
                               {item.condition.replaceAll("_", " ")}
                             </p>
+
                             {item.notes && (
                               <p className="text-slate-500 mt-1 wrap-break-word">
                                 {item.notes}
@@ -962,7 +1232,11 @@ export default function EvidenceReviewPage({
 
                 <button
                   type="submit"
-                  disabled={savingItem || propertyRooms.length === 0 || isReadOnly}
+                  disabled={
+                    savingItem ||
+                    propertyRooms.length === 0 ||
+                    !canModifyInspection
+                  }
                   className="w-full bg-[#4A1E6D] hover:bg-purple-900 text-white font-extrabold py-3 rounded-xl text-xs transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {savingItem ? (
@@ -983,6 +1257,7 @@ export default function EvidenceReviewPage({
         )}
 
         {/* Confirmation modal */}
+
         {showConfirmationModal && (
           <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-30 flex items-center justify-center p-4">
             <div className="bg-[#4A1E6D] text-white rounded-[40px] max-w-xs w-full p-8 text-center space-y-6 shadow-2xl">
@@ -1014,7 +1289,7 @@ export default function EvidenceReviewPage({
               <div className="space-y-2 pt-2">
                 <button
                   type="button"
-                  disabled={submitting || isReadOnly}
+                  disabled={submitting || !canModifyInspection}
                   onClick={handleProceed}
                   className="w-full bg-white hover:bg-purple-50 text-[#4A1E6D] font-extrabold py-3 rounded-2xl text-xs transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                 >
@@ -1033,9 +1308,10 @@ export default function EvidenceReviewPage({
 
                 <button
                   type="button"
-                  disabled={submitting || isReadOnly}
+                  disabled={submitting || !canModifyInspection}
                   onClick={() => {
                     setShowConfirmationModal(false);
+
                     setErrorMessage("");
                   }}
                   className="text-xs text-white/80 hover:text-white disabled:opacity-50"
@@ -1048,6 +1324,7 @@ export default function EvidenceReviewPage({
         )}
 
         {/* Header */}
+
         <header className="p-4 flex items-center justify-between z-10 gap-2 bg-[#4A1E6D] text-white">
           <button
             type="button"
@@ -1066,11 +1343,13 @@ export default function EvidenceReviewPage({
         </header>
 
         {/* Original-style action bar */}
+
         <div className="px-6 pt-4 flex gap-2">
           <button
             type="button"
             onClick={() => {
               setActiveCategory("All");
+
               setErrorMessage("");
             }}
             className="flex-1 bg-purple-50 text-[#4A1E6D] border border-purple-200 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5"
@@ -1081,7 +1360,14 @@ export default function EvidenceReviewPage({
           <button
             type="button"
             onClick={() => {
+              if (!canModifyInspection) {
+                setErrorMessage(
+                  "The inspection state is not verified or the inspection is read-only.",
+                );
+                return;
+              }
               resetAddForm();
+
               setShowAddModal(true);
             }}
             className="flex-1 bg-[#4A1E6D] hover:bg-purple-900 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors"
@@ -1091,6 +1377,7 @@ export default function EvidenceReviewPage({
         </div>
 
         {/* Property context */}
+
         <div className="px-6 pt-3">
           <p className="text-[11px] text-slate-600 truncate">
             {property?.name || property?.address || "Selected property"}
@@ -1098,6 +1385,7 @@ export default function EvidenceReviewPage({
         </div>
 
         {/* Category pills */}
+
         <div className="px-6 pt-3">
           <span className="text-[11px] font-extrabold text-slate-800 block mb-2">
             Category
@@ -1122,12 +1410,14 @@ export default function EvidenceReviewPage({
         </div>
 
         {/* Evidence scroll area */}
+
         <main className="px-6 py-4 flex-1 overflow-y-auto space-y-4 bg-white">
           {uploadMessage && (
             <p role="status" className="text-xs text-emerald-700">
               {uploadMessage}
             </p>
           )}
+
           {errorMessage && !showAddModal && !showConfirmationModal && (
             <p role="alert" className="text-xs text-red-700">
               {errorMessage}
@@ -1140,8 +1430,10 @@ export default function EvidenceReviewPage({
                 ...(room.imageUrl
                   ? [{ url: room.imageUrl, type: "image/unknown" }]
                   : []),
+
                 ...(room.items || []).flatMap(getItemPhotos).filter((photo) => {
                   const type = photo.type || photo.content_type || "";
+
                   return !type.startsWith("video/");
                 }),
               ];
@@ -1222,6 +1514,7 @@ export default function EvidenceReviewPage({
                             <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 uppercase">
                               {(item.condition || "no_issue").replaceAll(
                                 "_",
+
                                 " ",
                               )}
                             </span>
@@ -1230,6 +1523,7 @@ export default function EvidenceReviewPage({
                           {item.notes && (
                             <p className="text-[11px] text-slate-600 bg-purple-50/50 p-1.5 rounded-lg border border-purple-100 font-medium flex items-start gap-1">
                               <MessageSquare className="w-3 h-3 text-purple-800 shrink-0 mt-0.5" />
+
                               <span>{item.notes}</span>
                             </p>
                           )}
@@ -1240,10 +1534,11 @@ export default function EvidenceReviewPage({
                               {getItemPhotos(item).length} photo(s) available
                             </p>
                           )}
+
                           <div className="flex items-center justify-between gap-2 pt-2">
                             <label
                               className={`inline-flex items-center gap-1.5 text-[11px] font-bold ${
-                                isReadOnly ||
+                                !canModifyInspection ||
                                 uploadingItemIds.includes(
                                   `${room.roomId || room.id}:${item.roomItemId || item.id}`,
                                 )
@@ -1263,8 +1558,10 @@ export default function EvidenceReviewPage({
                                 `${room.roomId || room.id}:${item.roomItemId || item.id}`,
                               )
                                 ? "Uploading..."
-                                : isReadOnly
-                                  ? "Read-only"
+                                : !canModifyInspection
+                                  ? isReadOnly
+                                    ? "Read-only"
+                                    : "Verifying inspection…"
                                   : "Add photos"}
 
                               <input
@@ -1273,7 +1570,7 @@ export default function EvidenceReviewPage({
                                 accept="image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime"
                                 capture="environment"
                                 disabled={
-                                  isReadOnly ||
+                                  !canModifyInspection ||
                                   uploadingItemIds.includes(
                                     `${room.roomId || room.id}:${item.roomItemId || item.id}`,
                                   )
@@ -1281,7 +1578,9 @@ export default function EvidenceReviewPage({
                                 onChange={(event) =>
                                   handlePhotoUpload(
                                     room.roomId || room.id,
+
                                     item.roomItemId || item.id,
+
                                     event,
                                   )
                                 }
@@ -1303,6 +1602,7 @@ export default function EvidenceReviewPage({
           ) : (
             <div className="text-center py-10 text-slate-400 text-xs font-medium flex flex-col items-center gap-2">
               <X className="w-6 h-6 text-slate-300" />
+
               <span>
                 No evidence items found for this property inspection. Click
                 &quot;+ Add evidence&quot; to add an item to an existing room.
@@ -1311,6 +1611,7 @@ export default function EvidenceReviewPage({
           )}
 
           {/* Descriptive note */}
+
           <div className="space-y-1.5 pt-2">
             <label className="text-[11px] font-extrabold text-slate-800">
               Add a descriptive note (Optional)
@@ -1333,11 +1634,19 @@ export default function EvidenceReviewPage({
         </main>
 
         {/* Submit button */}
+
         <footer className="p-4 border-t border-slate-200 bg-white">
           <button
             type="button"
             onClick={() => {
+              if (!canModifyInspection) {
+                setErrorMessage(
+                  "The inspection state is not verified or the inspection is read-only.",
+                );
+                return;
+              }
               setErrorMessage("");
+
               setShowConfirmationModal(true);
             }}
             className="w-full bg-[#4A1E6D] hover:bg-purple-950 text-white font-extrabold py-3.5 rounded-2xl text-xs transition-colors shadow-lg flex items-center justify-center gap-2"

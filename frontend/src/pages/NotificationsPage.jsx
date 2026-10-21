@@ -20,8 +20,7 @@ export default function NotificationsPage({
   onBack,
   onSelectNotification,
 }) {
-  const propertyKey =
-    activeProperty?.propertyId || activeProperty?.id || null;
+  const propertyKey = activeProperty?.propertyId || activeProperty?.id || null;
 
   const storageKey = propertyKey
     ? `hometrust_notifications_${propertyKey}`
@@ -218,7 +217,7 @@ export default function NotificationsPage({
 
                   <div className="flex items-center gap-1 text-[9px] text-slate-400 font-semibold pt-0.5">
                     <Clock className="w-3 h-3" />
-                    <span>{notif.timestamp}</span>
+                    <span>{notif.timestamp || "Time unavailable"}</span>
                   </div>
                 </div>
               </div>

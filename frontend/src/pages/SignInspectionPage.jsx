@@ -1,16 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-
 import SignatureCanvas from "../components/SignatureCanvas";
-
 import api from "../api/client";
-
 import { triggerNotification } from "../utils/notifications";
 
-
-
 const emptySignatures = { landlord: null, tenant: null };
-
-
 
 function getPayload(response) {
   const body = response?.data || {};
@@ -40,6 +33,7 @@ function selectInspection(payload, propertyKey, roleKey) {
   // not signed yet; otherwise use the most recently updated matching inspection.
   const matching = candidates.filter((item) =>
     item && typeof item === "object" &&
+    item.mode !== "MoveOut" &&
     (!propertyKey || String(item?.propertyId ?? item?.property?.propertyId ?? item?.property?.id) === String(propertyKey))
   );
   if (!matching.length) return null;
@@ -47,14 +41,13 @@ function selectInspection(payload, propertyKey, roleKey) {
   const signatureField = roleKey === "landlord" ? "landlordSignature" : "tenantSignature";
   const signable = matching.filter((item) =>
     item.state === "UNDER_REVIEW" &&
-    !(item.signatures?.[roleKey] ?? item[signatureField])
+    !isPersistedSignature(item.signatures?.[roleKey]) &&
+    !isPersistedSignature(item[signatureField])
   );
   const pool = signable.length ? signable : matching;
   pool.sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
   return pool[0] || null;
 }
-
-
 
 function getSignatureImageUrl(signature) {
 
@@ -70,41 +63,35 @@ function getSignatureImageUrl(signature) {
 
   }
 
-
-
   if (!signature || typeof signature !== "object") return null;
 
-
-
   const candidate =
-
     signature.url ||
-
     signature.imageUrl ||
-
     signature.signatureUrl ||
-
     signature.signedImageUrl ||
-
     signature.dataUrl ||
-
     signature.signature;
 
-
-
   return typeof candidate === "string" &&
-
     (candidate.startsWith("data:image/") ||
-
       /^https?:\/\//i.test(candidate))
-
     ? candidate
-
     : null;
-
 }
 
+function isPersistedSignature(signature) {
+  if (typeof signature === "string") return signature.startsWith("data:image/") || /^https?:\/\//i.test(signature);
+  return Boolean(signature && typeof signature === "object" && signature.uploadedAt && (signature.objectKey || getSignatureImageUrl(signature)));
+}
 
+function getCanonicalSignature(inspection, roleKey) {
+  const field = roleKey === "landlord" ? "landlordSignature" : "tenantSignature";
+  const canonical = inspection?.[field];
+  if (isPersistedSignature(canonical)) return canonical;
+  const legacy = inspection?.signatures?.[roleKey];
+  return isPersistedSignature(legacy) ? legacy : null;
+}
 
 function getErrorMessage(error, fallback) {
 
@@ -122,52 +109,30 @@ function getErrorMessage(error, fallback) {
 
 }
 
-
-
 export default function SignInspectionPage({
-
   property,
-
   inspectionId,
-
   userRole = "tenant",
-
   onBack,
-
   onSignaturesComplete,
-
 }) {
 
   const propertyKey = property?.propertyId || property?.id;
-
   const currentRole = String(userRole).toLowerCase();
-
   const isLandlord = currentRole.includes("landlord");
-
   const isTenant = currentRole.includes("tenant");
-
   const roleKey = isLandlord ? "landlord" : isTenant ? "tenant" : null;
-
   const roleLabel = isLandlord ? "Landlord" : "Tenant";
-
-
 
   const [activeInspectionId, setActiveInspectionId] = useState(inspectionId || null);
   const [savedSignatures, setSavedSignatures] = useState(emptySignatures);
-
   const [draftSignature, setDraftSignature] = useState(null);
 
   const [inspectionState, setInspectionState] = useState(null);
-
   const [isLoading, setIsLoading] = useState(true);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
-
   const [loadError, setLoadError] = useState("");
-
   const [submitError, setSubmitError] = useState("");
-
-
 
   const loadInspection = useCallback(async () => {
     setIsLoading(true);
@@ -191,6 +156,10 @@ export default function SignInspectionPage({
         throw new Error("The backend did not return an inspection for this property.");
       }
 
+      if (inspection.mode === "MoveOut") {
+        throw new Error("This is a Move-Out inspection. Open the Move-Out signature page instead.");
+      }
+
       const returnedId = inspection.inspectionId || inspection.id;
       if (!resolvedId && returnedId) {
         resolvedId = returnedId;
@@ -210,8 +179,8 @@ export default function SignInspectionPage({
 
       // GET /inspections/:id is the source of truth for saved signatures/state.
       setSavedSignatures({
-        landlord: inspection.signatures?.landlord ?? inspection.landlordSignature ?? null,
-        tenant: inspection.signatures?.tenant ?? inspection.tenantSignature ?? null,
+        landlord: getCanonicalSignature(inspection, "landlord"),
+        tenant: getCanonicalSignature(inspection, "tenant"),
       });
       setInspectionState(inspection.state || null);
       setDraftSignature(null);
@@ -224,21 +193,14 @@ export default function SignInspectionPage({
     }
   }, [inspectionId, activeInspectionId, propertyKey, roleKey]);
 
-
-
   useEffect(() => {
 
     let isActive = true;
-
-
-
     Promise.resolve().then(() => {
 
       if (isActive) loadInspection();
 
     });
-
-
 
     return () => {
 
@@ -248,37 +210,20 @@ export default function SignInspectionPage({
 
   }, [loadInspection]);
 
-
-
-  const alreadySigned = Boolean(roleKey && savedSignatures[roleKey]);
-
+  const alreadySigned = Boolean(roleKey && isPersistedSignature(savedSignatures[roleKey]));
   const isFinalized = inspectionState === "READ_ONLY";
-
   const canSubmit =
-
     Boolean(roleKey) &&
-
     Boolean(activeInspectionId) &&
-
     Boolean(draftSignature) &&
-
     !alreadySigned &&
-
     !isFinalized &&
-
     !isLoading &&
-
     !isSubmitting &&
-
     !loadError;
 
-
-
   const handleSaveSignature = async () => {
-
     if (!canSubmit) return;
-
-
 
     if (!draftSignature?.startsWith("data:image/png;base64,")) {
 
@@ -288,13 +233,9 @@ export default function SignInspectionPage({
 
     }
 
-
-
     setIsSubmitting(true);
 
     setSubmitError("");
-
-
 
     try {
 
@@ -308,13 +249,9 @@ export default function SignInspectionPage({
 
       );
 
-
-
       const result = getPayload(response);
 
       const returnedSignatures = result.signatures;
-
-
 
       // Require the backend to confirm this party's saved signature.
 
@@ -328,8 +265,6 @@ export default function SignInspectionPage({
 
       }
 
-
-
       const confirmedSignatures = {
 
         landlord: returnedSignatures.landlord ?? null,
@@ -338,15 +273,11 @@ export default function SignInspectionPage({
 
       };
 
-
-
       setSavedSignatures(confirmedSignatures);
 
       setInspectionState(result.state || null);
 
       setDraftSignature(null);
-
-
 
       if (propertyKey) {
 
@@ -361,8 +292,6 @@ export default function SignInspectionPage({
           "invite"
 
         );
-
-
 
         // Finalization is determined only by the backend state.
 
@@ -379,12 +308,8 @@ export default function SignInspectionPage({
             "system"
 
           );
-
         }
-
       }
-
-
 
       // The parent can update its UI, but must not infer finalization
 
@@ -399,7 +324,6 @@ export default function SignInspectionPage({
         inspection: result,
 
       });
-
     } catch (error) {
 
       setSubmitError(
@@ -409,23 +333,18 @@ export default function SignInspectionPage({
           error,
 
           "Your signature could not be saved. Please try again."
-
         )
-
       );
-
     } finally {
 
       setIsSubmitting(false);
 
     }
-
   };
 
   const landlordImage = getSignatureImageUrl(savedSignatures.landlord);
 
   const tenantImage = getSignatureImageUrl(savedSignatures.tenant);
-
   return (
 
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4 font-sans">
@@ -443,12 +362,8 @@ export default function SignInspectionPage({
             className="text-xs font-bold text-slate-600 hover:text-slate-900"
 
           >
-
             ← Back
-
           </button>
-
-
 
           <h2 className="text-sm font-extrabold text-[#4A1E6D]">
 
@@ -458,8 +373,6 @@ export default function SignInspectionPage({
 
         </div>
 
-
-
         <p className="text-xs text-slate-600 font-medium">
 
           Sign to acknowledge the inspection. Your signature will be saved to
@@ -467,8 +380,6 @@ export default function SignInspectionPage({
           the inspection record.
 
         </p>
-
-
 
         {!roleKey && (
 
@@ -480,8 +391,6 @@ export default function SignInspectionPage({
 
         )}
 
-
-
         {isLoading && (
 
           <p role="status" className="text-sm text-slate-500">
@@ -491,8 +400,6 @@ export default function SignInspectionPage({
           </p>
 
         )}
-
-
 
         {loadError && (
 
@@ -518,8 +425,6 @@ export default function SignInspectionPage({
 
         )}
 
-
-
         {!isLoading && !loadError && (
 
           <>
@@ -536,8 +441,6 @@ export default function SignInspectionPage({
 
             )}
 
-
-
             <div className="space-y-4">
 
               <div className="space-y-2">
@@ -547,8 +450,6 @@ export default function SignInspectionPage({
                   Landlord signature
 
                 </p>
-
-
 
                 {savedSignatures.landlord ? (
 
@@ -594,8 +495,6 @@ export default function SignInspectionPage({
 
                 )}
 
-
-
                 {isLandlord && !alreadySigned && !isFinalized && (
 
                   <SignatureCanvas
@@ -606,15 +505,13 @@ export default function SignInspectionPage({
 
                     onSave={setDraftSignature}
 
-                    disabled={isLoading || isSubmitting || Boolean(loadError)}
+                    disabled={isLoading || isSubmitting || Boolean(loadError) || inspectionState !== "UNDER_REVIEW"}
 
                   />
 
                 )}
 
               </div>
-
-
 
               <div className="space-y-2">
 
@@ -623,8 +520,6 @@ export default function SignInspectionPage({
                   Tenant signature
 
                 </p>
-
-
 
                 {savedSignatures.tenant ? (
 
@@ -670,8 +565,6 @@ export default function SignInspectionPage({
 
                 )}
 
-
-
                 {isTenant && !alreadySigned && !isFinalized && (
 
                   <SignatureCanvas
@@ -682,7 +575,7 @@ export default function SignInspectionPage({
 
                     onSave={setDraftSignature}
 
-                    disabled={isLoading || isSubmitting || Boolean(loadError)}
+                    disabled={isLoading || isSubmitting || Boolean(loadError) || inspectionState !== "UNDER_REVIEW"}
 
                   />
 
@@ -691,8 +584,6 @@ export default function SignInspectionPage({
               </div>
 
             </div>
-
-
 
             {alreadySigned && !isFinalized && (
 
@@ -705,8 +596,6 @@ export default function SignInspectionPage({
               </p>
 
             )}
-
-
 
             {submitError && (
 
@@ -723,25 +612,17 @@ export default function SignInspectionPage({
                   className="ml-2 font-bold underline"
 
                 >
-
                   Reload saved state
-
                 </button>
 
               </div>
 
             )}
 
-
-
             <button
-
               type="button"
-
               disabled={!canSubmit}
-
               onClick={handleSaveSignature}
-
               className="w-full bg-[#4A1E6D] hover:bg-purple-950 disabled:opacity-40 text-white font-extrabold py-3.5 rounded-2xl text-xs transition-colors shadow-lg"
 
             >
@@ -762,16 +643,11 @@ export default function SignInspectionPage({
 
             </button>
 
-
-
             <p className="text-xs text-slate-500">
 
               Backend inspection state: {inspectionState || "Not specified"}
-
             </p>
-
           </>
-
         )}
 
       </div>

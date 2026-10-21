@@ -15,7 +15,10 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
   const [resetComplete, setResetComplete] = useState(false);
 
   const getErrorMessage = (err, fallback) =>
-    err?.response?.data?.message || err?.response?.data?.error || err?.message || fallback;
+    err?.response?.data?.message ||
+    err?.response?.data?.error ||
+    err?.message ||
+    fallback;
 
   const handleSendCode = async (event) => {
     event.preventDefault();
@@ -35,14 +38,14 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
       setEmail(normalisedEmail);
       setStep(2);
       setNotice(
-        "If an account matches this email, a reset code has been requested. Check your inbox and spam folder. The code expires after 10 minutes."
+        "If an account matches this email, a reset code has been requested. Check your inbox and spam folder. The code expires after 10 minutes.",
       );
     } catch (err) {
       setError(
         getErrorMessage(
           err,
-          "We couldn't request a reset code right now. Please try again."
-        )
+          "We couldn't request a reset code right now. Please try again.",
+        ),
       );
     } finally {
       setLoading(false);
@@ -75,7 +78,9 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
         newPassword,
       });
       setResetComplete(true);
-      setNotice("Your password has been reset successfully. You can now sign in with your new password.");
+      setNotice(
+        "Your password has been reset successfully. You can now sign in with your new password.",
+      );
       setCode("");
       setNewPassword("");
       setConfirmPassword("");
@@ -83,8 +88,8 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
       setError(
         getErrorMessage(
           err,
-          "We couldn't reset your password. Check the code and try again."
-        )
+          "We couldn't reset your password. Check the code and try again.",
+        ),
       );
     } finally {
       setLoading(false);
@@ -117,12 +122,24 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
-            {resetComplete ? <ShieldCheck size={25} /> : step === 1 ? <Mail size={25} /> : <KeyRound size={25} />}
+            {resetComplete ? (
+              <ShieldCheck size={25} />
+            ) : step === 1 ? (
+              <Mail size={25} />
+            ) : (
+              <KeyRound size={25} />
+            )}
           </div>
 
-          <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-blue-700">HomeCompa account security</p>
+          <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-blue-700">
+            HomeCompa account security
+          </p>
           <h1 className="text-2xl font-bold text-slate-900">
-            {resetComplete ? "Password reset complete" : step === 1 ? "Forgot your password?" : "Reset your password"}
+            {resetComplete
+              ? "Password reset complete"
+              : step === 1
+                ? "Forgot your password?"
+                : "Reset your password"}
           </h1>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             {resetComplete
@@ -133,12 +150,18 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
           </p>
 
           {error && (
-            <div role="alert" className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div
+              role="alert"
+              className="mt-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
               {error}
             </div>
           )}
           {notice && (
-            <div role="status" className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            <div
+              role="status"
+              className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+            >
               {notice}
             </div>
           )}
@@ -146,7 +169,12 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
           {!resetComplete && step === 1 && (
             <form onSubmit={handleSendCode} className="mt-6 space-y-5">
               <div>
-                <label htmlFor="reset-email" className="mb-2 block text-sm font-medium text-slate-700">Email address</label>
+                <label
+                  htmlFor="reset-email"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Email address
+                </label>
                 <input
                   id="reset-email"
                   type="email"
@@ -171,7 +199,12 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
           {!resetComplete && step === 2 && (
             <form onSubmit={handleResetPassword} className="mt-6 space-y-5">
               <div>
-                <label htmlFor="reset-code" className="mb-2 block text-sm font-medium text-slate-700">Six-digit verification code</label>
+                <label
+                  htmlFor="reset-code"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Six-digit verification code
+                </label>
                 <input
                   id="reset-code"
                   type="text"
@@ -180,16 +213,25 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
                   pattern="[0-9]{6}"
                   maxLength={6}
                   value={code}
-                  onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                  onChange={(event) =>
+                    setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
                   placeholder="123456"
                   required
                   className="w-full rounded-lg border border-slate-300 px-3 py-3 tracking-[0.3em] text-slate-900 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
                 />
-                <p className="mt-2 text-xs text-slate-500">The code expires after 10 minutes.</p>
+                <p className="mt-2 text-xs text-slate-500">
+                  The code expires after 10 minutes.
+                </p>
               </div>
 
               <div>
-                <label htmlFor="new-password" className="mb-2 block text-sm font-medium text-slate-700">New password</label>
+                <label
+                  htmlFor="new-password"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  New password
+                </label>
                 <input
                   id="new-password"
                   type={showPassword ? "text" : "password"}
@@ -204,7 +246,12 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
               </div>
 
               <div>
-                <label htmlFor="confirm-password" className="mb-2 block text-sm font-medium text-slate-700">Confirm new password</label>
+                <label
+                  htmlFor="confirm-password"
+                  className="mb-2 block text-sm font-medium text-slate-700"
+                >
+                  Confirm new password
+                </label>
                 <input
                   id="confirm-password"
                   type={showPassword ? "text" : "password"}
@@ -219,7 +266,12 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
               </div>
 
               <label className="flex items-center gap-2 text-sm text-slate-600">
-                <input type="checkbox" checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} className="rounded border-slate-300" />
+                <input
+                  type="checkbox"
+                  checked={showPassword}
+                  onChange={(event) => setShowPassword(event.target.checked)}
+                  className="rounded border-slate-300"
+                />
                 Show passwords
               </label>
 
