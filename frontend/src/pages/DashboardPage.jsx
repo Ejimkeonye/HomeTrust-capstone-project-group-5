@@ -101,7 +101,7 @@ export default function DashboardPage({
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
-      <div className="w-full max-w-md bg-white min-h-screen sm:min-h-211 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative pb-24">
+      <div className="w-full max-w-6xl mx-auto px-4 bg-white min-h-screen sm:min-h-211 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative pb-24">
         {!isInvitedParticipant && (
           <CreatePropertyModal
             isOpen={showAddPropertyModal}

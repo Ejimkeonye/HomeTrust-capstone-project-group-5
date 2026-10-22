@@ -126,7 +126,7 @@ export default function ProfilePage({
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans sm:p-6">
-      <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col overflow-hidden bg-white text-slate-900 shadow-xl sm:min-h-190 sm:rounded-[36px] sm:border sm:border-slate-200">
+      <div className="relative mx-auto flex min-h-screen w-full max-w-6xl px-4 flex-col overflow-hidden bg-white text-slate-900 shadow-xl sm:min-h-190 sm:rounded-[36px] sm:border sm:border-slate-200">
         <section className="relative overflow-hidden bg-linear-to-br from-[#35104F] via-[#4A1E6D] to-[#7139A0] px-6 pb-10 pt-5 text-white">
           <header className="relative z-10 flex items-center justify-between">
             <button

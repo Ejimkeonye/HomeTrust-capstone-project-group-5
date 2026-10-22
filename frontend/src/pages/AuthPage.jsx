@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { ArrowLeft, Eye, EyeOff, CheckCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  CheckCircle,
+  LoaderCircle,
+} from "lucide-react";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 import api from "../api/client";
 
@@ -459,11 +465,18 @@ export default function AuthPage({
                 disabled={isLoading}
                 className="w-full bg-purple-800 hover:bg-purple-900 text-white font-bold text-base py-3.5 rounded-2xl shadow-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoading ? "Creating account..." : "Submit"}
+                {isLoading ? (
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <LoaderCircle className="w-4 h-4 animate-spin" />
+                    Creating account...
+                  </span>
+                ) : (
+                  "Submit"
+                )}
               </button>
 
               <p className="text-xs text-slate-500 text-center mt-3">
-                Your information will be used to create your HomeCompa account.
+                Your information will be used to create your Hometrust account.
               </p>
             </div>
           </form>

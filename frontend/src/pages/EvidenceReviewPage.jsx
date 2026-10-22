@@ -1030,7 +1030,7 @@ export default function EvidenceReviewPage({
       setUploadingItemIds((current) =>
         current.filter((key) => key !== uploadKey),
       );
-        setUploadStage("");
+      setUploadStage("");
       // Allows selecting the same file again.
 
       input.value = "";
@@ -1039,7 +1039,7 @@ export default function EvidenceReviewPage({
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
-      <div className="w-full max-w-md bg-white min-h-screen sm:min-h-200 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative text-slate-900">
+      <div className="w-full max-w-6xl mx-auto px-4 bg-white min-h-screen sm:min-h-200 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative text-slate-900">
         {/* Full-size image preview */}
 
         {selectedImage && (
@@ -1494,6 +1494,16 @@ export default function EvidenceReviewPage({
             <p role="alert" className="text-xs text-red-700">
               {errorMessage}
             </p>
+          )}
+
+          {inspectionStateLoading && (
+            <div
+              role="status"
+              className="flex items-center justify-center gap-2 py-4 text-sm text-purple-800"
+            >
+              <LoaderCircle className="w-5 h-5 animate-spin" />
+              Verifying inspection status...
+            </div>
           )}
 
           {filteredRooms.length > 0 ? (
