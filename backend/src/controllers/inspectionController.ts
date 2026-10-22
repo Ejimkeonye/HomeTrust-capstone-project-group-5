@@ -90,15 +90,20 @@ function parseSignatureImage(value: unknown): { contentType: 'image/png' | 'imag
   return isPng || isJpeg ? { contentType: match[1] as 'image/png' | 'image/jpeg', bytes } : undefined;
 }
 
-async function requestSignatureUpload(fileName: string, contentType: string): Promise<{ uploadUrl: string; objectKey: string }> {
+async function requestSignatureUpload(fileName: string, contentType: string, authorization: string): Promise<{ uploadUrl: string; objectKey: string }> {
   const uploadServiceUrl = process.env.PRESIGNED_UPLOAD_URL;
   if (!uploadServiceUrl) throw new Error('PRESIGNED_UPLOAD_URL is not configured');
+  if (!authorization) throw new Error('Authorization token is required for signature upload');
   const response = await fetch(uploadServiceUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: authorization },
     body: JSON.stringify({ file_name: fileName, content_type: contentType }),
   });
-  if (!response.ok) throw new Error('Signature upload service failed');
+  if (!response.ok) {
+    const upstreamBody = await response.text().catch(() => '');
+    console.error('Signature upload service rejected request:', response.status, upstreamBody.slice(0, 300));
+    throw new Error('Signature upload service failed');
+  }
   const result = await response.json() as { upload_url?: unknown; object_key?: unknown };
   if (typeof result.upload_url !== 'string' || typeof result.object_key !== 'string' ||
       !result.object_key.startsWith('evidence/signatures/')) {
@@ -165,7 +170,7 @@ export const saveInspectionSignature = async (req: AuthRequest, res: Response, n
     const safeInspectionId = inspectionId.replace(/[^a-zA-Z0-9_-]/g, '_');
     const extension = image.contentType === 'image/png' ? 'png' : 'jpg';
     const fileName = 'signatures/' + safeInspectionId + '/' + role.toLowerCase() + '/' + uuidv4() + '.' + extension;
-    const target = await requestSignatureUpload(fileName, image.contentType);
+    const target = await requestSignatureUpload(fileName, image.contentType, req.headers.authorization || '');
     const signedAt = new Date().toISOString();
     const signature: IInspectionSignature = {
       userId: req.user!.userId,
