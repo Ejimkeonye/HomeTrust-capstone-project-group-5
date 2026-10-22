@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   LogOut,
   AlertCircle,
+  LoaderCircle
 } from "lucide-react";
 import api from "../api/client";
 
@@ -419,10 +420,14 @@ export default function MoveOutInspectionReportPage({
             </div>
           </section>
           {isLoading && (
-            <p role="status" className="text-sm text-slate-500">
-              Loading and verifying both saved inspections…
-            </p>
-          )}
+  <div
+    role="status"
+    className="flex items-center justify-center gap-2 py-4 text-sm text-purple-800"
+  >
+    <LoaderCircle className="h-5 w-5 animate-spin" />
+    Loading and verifying both saved inspections…
+  </div>
+)}
           {loadError && (
             <div
               role="alert"

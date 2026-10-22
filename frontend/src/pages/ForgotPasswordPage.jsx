@@ -1,5 +1,7 @@
 import { useState } from "react";
+
 import { ArrowLeft, KeyRound, Mail, ShieldCheck } from "lucide-react";
+
 import api from "../api/client";
 
 export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
@@ -33,7 +35,6 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
 
     setLoading(true);
     try {
-      // api/client adds the configured API base URL (normally /api).
       await api.post("/auth/forgot-password", { email: normalisedEmail });
       setEmail(normalisedEmail);
       setStep(2);
@@ -104,6 +105,7 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
       setNotice("");
       return;
     }
+
     if (onBack) onBack();
     else if (onNavigateToLogin) onNavigateToLogin();
   };
@@ -114,14 +116,14 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
         <button
           type="button"
           onClick={handleBack}
-          className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+          className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-purple-800"
         >
           <ArrowLeft size={18} />
           {step === 2 && !resetComplete ? "Back" : "Back to sign in"}
         </button>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+          <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-purple-50 text-purple-800">
             {resetComplete ? (
               <ShieldCheck size={25} />
             ) : step === 1 ? (
@@ -131,8 +133,8 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
             )}
           </div>
 
-          <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-blue-700">
-            HomeCompa account security
+          <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-purple-800">
+            HomeTrust account security
           </p>
           <h1 className="text-2xl font-bold text-slate-900">
             {resetComplete
@@ -183,13 +185,13 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@example.com"
                   required
-                  className="w-full rounded-lg border border-slate-300 px-3 py-3 text-slate-900 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-3 text-slate-900 outline-none transition focus:border-purple-600 focus:ring-2 focus:ring-purple-100"
                 />
               </div>
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-lg bg-purple-800 px-4 py-3 font-semibold text-white transition hover:bg-purple-900 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? "Requesting code…" : "Send reset code"}
               </button>
@@ -218,7 +220,7 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
                   }
                   placeholder="123456"
                   required
-                  className="w-full rounded-lg border border-slate-300 px-3 py-3 tracking-[0.3em] text-slate-900 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-3 tracking-[0.3em] text-slate-900 outline-none transition focus:border-purple-600 focus:ring-2 focus:ring-purple-100"
                 />
                 <p className="mt-2 text-xs text-slate-500">
                   The code expires after 10 minutes.
@@ -241,7 +243,7 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
                   onChange={(event) => setNewPassword(event.target.value)}
                   placeholder="At least 8 characters"
                   required
-                  className="w-full rounded-lg border border-slate-300 px-3 py-3 text-slate-900 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-3 text-slate-900 outline-none transition focus:border-purple-600 focus:ring-2 focus:ring-purple-100"
                 />
               </div>
 
@@ -261,7 +263,7 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
                   onChange={(event) => setConfirmPassword(event.target.value)}
                   placeholder="Re-enter your new password"
                   required
-                  className="w-full rounded-lg border border-slate-300 px-3 py-3 text-slate-900 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-3 text-slate-900 outline-none transition focus:border-purple-600 focus:ring-2 focus:ring-purple-100"
                 />
               </div>
 
@@ -270,7 +272,7 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
                   type="checkbox"
                   checked={showPassword}
                   onChange={(event) => setShowPassword(event.target.checked)}
-                  className="rounded border-slate-300"
+                  className="rounded border-slate-300 accent-purple-800"
                 />
                 Show passwords
               </label>
@@ -278,7 +280,7 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-lg bg-purple-800 px-4 py-3 font-semibold text-white transition hover:bg-purple-900 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? "Resetting password…" : "Reset password"}
               </button>
@@ -287,7 +289,7 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
                 type="button"
                 disabled={loading}
                 onClick={handleSendCode}
-                className="w-full rounded-lg border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                className="w-full rounded-lg border border-purple-200 px-4 py-3 text-sm font-semibold text-purple-800 transition hover:bg-purple-50 disabled:opacity-60"
               >
                 Request another code
               </button>
@@ -298,7 +300,7 @@ export default function ForgotPasswordPage({ onBack, onNavigateToLogin }) {
             <button
               type="button"
               onClick={onNavigateToLogin || onBack}
-              className="mt-6 w-full rounded-lg bg-blue-700 px-4 py-3 font-semibold text-white transition hover:bg-blue-800"
+              className="mt-6 w-full rounded-lg bg-purple-800 px-4 py-3 font-semibold text-white transition hover:bg-purple-900"
             >
               Return to sign in
             </button>

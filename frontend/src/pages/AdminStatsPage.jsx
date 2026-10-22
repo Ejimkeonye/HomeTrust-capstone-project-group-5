@@ -128,7 +128,7 @@ export default function AdminStatsPage() {
   if (!authenticated) {
     return (
       <main className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
-        <section className="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm">
+        <section className="w-full max-w-6xl mx-auto px-4 rounded-2xl bg-white p-8 shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-wider text-slate-500">
             HomeTrust
           </p>
@@ -192,7 +192,7 @@ export default function AdminStatsPage() {
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wider text-slate-500">
-              HomeCompa
+              HomeTrust
             </p>
             <h1 className="mt-1 text-3xl font-bold text-slate-900">
               Admin dashboard

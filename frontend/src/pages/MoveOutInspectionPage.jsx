@@ -14,6 +14,7 @@ import {
   Edit2,
   ShieldAlert,
   X,
+  LoaderCircle,
 } from "lucide-react";
 import api from "../api/client"; // Live API client connected to Render backend
 import { triggerNotification } from "../utils/notifications";
@@ -988,7 +989,7 @@ export default function MoveOutInspectionPage({
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
-      <div className="w-full max-w-md bg-white min-h-screen sm:min-h-203 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative text-slate-900">
+      <div className="w-full max-w-6xl mx-auto px-4 bg-white min-h-screen sm:min-h-203 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative text-slate-900">
         {/* Top Header */}
         <div className="p-4 flex items-center justify-between z-10 gap-2 bg-[#4A1E6D] text-white">
           <button
@@ -1123,6 +1124,15 @@ export default function MoveOutInspectionPage({
               </div>
 
               {/* Room Cards */}
+              {isLoadingInspection && (
+                <div
+                  role="status"
+                  className="flex items-center justify-center gap-2 py-4 text-sm text-purple-800"
+                >
+                  <LoaderCircle className="w-5 h-5 animate-spin" />
+                  Loading move-out inspection and evidence...
+                </div>
+              )}
               <div className="space-y-3">
                 {filteredRooms.length === 0 ? (
                   <div className="text-center py-10 text-slate-400 text-xs font-medium bg-slate-50 rounded-2xl border border-dashed border-slate-200">

@@ -349,7 +349,7 @@ export default function SignInspectionPage({
 
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4 font-sans">
 
-      <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 space-y-6">
+      <div className="w-full max-w-6xl mx-auto px-4 bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 space-y-6">
 
         <div className="flex items-center justify-between border-b pb-4">
 
