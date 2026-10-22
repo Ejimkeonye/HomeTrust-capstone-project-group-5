@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-
 import {
   ArrowLeft,
   Camera,
@@ -14,7 +13,6 @@ import {
 } from "lucide-react";
 
 import { triggerNotification } from "../utils/notifications";
-
 import api from "../api/client";
 
 const CONDITIONS = [
@@ -39,6 +37,7 @@ const getItemPhotos = (item) => {
       ...photo,
 
       // The controller's url is the signed S3 URL; downloadUrl returns JSON.
+
       url: photo.url,
     })),
 
@@ -66,11 +65,17 @@ export default function MoveOutEvidencePage({
   onUpdateInspectionData,
 }) {
   const [inspectionState, setInspectionState] = useState(null);
+
   const [inspectionStateLoading, setInspectionStateLoading] = useState(true);
+
   const [inspectionStateError, setInspectionStateError] = useState(false);
+
   const [verifiedInspectionId, setVerifiedInspectionId] = useState(null);
+
   const isReadOnly = inspectionState === "READ_ONLY";
+
   // Fail closed until the active inspection's authoritative state is known.
+
   const canModifyInspection =
     Boolean(inspectionId) &&
     verifiedInspectionId === inspectionId &&
@@ -90,6 +95,11 @@ export default function MoveOutEvidencePage({
   const [uploadingItemIds, setUploadingItemIds] = useState([]);
 
   const [uploadMessage, setUploadMessage] = useState("");
+
+  const [uploadProgress, setUploadProgress] = useState({
+    completed: 0,
+    total: 0,
+  });
 
   // Add Evidence modal state.
 
@@ -114,7 +124,9 @@ export default function MoveOutEvidencePage({
   const [successMessage, setSuccessMessage] = useState("");
 
   // Read the authoritative state from this inspection, not the property.
+
   // Reset on every inspection change and fail closed if the request fails.
+
   useEffect(() => {
     let cancelled = false;
 
@@ -125,30 +137,40 @@ export default function MoveOutEvidencePage({
     }
 
     api
+
       .get(`/inspections/${inspectionId}`)
+
       .then((response) => {
         const inspection =
           response.data?.inspection || response.data?.data || response.data;
+
         if (!inspection?.state) {
           throw new Error("The backend did not return the inspection state.");
         }
+
         if (!cancelled) {
           setInspectionState(inspection.state);
+
           setVerifiedInspectionId(inspectionId);
         }
       })
+
       .catch((error) => {
         console.error(
           "Could not load inspection state:",
+
           getErrorMessage(error),
         );
+
         if (!cancelled) {
           setInspectionStateError(true);
+
           setErrorMessage(
             "Could not verify the inspection state. Refresh the inspection before editing or uploading evidence.",
           );
         }
       })
+
       .finally(() => {
         if (!cancelled) setInspectionStateLoading(false);
       });
@@ -325,8 +347,10 @@ export default function MoveOutEvidencePage({
       setErrorMessage(
         "The inspection state is not verified or the inspection is read-only.",
       );
+
       return;
     }
+
     setErrorMessage("");
 
     setSuccessMessage("");
@@ -369,8 +393,10 @@ export default function MoveOutEvidencePage({
       setErrorMessage(
         "The inspection state is not verified or the inspection is read-only.",
       );
+
       return;
     }
+
     setChecklistItems((previous) =>
       previous.filter((item) => item.localId !== localId),
     );
@@ -630,11 +656,14 @@ export default function MoveOutEvidencePage({
 
   const handleProceed = async () => {
     setErrorMessage("");
+
     if (!canModifyInspection) {
       setErrorMessage(
         "The inspection state is not verified or the inspection is read-only.",
       );
+
       setShowConfirmationModal(false);
+
       return;
     }
 
@@ -678,7 +707,9 @@ export default function MoveOutEvidencePage({
           ? "The inspection state has not been verified. Refresh and try again."
           : "This inspection is read-only. Evidence cannot be uploaded.",
       );
+
       input.value = "";
+
       return;
     }
 
@@ -725,6 +756,8 @@ export default function MoveOutEvidencePage({
     );
 
     let uploadedCount = 0;
+    let uploadStage = "Preparing upload";
+    setUploadProgress({ completed: 0, total: files.length });
 
     try {
       const room = roomsList.find(
@@ -758,7 +791,9 @@ export default function MoveOutEvidencePage({
       let latestRooms = roomsList;
 
       // `id` can be a UI/local ID; only these explicit fields identify a
+
       // backend ROOM_ITEMS record.
+
       let backendItemId = item.roomItemId || item.itemId || null;
 
       if (!backendItemId) {
@@ -826,8 +861,10 @@ export default function MoveOutEvidencePage({
 
       // Carry forward updates locally as each file is confirmed.
 
-      for (const file of files) {
+      for (const [fileIndex, file] of files.entries()) {
         // 1. Request the S3 presigned upload URL.
+        uploadStage = `Requesting secure upload URL for file ${fileIndex + 1} of ${files.length}`;
+        setUploadMessage(`${uploadStage}...`);
 
         const presignResponse = await api.post("/evidence/presigned-url", {
           file_name: file.name,
@@ -849,6 +886,8 @@ export default function MoveOutEvidencePage({
         }
 
         // 2. Upload the actual file to S3.
+        uploadStage = `Uploading file ${fileIndex + 1} of ${files.length} to secure storage`;
+        setUploadMessage(`${uploadStage}...`);
 
         const s3Response = await fetch(uploadUrl, {
           method: "PUT",
@@ -865,6 +904,8 @@ export default function MoveOutEvidencePage({
         }
 
         // 3. Confirm the upload with the backend.
+        uploadStage = `Saving evidence record for file ${fileIndex + 1} of ${files.length}`;
+        setUploadMessage(`${uploadStage}...`);
 
         const confirmResponse = await api.post(
           `/evidence/${inspectionId}/items/${backendItemId}/confirm`,
@@ -980,6 +1021,10 @@ export default function MoveOutEvidencePage({
         }
 
         uploadedCount += 1;
+        setUploadProgress({
+          completed: uploadedCount,
+          total: files.length,
+        });
       }
 
       setUploadMessage(
@@ -1006,7 +1051,7 @@ export default function MoveOutEvidencePage({
         error.response?.data || error.message,
       );
 
-      setErrorMessage(getErrorMessage(error));
+      setErrorMessage(`${uploadStage} failed: ${getErrorMessage(error)}`);
 
       if (uploadedCount > 0) {
         setUploadMessage(
@@ -1019,7 +1064,6 @@ export default function MoveOutEvidencePage({
       );
 
       // Allows selecting the same file again.
-
       input.value = "";
     }
   };
@@ -1027,8 +1071,6 @@ export default function MoveOutEvidencePage({
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
       <div className="w-full max-w-md bg-white min-h-screen sm:min-h-200 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative text-slate-900">
-        {/* Full-size image preview */}
-
         {selectedImage && (
           <div
             onClick={() => setSelectedImage(null)}
@@ -1054,8 +1096,6 @@ export default function MoveOutEvidencePage({
             </p>
           </div>
         )}
-
-        {/* Add Evidence modal: existing room + multiple backend-saved items */}
 
         {showAddModal && (
           <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-40 flex items-center justify-center p-4">
@@ -1199,6 +1239,44 @@ export default function MoveOutEvidencePage({
                                 {item.notes}
                               </p>
                             )}
+
+                            {item.dispute &&
+                              typeof item.dispute === "object" && (
+                                <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 space-y-1.5">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="text-[11px] font-extrabold text-amber-900">
+                                      Dispute / Issue Raised
+                                    </p>
+                                    {item.dispute.severity && (
+                                      <span className="shrink-0 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-900">
+                                        {item.dispute.severity}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {item.dispute.description && (
+                                    <p className="text-[11px] text-amber-950 whitespace-pre-wrap">
+                                      {item.dispute.description}
+                                    </p>
+                                  )}
+                                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-amber-800">
+                                    {item.dispute.raisedBy && (
+                                      <span>
+                                        Raised by: {item.dispute.raisedBy}
+                                      </span>
+                                    )}
+                                    {item.dispute.timestamp && (
+                                      <span>
+                                        Date: {item.dispute.timestamp}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {item.status && (
+                                    <p className="text-[10px] font-semibold text-amber-900">
+                                      Status: {item.status}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
                           </div>
 
                           <button
@@ -1254,8 +1332,6 @@ export default function MoveOutEvidencePage({
             </div>
           </div>
         )}
-
-        {/* Confirmation modal */}
 
         {showConfirmationModal && (
           <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-30 flex items-center justify-center p-4">
@@ -1322,8 +1398,6 @@ export default function MoveOutEvidencePage({
           </div>
         )}
 
-        {/* Header */}
-
         <header className="p-4 flex items-center justify-between z-10 gap-2 bg-[#4A1E6D] text-white">
           <button
             type="button"
@@ -1340,8 +1414,6 @@ export default function MoveOutEvidencePage({
 
           <div className="w-9" />
         </header>
-
-        {/* Original-style action bar */}
 
         <div className="px-6 pt-4 flex gap-2">
           <button
@@ -1363,8 +1435,10 @@ export default function MoveOutEvidencePage({
                 setErrorMessage(
                   "The inspection state is not verified or the inspection is read-only.",
                 );
+
                 return;
               }
+
               resetAddForm();
 
               setShowAddModal(true);
@@ -1375,16 +1449,11 @@ export default function MoveOutEvidencePage({
           </button>
         </div>
 
-        {/* Property context */}
-
         <div className="px-6 pt-3">
           <p className="text-[11px] text-slate-600 truncate">
             {property?.name || property?.address || "Selected property"}
           </p>
         </div>
-
-        {/* Category pills */}
-
         <div className="px-6 pt-3">
           <span className="text-[11px] font-extrabold text-slate-800 block mb-2">
             Category
@@ -1407,13 +1476,17 @@ export default function MoveOutEvidencePage({
             ))}
           </div>
         </div>
-
-        {/* Evidence scroll area */}
-
         <main className="px-6 py-4 flex-1 overflow-y-auto space-y-4 bg-white">
           {uploadMessage && (
             <p role="status" className="text-xs text-emerald-700">
               {uploadMessage}
+            </p>
+          )}
+
+          {uploadingItemIds.length > 0 && (
+            <p className="text-xs text-purple-800" role="status">
+              {uploadProgress.completed} of {uploadProgress.total} files
+              uploaded
             </p>
           )}
 
@@ -1632,8 +1705,6 @@ export default function MoveOutEvidencePage({
           </div>
         </main>
 
-        {/* Submit button */}
-
         <footer className="p-4 border-t border-slate-200 bg-white">
           <button
             type="button"
@@ -1642,8 +1713,10 @@ export default function MoveOutEvidencePage({
                 setErrorMessage(
                   "The inspection state is not verified or the inspection is read-only.",
                 );
+
                 return;
               }
+
               setErrorMessage("");
 
               setShowConfirmationModal(true);

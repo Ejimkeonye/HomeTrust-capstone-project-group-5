@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-
 import {
   ArrowLeft,
   Printer,
@@ -9,7 +8,6 @@ import {
   ShieldCheck,
   Download,
 } from "lucide-react";
-
 import api from "../api/client";
 
 const getSignatureImageUrl = (signature) => {
@@ -453,10 +451,42 @@ export default function InspectionReportPage({
 
                         {/* Render Item Comments / Notes */}
 
-                        {item.notes && (
+                        {(item.notes || item.comments) && (
                           <p className="text-[11px] text-slate-600 bg-slate-50 p-1.5 rounded-lg border border-slate-200 font-medium">
-                            💬 "{item.notes}"
+                            💬 Comments: {item.notes || item.comments}
                           </p>
+                        )}
+
+                        {item.dispute && (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 space-y-1">
+                            <p className="font-bold text-amber-900">
+                              Dispute Filed
+                            </p>
+
+                            {item.dispute.severity && (
+                              <p className="font-semibold text-amber-800">
+                                Severity: {item.dispute.severity}
+                              </p>
+                            )}
+
+                            {item.dispute.description && (
+                              <p className="text-slate-700 whitespace-pre-wrap">
+                                {item.dispute.description}
+                              </p>
+                            )}
+
+                            {item.dispute.raisedBy && (
+                              <p className="text-slate-500">
+                                Raised by: {item.dispute.raisedBy}
+                              </p>
+                            )}
+
+                            {item.dispute.timestamp && (
+                              <p className="text-slate-500">
+                                Date: {item.dispute.timestamp}
+                              </p>
+                            )}
+                          </div>
                         )}
 
                         {(item.evidence?.length > 0 ||
