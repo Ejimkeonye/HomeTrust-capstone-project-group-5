@@ -142,6 +142,8 @@ export const getPresignedUrl = async (
     });
 
     if (!lambdaResponse.ok) {
+      const upstreamBody = await lambdaResponse.text().catch(() => '');
+      console.error('Presigned upload service rejected request:', lambdaResponse.status, upstreamBody.slice(0, 300));
       res.status(502);
       throw new Error('Failed to get presigned URL from upload service');
     }
