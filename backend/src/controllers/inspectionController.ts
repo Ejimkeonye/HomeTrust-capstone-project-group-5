@@ -155,9 +155,6 @@ export const saveInspectionSignature = async (req: AuthRequest, res: Response, n
     } else {
       return res.status(403).json({ message: 'Only the linked landlord or tenant can sign this inspection' });
     }
-    if (!inspection.landlordId || !inspection.tenantId) {
-      return res.status(409).json({ message: 'Both landlord and tenant must be linked before signing' });
-    }
     if (inspection.state !== 'UNDER_REVIEW') {
       return res.status(409).json({ message: 'Signatures can be added only while the inspection is under review' });
     }
