@@ -554,7 +554,11 @@ export const submitInspection = async (req: AuthRequest, res: Response, next: Ne
     const inspectionId = req.params.id as string;
     const inspection = await loadInspection(inspectionId);
     if (!inspection) return res.status(404).json({ message: 'Inspection not found' });
-    if ((inspection.createdBy || inspection.landlordId) !== req.user!.userId) return res.status(403).json({ message: 'Only the inspection creator can submit it' });
+    if ((inspection.createdBy || inspection.landlordId) !== req.user!.userId) {
+      // An invited party may enter the review stage, but cannot change the creator's submission.
+      if (canAccess(inspection, req.user!.userId) && inspection.state === 'UNDER_REVIEW') return res.json(inspection);
+      return res.status(403).json({ message: inspection.state === 'DRAFT' ? 'The inspection creator has not submitted this inspection yet' : 'Only the inspection creator can submit it' });
+    }
     if (inspection.state === 'READ_ONLY') return res.status(409).json({ message: 'Inspection is already finalized' });
     if (inspection.items.length === 0) return res.status(400).json({ message: 'Add at least one room item before submitting' });
     const now = new Date().toISOString();
