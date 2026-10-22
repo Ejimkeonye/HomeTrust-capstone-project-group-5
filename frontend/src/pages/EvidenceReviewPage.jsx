@@ -84,12 +84,14 @@ export default function EvidenceReviewPage({
   const [descriptiveNote, setDescriptiveNote] = useState("");
 
   const [showConfirmationModal, setShowConfirmationModal] = useState(false);
-
   const [selectedImage, setSelectedImage] = useState(null);
-
   const [uploadingItemIds, setUploadingItemIds] = useState([]);
-
   const [uploadMessage, setUploadMessage] = useState("");
+  const [uploadStage, setUploadStage] = useState("");
+  const [uploadProgress, setUploadProgress] = useState({
+    completed: 0,
+    total: 0,
+  });
 
   // Add Evidence modal state.
 
@@ -670,9 +672,7 @@ export default function EvidenceReviewPage({
     const input = event.target;
 
     const files = Array.from(input.files || []);
-
     if (!files.length) return;
-
     if (!canModifyInspection) {
       setErrorMessage(
         inspectionStateError || inspectionStateLoading
@@ -726,6 +726,9 @@ export default function EvidenceReviewPage({
     );
 
     let uploadedCount = 0;
+    let currentUploadStage = "Preparing upload";
+
+    setUploadProgress({ completed: 0, total: files.length });
 
     try {
       const room = roomsList.find(
@@ -829,7 +832,8 @@ export default function EvidenceReviewPage({
 
       for (const file of files) {
         // 1. Request the S3 presigned upload URL.
-
+        currentUploadStage = `Requesting upload URL for ${file.name}`;
+        setUploadStage(currentUploadStage);
         const presignResponse = await api.post("/evidence/presigned-url", {
           file_name: file.name,
 
@@ -848,7 +852,8 @@ export default function EvidenceReviewPage({
             "The evidence controller did not return an upload URL and object key.",
           );
         }
-
+        currentUploadStage = `Uploading ${file.name} to storage`;
+        setUploadStage(currentUploadStage);
         // 2. Upload the actual file to S3.
 
         const s3Response = await fetch(uploadUrl, {
@@ -864,7 +869,8 @@ export default function EvidenceReviewPage({
         if (!s3Response.ok) {
           throw new Error(`S3 upload failed with status ${s3Response.status}.`);
         }
-
+        currentUploadStage = `Saving evidence record for ${file.name}`;
+        setUploadStage(currentUploadStage);
         // 3. Confirm the upload with the backend.
 
         const confirmResponse = await api.post(
@@ -981,6 +987,10 @@ export default function EvidenceReviewPage({
         }
 
         uploadedCount += 1;
+        setUploadProgress({
+          completed: uploadedCount,
+          total: files.length,
+        });
       }
 
       setUploadMessage(
@@ -1007,7 +1017,9 @@ export default function EvidenceReviewPage({
         error.response?.data || error.message,
       );
 
-      setErrorMessage(getErrorMessage(error));
+      setErrorMessage(
+        `${currentUploadStage} failed: ${getErrorMessage(error)}`,
+      );
 
       if (uploadedCount > 0) {
         setUploadMessage(
@@ -1018,7 +1030,7 @@ export default function EvidenceReviewPage({
       setUploadingItemIds((current) =>
         current.filter((key) => key !== uploadKey),
       );
-
+        setUploadStage("");
       // Allows selecting the same file again.
 
       input.value = "";
@@ -1181,39 +1193,89 @@ export default function EvidenceReviewPage({
                     </label>
 
                     <div className="space-y-1 max-h-36 overflow-y-auto bg-slate-50 p-2 rounded-xl border border-slate-200">
-                      {checklistItems.map((item) => (
-                        <div
-                          key={item.localId}
-                          className="flex justify-between items-start gap-2 text-[11px] text-slate-700 bg-white rounded-lg p-2"
-                        >
-                          <div className="min-w-0">
-                            <p className="font-bold wrap-break-word">
-                              {item.name}
-                            </p>
-
-                            <p className="font-bold capitalize text-[#4A1E6D] mt-1">
-                              {item.condition.replaceAll("_", " ")}
-                            </p>
-
-                            {item.notes && (
-                              <p className="text-slate-500 mt-1 wrap-break-word">
-                                {item.notes}
-                              </p>
-                            )}
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleRemoveChecklistItem(item.localId)
-                            }
-                            aria-label={`Remove ${item.name}`}
-                            className="text-slate-400 hover:text-red-600 p-1"
+                      {checklistItems.map((item) => {
+                        return (
+                          <div
+                            key={item.localId}
+                            className="flex justify-between items-start gap-2 text-[11px] text-slate-700 bg-white rounded-lg p-2"
                           >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold wrap-break-word">
+                                {item.name}
+                              </p>
+
+                              <p className="font-bold capitalize text-[#4A1E6D] mt-1">
+                                {(item.condition || "no_issue").replaceAll(
+                                  "_",
+                                  " ",
+                                )}
+                              </p>
+
+                              {item.notes && (
+                                <p className="text-slate-500 mt-1 wrap-break-word">
+                                  {item.notes}
+                                </p>
+                              )}
+
+                              {item.dispute && (
+                                <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 space-y-1">
+                                  <p className="font-bold text-amber-900">
+                                    Dispute Filed
+                                  </p>
+
+                                  <p className="font-semibold text-slate-800">
+                                    Active Dispute Record
+                                    {item.dispute.raisedBy
+                                      ? ` (${item.dispute.raisedBy})`
+                                      : ""}
+                                  </p>
+
+                                  {item.dispute.severity && (
+                                    <p className="font-bold text-amber-800">
+                                      {item.dispute.severity}
+                                    </p>
+                                  )}
+
+                                  {item.dispute.description && (
+                                    <p className="text-slate-700 whitespace-pre-wrap wrap-break-word">
+                                      “{item.dispute.description}”
+                                    </p>
+                                  )}
+
+                                  <p className="text-slate-500">
+                                    {item.dispute.raisedBy
+                                      ? `By: ${item.dispute.raisedBy}`
+                                      : ""}
+                                    {item.dispute.timestamp
+                                      ? ` • ${item.dispute.timestamp}`
+                                      : ""}
+                                  </p>
+                                </div>
+                              )}
+
+                              {(item.photos?.length > 0 ||
+                                item.evidence?.length > 0) && (
+                                <p className="mt-1 text-emerald-700">
+                                  Photo/evidence:{" "}
+                                  {(item.photos || item.evidence || []).length}{" "}
+                                  file(s)
+                                </p>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleRemoveChecklistItem(item.localId)
+                              }
+                              aria-label={`Remove ${item.name}`}
+                              className="text-slate-400 hover:text-red-600 p-1"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -1418,6 +1480,16 @@ export default function EvidenceReviewPage({
             </p>
           )}
 
+          {uploadingItemIds.length > 0 && uploadStage && (
+            <div className="text-xs text-purple-800 space-y-1" role="status">
+              <p>{uploadStage}</p>
+              <p>
+                {uploadProgress.completed} of {uploadProgress.total} files
+                uploaded
+              </p>
+            </div>
+          )}
+
           {errorMessage && !showAddModal && !showConfirmationModal && (
             <p role="alert" className="text-xs text-red-700">
               {errorMessage}
@@ -1526,6 +1598,38 @@ export default function EvidenceReviewPage({
 
                               <span>{item.notes}</span>
                             </p>
+                          )}
+
+                          {item.dispute && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 space-y-1">
+                              <p className="font-bold text-amber-900">
+                                Dispute Filed
+                              </p>
+
+                              {item.dispute.severity && (
+                                <p className="font-semibold text-amber-800">
+                                  Severity: {item.dispute.severity}
+                                </p>
+                              )}
+
+                              {item.dispute.description && (
+                                <p className="text-slate-700 whitespace-pre-wrap wrap-break-word">
+                                  {item.dispute.description}
+                                </p>
+                              )}
+
+                              {item.dispute.raisedBy && (
+                                <p className="text-slate-500">
+                                  Raised by: {item.dispute.raisedBy}
+                                </p>
+                              )}
+
+                              {item.dispute.timestamp && (
+                                <p className="text-slate-500">
+                                  Date: {item.dispute.timestamp}
+                                </p>
+                              )}
+                            </div>
                           )}
 
                           {getItemPhotos(item).length > 0 && (

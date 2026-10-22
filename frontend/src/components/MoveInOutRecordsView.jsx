@@ -78,9 +78,45 @@ function RecordColumn({ label, room, accentClass }) {
                     ).replaceAll("_", " ")}
                   </span>
                 </div>
-                {item.notes && (
-                  <p className="text-[10px] text-slate-500">{item.notes}</p>
+
+                {(item.notes || item.comments) && (
+                  <p className="text-[10px] text-slate-600">
+                    💬 Comments: {item.notes || item.comments}
+                  </p>
                 )}
+
+                {item.dispute && (
+                  <div className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 p-2">
+                    <p className="text-[10px] font-bold text-amber-900">
+                      Dispute Filed
+                    </p>
+
+                    {item.dispute.severity && (
+                      <p className="text-[10px] font-semibold text-amber-800">
+                        Severity: {item.dispute.severity}
+                      </p>
+                    )}
+
+                    {item.dispute.description && (
+                      <p className="whitespace-pre-wrap text-[10px] text-slate-700">
+                        {item.dispute.description}
+                      </p>
+                    )}
+
+                    {item.dispute.raisedBy && (
+                      <p className="text-[10px] text-slate-500">
+                        Raised by: {item.dispute.raisedBy}
+                      </p>
+                    )}
+
+                    {item.dispute.timestamp && (
+                      <p className="text-[10px] text-slate-500">
+                        Date: {item.dispute.timestamp}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {images.length > 1 && (
                   <div className="grid grid-cols-3 gap-1">
                     {images.slice(1, 4).map((src, imageIndex) => (
