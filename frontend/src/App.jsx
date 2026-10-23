@@ -57,37 +57,52 @@ const hasSavedSignature = (signature) =>
 
 // Dashboard status is derived from verified backend inspection records, never
 // from stale property metadata or signatures left in browser state.
+
 const applyInspectionStatus = (property, moveIn, moveOut) => {
   const moveInLocked = moveIn?.state === "READ_ONLY";
   const moveOutLocked = moveOut?.state === "READ_ONLY";
+
   const landlordSignature = hasSavedSignature(moveIn?.landlordSignature)
     ? moveIn.landlordSignature
     : null;
+
   const tenantSignature = hasSavedSignature(moveIn?.tenantSignature)
     ? moveIn.tenantSignature
     : null;
+
   return {
     ...property,
+
     status: moveInLocked
       ? "READ_ONLY"
       : moveIn
         ? moveIn.state || "IN_PROGRESS"
         : "NOT_STARTED",
+
     moveInStatus: moveInLocked
       ? "LOCKED"
       : moveIn
         ? "IN_PROGRESS"
         : "NOT_STARTED",
+
+    progress: moveInLocked
+      ? 100
+      : moveIn
+        ? Math.max(Number(property.progress) || 0, 50)
+        : 0,
+
     signatures:
       moveInLocked && landlordSignature && tenantSignature
         ? { landlord: landlordSignature, tenant: tenantSignature }
         : { landlord: null, tenant: null },
+
     moveOutStatus: moveOutLocked
       ? "READ_ONLY"
       : moveOut
         ? "ACTIVE"
         : "NOT_STARTED",
-    moveOutProgress: moveOut ? 100 : 0,
+
+    moveOutProgress: moveOutLocked ? 100 : moveOut ? 50 : 0,
   };
 };
 
@@ -828,29 +843,43 @@ export default function App() {
   };
 
   const handleAddNewProperty = (newPropData) => {
+    const stableId =
+      newPropData.propertyId ||
+      newPropData.id ||
+      `prop-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
     const uniqueProp = {
       ...newPropData,
-      propertyId:
-        newPropData.propertyId || newPropData.id || `prop-${Date.now()}`,
-
-      id: newPropData.id || newPropData.propertyId || `prop-${Date.now()}`,
+      propertyId: stableId,
+      id: stableId,
+      progress: 0,
+      moveOutProgress: 0,
+      status: "NOT_STARTED",
+      moveInStatus: "NOT_STARTED",
+      moveOutStatus: "NOT_STARTED",
+      signatures: { landlord: null, tenant: null },
     };
 
     const updatedList = [uniqueProp, ...properties];
 
     setProperties(updatedList);
     setSelectedProperty(uniqueProp);
+    setInspectionId(null);
+    setMoveOutInspectionId(null);
     setSelectedInspectionData([]);
     setMoveOutInspectionData([]);
-    if (currentUser) {
-      const userStorageKey = `hometrust_properties_${currentUser.email || currentUser.id || "default"}`;
+    setSignatures({ landlord: null, tenant: null });
+    setMoveOutSignatures({ landlord: null, tenant: null });
 
+    if (currentUser) {
+      const userStorageKey = `hometrust_properties_${
+        currentUser.email || currentUser.id || "default"
+      }`;
       localStorage.setItem(userStorageKey, JSON.stringify(updatedList));
     }
-    const propKey = uniqueProp.propertyId || uniqueProp.id;
 
     triggerNotification(
-      propKey,
+      stableId,
       "New Property Added",
       `Successfully registered ${uniqueProp.address}.`,
       "system",
@@ -1356,7 +1385,7 @@ export default function App() {
               const updatedProperties = properties.map((prop) =>
                 prop.propertyId === selectedProperty.propertyId ||
                 prop.id === selectedProperty.id
-                  ? { ...prop, moveOutProgress: 100, moveOutStatus: "ACTIVE" }
+                 ? { ...prop, moveOutProgress: 50, moveOutStatus: "ACTIVE" }
                   : prop,
               );
 
@@ -1365,7 +1394,7 @@ export default function App() {
               setSelectedProperty({
                 ...selectedProperty,
 
-                moveOutProgress: 100,
+                moveOutProgress: 50,
 
                 moveOutStatus: "ACTIVE",
               });
@@ -1391,6 +1420,7 @@ export default function App() {
           property={selectedProperty}
           inspectionId={moveOutInspectionId}
           onBack={() => setCurrentView("move-out-inspection")}
+          onDashboard={() => setCurrentView("dashboard")}
           onSubmitEvidence={async () => {
             const propertyId =
               selectedProperty?.propertyId || selectedProperty?.id;
@@ -1492,6 +1522,7 @@ export default function App() {
           userRole={currentUser?.role || "tenant"}
           initialSignatures={moveOutSignatures}
           onBack={() => setCurrentView("move-in-out-records")}
+          onDashboard={() => setCurrentView("dashboard")}
           onSignaturesComplete={(sigs, metadata = {}) => {
             const confirmedInspection = metadata.inspection;
             const confirmedId =
@@ -1582,6 +1613,7 @@ export default function App() {
           user={currentUser}
           userRole={currentUser?.role || "tenant"}
           onBack={() => setCurrentView("inspection")}
+          onDashboard={() => setCurrentView("dashboard")}
           onSubmitEvidence={(activeId) => {
             const propertyKey =
               selectedProperty?.propertyId || selectedProperty?.id;
@@ -1687,6 +1719,7 @@ export default function App() {
           inspectionId={inspectionId}
           userRole={currentUser?.role || "tenant"}
           onBack={() => setCurrentView("evidence-review")}
+          onDashboard={() => setCurrentView("dashboard")}
           onSignaturesComplete={(confirmedSignatures, metadata = {}) => {
             const confirmedInspection = metadata?.inspection;
             if (
@@ -1723,7 +1756,7 @@ export default function App() {
             };
 
             setSignatures(mergedSigs);
-           const backendState = confirmedInspection.state || null;
+            const backendState = confirmedInspection.state || null;
 
             if (selectedProperty) {
               const propKey =

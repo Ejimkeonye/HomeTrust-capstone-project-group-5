@@ -29,6 +29,25 @@ const CONDITIONS = [
 
 const getItemName = (item) => item.name || item.itemName || "Unnamed item";
 
+const formatTimestamp = (value) => {
+  if (!value) return "Date unavailable";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Date unavailable";
+  }
+
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
 const getItemPhotos = (item) => {
   const evidence = Array.isArray(item.evidence) ? item.evidence : [];
 
@@ -54,15 +73,11 @@ const getErrorMessage = (error) =>
 
 export default function EvidenceReviewPage({
   property,
-
   inspectionData,
-
   inspectionId,
-
   onBack,
-
+  onDashboard,
   onSubmitEvidence,
-
   onUpdateInspectionData,
 }) {
   const [inspectionState, setInspectionState] = useState(null);
@@ -1247,7 +1262,7 @@ export default function EvidenceReviewPage({
                                       ? `By: ${item.dispute.raisedBy}`
                                       : ""}
                                     {item.dispute.timestamp
-                                      ? ` • ${item.dispute.timestamp}`
+                                      ? ` • ${formatTimestamp(item.dispute.timestamp)}`
                                       : ""}
                                   </p>
                                 </div>
@@ -1255,12 +1270,12 @@ export default function EvidenceReviewPage({
 
                               {(item.photos?.length > 0 ||
                                 item.evidence?.length > 0) && (
-                                <p className="mt-1 text-emerald-700">
-                                  Photo/evidence:{" "}
-                                  {(item.photos || item.evidence || []).length}{" "}
-                                  file(s)
-                                </p>
-                              )}
+                                  <p className="mt-1 text-emerald-700">
+                                    Photo/evidence:{" "}
+                                    {(item.photos || item.evidence || []).length}{" "}
+                                    file(s)
+                                  </p>
+                                )}
                             </div>
 
                             <button
@@ -1322,454 +1337,457 @@ export default function EvidenceReviewPage({
 
         {showConfirmationModal && (
           <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-30 flex items-center justify-center p-4">
-            <div className="bg-[#4A1E6D] text-white rounded-[40px] max-w-xs w-full p-8 text-center space-y-6 shadow-2xl">
+            <div className="bg-[#4A1E6D] text-white rounded-4xl w-full max-w-sm sm:max-w-md p-6 sm:p-8 text-center space-y-6 shadow-2xl">
               <div className="w-20 h-20 bg-white/10 text-white rounded-full flex items-center justify-center mx-auto border border-white/20">
                 <ShieldCheck className="w-10 h-10 text-emerald-400" />
               </div>
 
               <div className="space-y-3">
-                <h2 className="text-xl font-black text-white">
+                <h2 className="text-2xl sm:text-3xl font-black text-white">
                   Ready to Continue?
                 </h2>
 
-                <p className="text-xs text-purple-200 leading-relaxed font-medium">
+                <p className="text-sm text-purple-200 leading-relaxed font-medium">
                   Your recorded inspection items are ready for the next step.
                   Continue when you are ready.
                 </p>
 
-                <div className="text-[10px] text-purple-300 font-bold uppercase tracking-wider">
-                  {todaysFormattedDate}
-                </div>
-              </div>
-
-              {errorMessage && (
-                <p role="alert" className="text-xs text-red-200">
-                  {errorMessage}
-                </p>
-              )}
-
-              <div className="space-y-2 pt-2">
-                <button
-                  type="button"
-                  disabled={submitting || !canModifyInspection}
-                  onClick={handleProceed}
-                  className="w-full bg-white hover:bg-purple-50 text-[#4A1E6D] font-extrabold py-3 rounded-2xl text-xs transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  {submitting ? (
-                    <>
-                      <LoaderCircle className="w-4 h-4 animate-spin" />
-                      Please wait...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4" />
-                      Proceed to Signatures
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  disabled={submitting || !canModifyInspection}
-                  onClick={() => {
-                    setShowConfirmationModal(false);
-
-                    setErrorMessage("");
-                  }}
-                  className="text-xs text-white/80 hover:text-white disabled:opacity-50"
-                >
-                  Go back to evidence
-                </button>
+                <div className="text-xs text-purple-300 font-bold uppercase tracking-wider">
+                {todaysFormattedDate}
               </div>
             </div>
+
+            {errorMessage && (
+              <p role="alert" className="text-xs text-red-200">
+                {errorMessage}
+              </p>
+            )}
+
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                disabled={submitting || !canModifyInspection}
+                onClick={handleProceed}
+                className="w-full bg-white hover:bg-purple-50 text-[#4A1E6D] font-extrabold py-4 rounded-2xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {submitting ? (
+                  <>
+                    <LoaderCircle className="w-4 h-4 animate-spin" />
+                    Please wait...
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Proceed to Signatures
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                disabled={submitting || !canModifyInspection}
+                onClick={() => {
+                  setShowConfirmationModal(false);
+
+                  setErrorMessage("");
+                }}
+                className="text-sm text-white/80 hover:text-white disabled:opacity-50"
+              >
+                Go back to evidence
+              </button>
+            </div>
+          </div>
           </div>
         )}
 
-        {/* Header */}
+      {/* Header */}
 
-        <header className="p-4 flex items-center justify-between z-10 gap-2 bg-[#4A1E6D] text-white">
-          <button
-            type="button"
-            onClick={onBack}
-            aria-label="Back to inspection"
-            className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+      <header className="p-4 flex items-center justify-between z-10 gap-2 bg-[#4A1E6D] text-white">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back to inspection"
+          className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
 
-          <h1 className="text-base font-extrabold text-white text-center truncate">
-            Evidence Library
-          </h1>
+        <h1 className="text-base font-extrabold text-white text-center truncate">
+          Evidence Library
+        </h1>
 
-          <div className="w-9" />
-        </header>
+        <button
+          type="button"
+          onClick={onDashboard}
+          className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white hover:bg-white/20 transition-colors whitespace-nowrap"
+        >
+          Dashboard
+        </button>
+      </header>
 
-        {/* Original-style action bar */}
+      {/* Original-style action bar */}
 
-        <div className="px-6 pt-4 flex gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveCategory("All");
+      <div className="px-6 pt-4 flex gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveCategory("All");
 
-              setErrorMessage("");
-            }}
-            className="flex-1 bg-purple-50 text-[#4A1E6D] border border-purple-200 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5"
-          >
-            View evidence
-          </button>
+            setErrorMessage("");
+          }}
+          className="flex-1 bg-purple-50 text-[#4A1E6D] border border-purple-200 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5"
+        >
+          View evidence
+        </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (!canModifyInspection) {
-                setErrorMessage(
-                  "The inspection state is not verified or the inspection is read-only.",
-                );
-                return;
-              }
-              resetAddForm();
+        <button
+          type="button"
+          onClick={() => {
+            if (!canModifyInspection) {
+              setErrorMessage(
+                "The inspection state is not verified or the inspection is read-only.",
+              );
+              return;
+            }
+            resetAddForm();
 
-              setShowAddModal(true);
-            }}
-            className="flex-1 bg-[#4A1E6D] hover:bg-purple-900 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <Upload className="w-3.5 h-3.5" />+ Add evidence
-          </button>
-        </div>
+            setShowAddModal(true);
+          }}
+          className="flex-1 bg-[#4A1E6D] hover:bg-purple-900 text-white font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors"
+        >
+          <Upload className="w-3.5 h-3.5" />+ Add evidence
+        </button>
+      </div>
 
-        {/* Property context */}
+      {/* Property context */}
 
-        <div className="px-6 pt-3">
-          <p className="text-[11px] text-slate-600 truncate">
-            {property?.name || property?.address || "Selected property"}
-          </p>
-        </div>
+      <div className="px-6 pt-3">
+        <p className="text-[11px] text-slate-600 truncate">
+          {property?.name || property?.address || "Selected property"}
+        </p>
+      </div>
 
-        {/* Category pills */}
+      {/* Category pills */}
 
-        <div className="px-6 pt-3">
-          <span className="text-[11px] font-extrabold text-slate-800 block mb-2">
-            Category
-          </span>
+      <div className="px-6 pt-3">
+        <span className="text-[11px] font-extrabold text-slate-800 block mb-2">
+          Category
+        </span>
 
-          <div className="flex flex-wrap gap-2">
-            {categories.map((category) => (
-              <button
-                key={category}
-                type="button"
-                onClick={() => setActiveCategory(category)}
-                className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors ${
-                  activeCategory === category
-                    ? "bg-[#4A1E6D] text-white border-[#4A1E6D]"
-                    : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+        <div className="flex flex-wrap gap-2">
+          {categories.map((category) => (
+            <button
+              key={category}
+              type="button"
+              onClick={() => setActiveCategory(category)}
+              className={`text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors ${activeCategory === category
+                  ? "bg-[#4A1E6D] text-white border-[#4A1E6D]"
+                  : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
                 }`}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Evidence scroll area */}
-
-        <main className="px-6 py-4 flex-1 overflow-y-auto space-y-4 bg-white">
-          {uploadMessage && (
-            <p role="status" className="text-xs text-emerald-700">
-              {uploadMessage}
-            </p>
-          )}
-
-          {uploadingItemIds.length > 0 && uploadStage && (
-            <div className="text-xs text-purple-800 space-y-1" role="status">
-              <p>{uploadStage}</p>
-              <p>
-                {uploadProgress.completed} of {uploadProgress.total} files
-                uploaded
-              </p>
-            </div>
-          )}
-
-          {errorMessage && !showAddModal && !showConfirmationModal && (
-            <p role="alert" className="text-xs text-red-700">
-              {errorMessage}
-            </p>
-          )}
-
-          {inspectionStateLoading && (
-            <div
-              role="status"
-              className="flex items-center justify-center gap-2 py-4 text-sm text-purple-800"
             >
-              <LoaderCircle className="w-5 h-5 animate-spin" />
-              Verifying inspection status...
-            </div>
-          )}
+              {category}
+            </button>
+          ))}
+        </div>
+      </div>
 
-          {filteredRooms.length > 0 ? (
-            filteredRooms.map((room, roomIndex) => {
-              const roomPhotos = [
-                ...(room.imageUrl
-                  ? [{ url: room.imageUrl, type: "image/unknown" }]
-                  : []),
+      {/* Evidence scroll area */}
 
-                ...(room.items || []).flatMap(getItemPhotos).filter((photo) => {
-                  const type = photo.type || photo.content_type || "";
+      <main className="px-6 py-4 flex-1 overflow-y-auto space-y-4 bg-white">
+        {uploadMessage && (
+          <p role="status" className="text-xs text-emerald-700">
+            {uploadMessage}
+          </p>
+        )}
 
-                  return !type.startsWith("video/");
-                }),
-              ];
+        {uploadingItemIds.length > 0 && uploadStage && (
+          <div className="text-xs text-purple-800 space-y-1" role="status">
+            <p>{uploadStage}</p>
+            <p>
+              {uploadProgress.completed} of {uploadProgress.total} files
+              uploaded
+            </p>
+          </div>
+        )}
 
-              return (
-                <section
-                  key={room.roomId || room.id || room.name || roomIndex}
-                  className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-16 h-16 bg-slate-200 rounded-xl overflow-hidden shrink-0 grid grid-cols-2 grid-rows-2 gap-0.5 p-0.5 border border-slate-300">
-                      {[0, 1, 2, 3].map((photoIndex) => (
-                        <div
-                          key={photoIndex}
-                          className="bg-slate-100 w-full h-full overflow-hidden flex items-center justify-center"
-                        >
-                          {roomPhotos[photoIndex]?.url ? (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSelectedImage(roomPhotos[photoIndex].url)
-                              }
-                              aria-label="View evidence photo"
-                              className="w-full h-full"
-                            >
-                              <img
-                                src={roomPhotos[photoIndex].url}
-                                alt={`Evidence ${photoIndex + 1}`}
-                                className="w-full h-full object-cover hover:scale-110 transition-transform"
-                              />
-                            </button>
-                          ) : (
-                            <Camera className="w-3 h-3 text-slate-300" />
-                          )}
-                        </div>
-                      ))}
-                    </div>
+        {errorMessage && !showAddModal && !showConfirmationModal && (
+          <p role="alert" className="text-xs text-red-700">
+            {errorMessage}
+          </p>
+        )}
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start gap-2">
-                        <h2 className="text-xs font-extrabold text-slate-900 wrap-break-word">
-                          {room.name || "Unnamed room"}
-                        </h2>
+        {inspectionStateLoading && (
+          <div
+            role="status"
+            className="flex items-center justify-center gap-2 py-4 text-sm text-purple-800"
+          >
+            <LoaderCircle className="w-5 h-5 animate-spin" />
+            Verifying inspection status...
+          </div>
+        )}
 
-                        <span className="shrink-0 text-[10px] bg-purple-100 text-[#4A1E6D] px-2 py-0.5 rounded-md font-bold">
-                          {room.category || "Rooms"}
-                        </span>
+        {filteredRooms.length > 0 ? (
+          filteredRooms.map((room, roomIndex) => {
+            const roomPhotos = [
+              ...(room.imageUrl
+                ? [{ url: room.imageUrl, type: "image/unknown" }]
+                : []),
+
+              ...(room.items || []).flatMap(getItemPhotos).filter((photo) => {
+                const type = photo.type || photo.content_type || "";
+
+                return !type.startsWith("video/");
+              }),
+            ];
+
+            return (
+              <section
+                key={room.roomId || room.id || room.name || roomIndex}
+                className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-16 h-16 bg-slate-200 rounded-xl overflow-hidden shrink-0 grid grid-cols-2 grid-rows-2 gap-0.5 p-0.5 border border-slate-300">
+                    {[0, 1, 2, 3].map((photoIndex) => (
+                      <div
+                        key={photoIndex}
+                        className="bg-slate-100 w-full h-full overflow-hidden flex items-center justify-center"
+                      >
+                        {roomPhotos[photoIndex]?.url ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setSelectedImage(roomPhotos[photoIndex].url)
+                            }
+                            aria-label="View evidence photo"
+                            className="w-full h-full"
+                          >
+                            <img
+                              src={roomPhotos[photoIndex].url}
+                              alt={`Evidence ${photoIndex + 1}`}
+                              className="w-full h-full object-cover hover:scale-110 transition-transform"
+                            />
+                          </button>
+                        ) : (
+                          <Camera className="w-3 h-3 text-slate-300" />
+                        )}
                       </div>
-
-                      <p className="text-[10px] text-slate-500 mt-1">
-                        {room.items?.length || 0} recorded item(s)
-                      </p>
-                    </div>
+                    ))}
                   </div>
 
-                  <div className="text-[11px] text-slate-600 space-y-2">
-                    <div className="font-semibold text-purple-900 border-b border-purple-100 pb-1 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5 text-purple-800" />
-                      Condition &amp; Comments Checklist:
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start gap-2">
+                      <h2 className="text-xs font-extrabold text-slate-900 wrap-break-word">
+                        {room.name || "Unnamed room"}
+                      </h2>
+
+                      <span className="shrink-0 text-[10px] bg-purple-100 text-[#4A1E6D] px-2 py-0.5 rounded-md font-bold">
+                        {room.category || "Rooms"}
+                      </span>
                     </div>
 
-                    {room.items?.length ? (
-                      room.items.map((item, itemIndex) => (
-                        <div
-                          key={
-                            item.roomItemId ||
-                            item.itemId ||
-                            item.id ||
-                            itemIndex
-                          }
-                          className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1"
-                        >
-                          <div className="flex justify-between items-center gap-2 font-bold text-slate-900 text-xs">
-                            <span className="wrap-break-word">
-                              {getItemName(item)}
-                            </span>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      {room.items?.length || 0} recorded item(s)
+                    </p>
+                  </div>
+                </div>
 
-                            <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 uppercase">
-                              {(item.condition || "no_issue").replaceAll(
-                                "_",
+                <div className="text-[11px] text-slate-600 space-y-2">
+                  <div className="font-semibold text-purple-900 border-b border-purple-100 pb-1 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 text-purple-800" />
+                    Condition &amp; Comments Checklist:
+                  </div>
 
-                                " ",
-                              )}
-                            </span>
-                          </div>
+                  {room.items?.length ? (
+                    room.items.map((item, itemIndex) => (
+                      <div
+                        key={
+                          item.roomItemId ||
+                          item.itemId ||
+                          item.id ||
+                          itemIndex
+                        }
+                        className="bg-white p-2.5 rounded-xl border border-slate-200 space-y-1"
+                      >
+                        <div className="flex justify-between items-center gap-2 font-bold text-slate-900 text-xs">
+                          <span className="wrap-break-word">
+                            {getItemName(item)}
+                          </span>
 
-                          {item.notes && (
-                            <p className="text-[11px] text-slate-600 bg-purple-50/50 p-1.5 rounded-lg border border-purple-100 font-medium flex items-start gap-1">
-                              <MessageSquare className="w-3 h-3 text-purple-800 shrink-0 mt-0.5" />
+                          <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 uppercase">
+                            {(item.condition || "no_issue").replaceAll(
+                              "_",
 
-                              <span>{item.notes}</span>
+                              " ",
+                            )}
+                          </span>
+                        </div>
+
+                        {item.notes && (
+                          <p className="text-[11px] text-slate-600 bg-purple-50/50 p-1.5 rounded-lg border border-purple-100 font-medium flex items-start gap-1">
+                            <MessageSquare className="w-3 h-3 text-purple-800 shrink-0 mt-0.5" />
+
+                            <span>{item.notes}</span>
+                          </p>
+                        )}
+
+                        {item.dispute && (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 space-y-1">
+                            <p className="font-bold text-amber-900">
+                              Dispute Filed
                             </p>
-                          )}
 
-                          {item.dispute && (
-                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-2 space-y-1">
-                              <p className="font-bold text-amber-900">
-                                Dispute Filed
+                            {item.dispute.severity && (
+                              <p className="font-semibold text-amber-800">
+                                Severity: {item.dispute.severity}
                               </p>
+                            )}
 
-                              {item.dispute.severity && (
-                                <p className="font-semibold text-amber-800">
-                                  Severity: {item.dispute.severity}
-                                </p>
-                              )}
+                            {item.dispute.description && (
+                              <p className="text-slate-700 whitespace-pre-wrap wrap-break-word">
+                                {item.dispute.description}
+                              </p>
+                            )}
 
-                              {item.dispute.description && (
-                                <p className="text-slate-700 whitespace-pre-wrap wrap-break-word">
-                                  {item.dispute.description}
-                                </p>
-                              )}
+                            {item.dispute.raisedBy && (
+                              <p className="text-slate-500">
+                                Raised by: {item.dispute.raisedBy}
+                              </p>
+                            )}
 
-                              {item.dispute.raisedBy && (
-                                <p className="text-slate-500">
-                                  Raised by: {item.dispute.raisedBy}
-                                </p>
-                              )}
+                            {item.dispute.timestamp && (
+                              <p className="text-slate-500">
+                                Date: {formatTimestamp(item.dispute.timestamp)}
+                              </p>
+                            )}
+                          </div>
+                        )}
 
-                              {item.dispute.timestamp && (
-                                <p className="text-slate-500">
-                                  Date: {item.dispute.timestamp}
-                                </p>
-                              )}
-                            </div>
-                          )}
+                        {getItemPhotos(item).length > 0 && (
+                          <p className="text-[10px] text-emerald-700 flex items-center gap-1">
+                            <Check className="w-3 h-3" />
+                            {getItemPhotos(item).length} photo(s) available
+                          </p>
+                        )}
 
-                          {getItemPhotos(item).length > 0 && (
-                            <p className="text-[10px] text-emerald-700 flex items-center gap-1">
-                              <Check className="w-3 h-3" />
-                              {getItemPhotos(item).length} photo(s) available
-                            </p>
-                          )}
+                        <div className="flex items-center justify-between gap-2 pt-2">
+                          <label
+                            className={`inline-flex items-center gap-1.5 text-[11px] font-bold ${!canModifyInspection ||
+                                uploadingItemIds.includes(
+                                  `${room.roomId || room.id}:${item.roomItemId || item.id}`,
+                                )
+                                ? "text-slate-400 cursor-not-allowed"
+                                : "text-[#4A1E6D] cursor-pointer hover:text-purple-900"
+                              }`}
+                          >
+                            {uploadingItemIds.includes(
+                              `${room.roomId || room.id}:${item.roomItemId || item.id}`,
+                            ) ? (
+                              <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Camera className="w-3.5 h-3.5" />
+                            )}
 
-                          <div className="flex items-center justify-between gap-2 pt-2">
-                            <label
-                              className={`inline-flex items-center gap-1.5 text-[11px] font-bold ${
+                            {uploadingItemIds.includes(
+                              `${room.roomId || room.id}:${item.roomItemId || item.id}`,
+                            )
+                              ? "Uploading..."
+                              : !canModifyInspection
+                                ? isReadOnly
+                                  ? "Read-only"
+                                  : "Verifying inspection…"
+                                : "Add photos"}
+
+                            <input
+                              type="file"
+                              multiple
+                              accept="image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime"
+                              disabled={
                                 !canModifyInspection ||
                                 uploadingItemIds.includes(
                                   `${room.roomId || room.id}:${item.roomItemId || item.id}`,
                                 )
-                                  ? "text-slate-400 cursor-not-allowed"
-                                  : "text-[#4A1E6D] cursor-pointer hover:text-purple-900"
-                              }`}
-                            >
-                              {uploadingItemIds.includes(
-                                `${room.roomId || room.id}:${item.roomItemId || item.id}`,
-                              ) ? (
-                                <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <Camera className="w-3.5 h-3.5" />
-                              )}
+                              }
+                              onChange={(event) =>
+                                handlePhotoUpload(
+                                  room.roomId || room.id,
 
-                              {uploadingItemIds.includes(
-                                `${room.roomId || room.id}:${item.roomItemId || item.id}`,
-                              )
-                                ? "Uploading..."
-                                : !canModifyInspection
-                                  ? isReadOnly
-                                    ? "Read-only"
-                                    : "Verifying inspection…"
-                                  : "Add photos"}
+                                  item.roomItemId || item.id,
 
-                              <input
-                                type="file"
-                                multiple
-                                accept="image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime"
-                                capture="environment"
-                                disabled={
-                                  !canModifyInspection ||
-                                  uploadingItemIds.includes(
-                                    `${room.roomId || room.id}:${item.roomItemId || item.id}`,
-                                  )
-                                }
-                                onChange={(event) =>
-                                  handlePhotoUpload(
-                                    room.roomId || room.id,
-
-                                    item.roomItemId || item.id,
-
-                                    event,
-                                  )
-                                }
-                                className="hidden"
-                              />
-                            </label>
-                          </div>
+                                  event,
+                                )
+                              }
+                              className="hidden"
+                            />
+                          </label>
                         </div>
-                      ))
-                    ) : (
-                      <p className="text-[11px] text-slate-500 py-1">
-                        No checklist items have been recorded for this room yet.
-                      </p>
-                    )}
-                  </div>
-                </section>
-              );
-            })
-          ) : (
-            <div className="text-center py-10 text-slate-400 text-xs font-medium flex flex-col items-center gap-2">
-              <X className="w-6 h-6 text-slate-300" />
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-[11px] text-slate-500 py-1">
+                      No checklist items have been recorded for this room yet.
+                    </p>
+                  )}
+                </div>
+              </section>
+            );
+          })
+        ) : (
+          <div className="text-center py-10 text-slate-400 text-xs font-medium flex flex-col items-center gap-2">
+            <X className="w-6 h-6 text-slate-300" />
 
-              <span>
-                No evidence items found for this property inspection. Click
-                &quot;+ Add evidence&quot; to add an item to an existing room.
-              </span>
-            </div>
-          )}
-
-          {/* Descriptive note */}
-
-          <div className="space-y-1.5 pt-2">
-            <label className="text-[11px] font-extrabold text-slate-800">
-              Add a descriptive note (Optional)
-            </label>
-
-            <textarea
-              value={descriptiveNote}
-              onChange={(event) => setDescriptiveNote(event.target.value)}
-              maxLength={2000}
-              rows={3}
-              placeholder="Type any additional notes or observations..."
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs text-slate-900 focus:outline-none focus:border-[#4A1E6D] resize-none"
-            />
-
-            <p className="text-[10px] text-slate-500">
-              This note remains on this page until it is connected to a backend
-              field or endpoint.
-            </p>
+            <span>
+              No evidence items found for this property inspection. Click
+              &quot;+ Add evidence&quot; to add an item to an existing room.
+            </span>
           </div>
-        </main>
+        )}
 
-        {/* Submit button */}
+        {/* Descriptive note */}
 
-        <footer className="p-4 border-t border-slate-200 bg-white">
-          <button
-            type="button"
-            onClick={() => {
-              if (!canModifyInspection) {
-                setErrorMessage(
-                  "The inspection state is not verified or the inspection is read-only.",
-                );
-                return;
-              }
-              setErrorMessage("");
+        <div className="space-y-1.5 pt-2">
+          <label className="text-[11px] font-extrabold text-slate-800">
+            Add a descriptive note (Optional)
+          </label>
 
-              setShowConfirmationModal(true);
-            }}
-            className="w-full bg-[#4A1E6D] hover:bg-purple-950 text-white font-extrabold py-3.5 rounded-2xl text-xs transition-colors shadow-lg flex items-center justify-center gap-2"
-          >
-            <Check className="w-4 h-4" />
-            Submit Evidence Review
-          </button>
-        </footer>
-      </div>
+          <textarea
+            value={descriptiveNote}
+            onChange={(event) => setDescriptiveNote(event.target.value)}
+            maxLength={2000}
+            rows={3}
+            placeholder="Type any additional notes or observations..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs text-slate-900 focus:outline-none focus:border-[#4A1E6D] resize-none"
+          />
+
+          <p className="text-[10px] text-slate-500">
+            This note remains on this page until it is connected to a backend
+            field or endpoint.
+          </p>
+        </div>
+      </main>
+
+      {/* Submit button */}
+
+      <footer className="p-4 border-t border-slate-200 bg-white">
+        <button
+          type="button"
+          onClick={() => {
+            if (!canModifyInspection) {
+              setErrorMessage(
+                "The inspection state is not verified or the inspection is read-only.",
+              );
+              return;
+            }
+            setErrorMessage("");
+
+            setShowConfirmationModal(true);
+          }}
+          className="w-full bg-[#4A1E6D] hover:bg-purple-950 text-white font-extrabold py-3.5 rounded-2xl text-xs transition-colors shadow-lg flex items-center justify-center gap-2"
+        >
+          <Check className="w-4 h-4" />
+          Submit Evidence Review
+        </button>
+      </footer>
     </div>
+    </div >
   );
 }

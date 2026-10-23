@@ -346,11 +346,10 @@ export default function DashboardPage({
               </div>
 
               <span
-                className={`text-[10px] px-2.5 py-1 rounded-full font-extrabold ${
-                  isMoveInFullySigned
+                className={`text-[10px] px-2.5 py-1 rounded-full font-extrabold ${isMoveInFullySigned
                     ? "bg-purple-100 text-purple-900"
                     : "bg-slate-100 text-slate-400"
-                }`}
+                  }`}
               >
                 {isMoveInFullySigned ? "Ready" : "Locked"}
               </span>

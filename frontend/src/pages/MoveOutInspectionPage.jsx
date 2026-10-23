@@ -136,6 +136,12 @@ export default function MoveOutInspectionPage({
 
   const [inspectionState, setInspectionState] = useState("DRAFT");
   const isReadOnly = inspectionState === "READ_ONLY";
+  const [showReadOnlyWarning, setShowReadOnlyWarning] = useState(false);
+  const warnIfReadOnly = () => {
+    if (!isReadOnly) return false;
+    setShowReadOnlyWarning(true);
+    return true;
+  };
   const [isLoadingInspection, setIsLoadingInspection] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedRoomId, setSelectedRoomId] = useState(null);
@@ -392,6 +398,7 @@ export default function MoveOutInspectionPage({
 
   const handleAddRoom = async (e) => {
     e.preventDefault();
+    if (warnIfReadOnly()) return;
     if (isReadOnly || isLoadingInspection || !inspectionId || !propertyKey)
       return;
     if (!newRoomName.trim()) return;
@@ -497,6 +504,7 @@ export default function MoveOutInspectionPage({
   };
 
   const handleDeleteRoom = async (roomId, e) => {
+    if (warnIfReadOnly()) return;
     if (isReadOnly || isLoadingInspection || !inspectionId) return;
     if (e) e.stopPropagation();
     if (
@@ -532,6 +540,7 @@ export default function MoveOutInspectionPage({
   };
 
   const handleSaveRoomName = async (roomId) => {
+    if (warnIfReadOnly()) return;
     if (
       isReadOnly ||
       isLoadingInspection ||
@@ -634,6 +643,7 @@ export default function MoveOutInspectionPage({
   };
   const handleAddItem = async (e) => {
     e.preventDefault();
+    if (warnIfReadOnly()) return;
     if (isReadOnly || isLoadingInspection || !inspectionId) return;
 
     const itemName = newItemName.trim();
@@ -694,6 +704,7 @@ export default function MoveOutInspectionPage({
   };
 
   const handleDeleteItem = async (roomId, itemId) => {
+    if (warnIfReadOnly()) return;
     if (isReadOnly || isLoadingInspection || !inspectionId) return;
     const room = roomsData.find((entry) => entry.id === roomId);
     const item = room?.items?.find(
@@ -736,6 +747,7 @@ export default function MoveOutInspectionPage({
   };
 
   const updateItemData = async (roomId, itemId, fields) => {
+    if (warnIfReadOnly()) return;
     if (isReadOnly || isLoadingInspection || !inspectionId) return;
     const updated = roomsData.map((room) => {
       if (room.id === roomId) {
@@ -784,6 +796,7 @@ export default function MoveOutInspectionPage({
   };
 
   const handleClearDispute = (roomId, itemId) => {
+    if (warnIfReadOnly()) return;
     if (isReadOnly || isLoadingInspection || !inspectionId) return;
 
     updateItemData(roomId, itemId, {
@@ -799,9 +812,7 @@ export default function MoveOutInspectionPage({
     const files = Array.from(input.files || []);
 
     if (!files.length) return;
-
-    if (isReadOnly) {
-      alert("This inspection is read-only. Evidence cannot be uploaded.");
+    if (warnIfReadOnly()) {
       input.value = "";
       return;
     }
@@ -914,7 +925,8 @@ export default function MoveOutInspectionPage({
   };
   const handleRaiseDispute = (e) => {
     e.preventDefault();
-    if (isReadOnly || isLoadingInspection || !inspectionId) return;
+    if (warnIfReadOnly()) return;
+    if (isLoadingInspection || !inspectionId) return;
     if (!disputeNote.trim()) return;
     if (!disputeTarget) return;
 
@@ -1113,6 +1125,7 @@ export default function MoveOutInspectionPage({
                 <button
                   type="button"
                   onClick={() => {
+                    if (warnIfReadOnly()) return;
                     if (isReadOnly || isLoadingInspection) return;
                     setIsAddingCustomCategory(false);
                     setAddRoomModalOpen(true);
@@ -1457,7 +1470,6 @@ export default function MoveOutInspectionPage({
                               type="file"
                               multiple
                               accept="image/*"
-                              capture="environment"
                               onChange={(e) =>
                                 handlePhotoUpload(activeRoom.id, item.id, e)
                               }
@@ -1809,6 +1821,41 @@ export default function MoveOutInspectionPage({
               </button>
             </div>
           </form>
+        </div>
+      )}
+      {/* Read-Only Warning Modal */}
+      {showReadOnlyWarning && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="read-only-warning-title"
+            className="w-full max-w-sm rounded-2xl border border-amber-200 bg-white p-6 text-center shadow-2xl"
+          >
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+              <ShieldAlert className="h-6 w-6 text-amber-700" />
+            </div>
+
+            <h3
+              id="read-only-warning-title"
+              className="text-lg font-extrabold text-slate-900"
+            >
+              Inspection Locked
+            </h3>
+
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              This Move-Out inspection is read-only. You cannot make changes to
+              the inspection or its evidence.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setShowReadOnlyWarning(false)}
+              className="mt-5 w-full rounded-xl bg-[#4A1E6D] px-4 py-3 text-sm font-bold text-white hover:bg-purple-950"
+            >
+              Understood
+            </button>
+          </div>
         </div>
       )}
     </div>

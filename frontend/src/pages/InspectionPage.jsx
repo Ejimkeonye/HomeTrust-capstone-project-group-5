@@ -203,6 +203,13 @@ export default function InspectionPage({
   const safeProperty = property || null;
   const [inspectionState, setInspectionState] = useState("DRAFT");
   const isReadOnly = inspectionState === "READ_ONLY";
+  const [showReadOnlyWarning, setShowReadOnlyWarning] = useState(false);
+  const warnIfReadOnly = () => {
+    if (!isReadOnly) return false;
+
+    setShowReadOnlyWarning(true);
+    return true;
+  };
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedRoomId, setSelectedRoomId] = useState(null);
   const [inspectionId, setInspectionId] = useState(null);
@@ -458,6 +465,7 @@ export default function InspectionPage({
 
   const handleAddRoom = async (e) => {
     e.preventDefault();
+    if (warnIfReadOnly()) return;
     if (!newRoomName.trim()) return;
 
     const finalCategory = normalizeCategory(
@@ -527,6 +535,7 @@ export default function InspectionPage({
     }
   };
   const handleDeleteRoom = async (roomId, e) => {
+    if (warnIfReadOnly()) return;
     e?.stopPropagation();
 
     const roomToDelete = roomsData.find(
@@ -534,11 +543,6 @@ export default function InspectionPage({
     );
 
     if (!roomToDelete) return;
-
-    if (isReadOnly) {
-      alert("This inspection is read-only. Sections cannot be deleted.");
-      return;
-    }
 
     if (
       !window.confirm(
@@ -598,6 +602,7 @@ export default function InspectionPage({
   };
 
   const handleSaveRoomName = (roomId) => {
+    if (warnIfReadOnly()) return;
     if (!editedRoomName.trim()) return;
     const updated = roomsData.map((r) =>
       r.id === roomId ? { ...r, name: editedRoomName.trim() } : r,
@@ -608,6 +613,7 @@ export default function InspectionPage({
 
   const handleAddItem = async (e) => {
     e.preventDefault();
+    if (warnIfReadOnly()) return;
 
     if (!newItemName.trim() || !selectedRoomId) return;
 
@@ -693,6 +699,7 @@ export default function InspectionPage({
     }
   };
   const handleDeleteItem = async (roomId, itemId) => {
+    if (warnIfReadOnly()) return;
     const room = roomsData.find((r) => r.id === roomId);
     const item = room?.items?.find(
       (i) => i.id === itemId || i.roomItemId === itemId,
@@ -723,6 +730,7 @@ export default function InspectionPage({
     }
   };
   const updateItemData = async (roomId, itemId, fields) => {
+    if (warnIfReadOnly()) return;
     const targetRoom = roomsData.find((r) => r.id === roomId);
     const targetItem = targetRoom?.items.find(
       (i) => i.id === itemId || i.roomItemId === itemId,
@@ -901,8 +909,7 @@ export default function InspectionPage({
 
     if (!files.length) return;
 
-    if (isReadOnly) {
-      alert("This inspection is read-only. Evidence cannot be uploaded.");
+    if (warnIfReadOnly()) {
       input.value = "";
       return;
     }
@@ -1079,6 +1086,7 @@ export default function InspectionPage({
 
   const handleRaiseDispute = (e) => {
     e.preventDefault();
+    if (warnIfReadOnly()) return;
     if (!disputeTarget) return;
 
     const targetRoom = roomsData.find((r) => r.id === disputeTarget.roomId);
@@ -1209,9 +1217,24 @@ export default function InspectionPage({
             <ArrowLeft className="w-5 h-5" />
           </button>
 
-          <h1 className="text-base font-extrabold text-white text-center truncate">
-            {activeRoom ? activeRoom.name : safeProperty?.name || "Inspection"}
-          </h1>
+          <div className="flex flex-col items-center min-w-0">
+            <h1 className="text-base font-extrabold text-white text-center truncate max-w-full">
+              {activeRoom
+                ? activeRoom.name
+                : safeProperty?.name || "Inspection"}
+            </h1>
+
+            {isReadOnly && (
+              <span
+                className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-300 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-amber-950"
+                role="status"
+                aria-label="Inspection is read-only"
+              >
+                <ShieldAlert className="h-3 w-3" />
+                READ ONLY
+              </span>
+            )}
+          </div>
 
           <div className="flex items-center gap-2">
             {/* Invite Button Disabled Until Property is Added */}
@@ -1345,6 +1368,7 @@ export default function InspectionPage({
                 <button
                   type="button"
                   onClick={() => {
+                    if (warnIfReadOnly()) return;
                     setIsAddingCustomCategory(false);
                     setAddRoomModalOpen(true);
                   }}
@@ -1669,7 +1693,6 @@ export default function InspectionPage({
                               type="file"
                               multiple
                               accept="image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime"
-                              capture="environment"
                               disabled={
                                 isReadOnly ||
                                 uploadingItemIds.includes(
@@ -1796,6 +1819,59 @@ export default function InspectionPage({
           </div>
         </div>
       </div>
+
+      {/* Read-only warning modal */}
+      {showReadOnlyWarning && (
+        <div
+          className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+          role="presentation"
+          onClick={() => setShowReadOnlyWarning(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl border border-amber-200 bg-white p-6 shadow-2xl"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="read-only-warning-title"
+            aria-describedby="read-only-warning-description"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-800">
+              <ShieldAlert className="h-7 w-7" />
+            </div>
+
+            <div className="mb-2 flex justify-center">
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black tracking-wide text-amber-900">
+                🔒 READ ONLY
+              </span>
+            </div>
+
+            <h2
+              id="read-only-warning-title"
+              className="text-center text-xl font-extrabold text-slate-900"
+            >
+              Inspection Locked
+            </h2>
+
+            <p
+              id="read-only-warning-description"
+              className="mt-3 text-center text-sm leading-6 text-slate-600"
+            >
+              This inspection has been locked and can no longer be changed. You
+              can review the recorded rooms, conditions, disputes and evidence,
+              but you cannot edit or delete them.
+            </p>
+
+            <button
+              type="button"
+              autoFocus
+              onClick={() => setShowReadOnlyWarning(false)}
+              className="mt-6 w-full rounded-xl bg-[#4A1E6D] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-purple-950"
+            >
+              Understood
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add Section/Room Modal */}
       {addRoomModalOpen && (
