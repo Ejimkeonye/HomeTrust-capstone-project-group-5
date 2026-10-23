@@ -39,6 +39,25 @@ const getSignatureImageUrl = (signature) => {
   return null;
 };
 
+const formatTimestamp = (value) => {
+  if (!value) return "Date unavailable";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Date unavailable";
+  }
+
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
 export default function InspectionReportPage({
   property,
 
@@ -71,8 +90,9 @@ export default function InspectionReportPage({
       }
 
       setIsLoading(true);
-
       setLoadError("");
+      setActiveInspectionData(null);
+      setShowSuccessScreen(false);
 
       try {
         const response = await api.get(`/inspections/${inspectionId}`);
@@ -483,7 +503,7 @@ export default function InspectionReportPage({
 
                             {item.dispute.timestamp && (
                               <p className="text-slate-500">
-                                Date: {item.dispute.timestamp}
+                                Date: {formatTimestamp(item.dispute.timestamp)}
                               </p>
                             )}
                           </div>

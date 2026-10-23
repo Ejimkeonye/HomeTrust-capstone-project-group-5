@@ -40,6 +40,27 @@ const getSignatureUrl = (signature) => {
   return null;
 };
 
+
+const formatTimestamp = (value) => {
+  if (!value) return "Date unavailable";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Date unavailable";
+  }
+
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
+
 const normalizeEvidence = (item) => {
   const entries = [
     ...(Array.isArray(item?.evidence) ? item.evidence : []),
@@ -192,7 +213,7 @@ function RecordColumn({ title, room, accent }) {
                   )}
                   {item.dispute.timestamp && (
                     <p className="text-[10px] text-slate-500">
-                      Date: {item.dispute.timestamp}
+                      Date: {formatTimestamp(item.dispute.timestamp)}
                     </p>
                   )}
                 </div>

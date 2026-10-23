@@ -51,17 +51,32 @@ const getErrorMessage = (error) =>
   error.message ||
   "Something went wrong. Please try again.";
 
+const formatTimestamp = (value) => {
+  if (!value) return "Date unavailable";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Date unavailable";
+  }
+
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+};
+
 export default function MoveOutEvidencePage({
   property,
-
   inspectionData,
-
   inspectionId,
-
   onBack,
-
+  onDashboard,
   onSubmitEvidence,
-
   onUpdateInspectionData,
 }) {
   const [inspectionState, setInspectionState] = useState(null);
@@ -1266,7 +1281,7 @@ export default function MoveOutEvidencePage({
                                     )}
                                     {item.dispute.timestamp && (
                                       <span>
-                                        Date: {item.dispute.timestamp}
+                                        Date: {formatTimestamp(item.dispute.timestamp)}
                                       </span>
                                     )}
                                   </div>
@@ -1335,17 +1350,18 @@ export default function MoveOutEvidencePage({
 
         {showConfirmationModal && (
           <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-30 flex items-center justify-center p-4">
-            <div className="bg-[#4A1E6D] text-white rounded-[40px] max-w-xs w-full p-8 text-center space-y-6 shadow-2xl">
+<div className="bg-[#4A1E6D] text-white rounded-4xl w-full max-w-sm sm:max-w-md p-6 sm:p-8 text-center space-y-6 shadow-2xl">
+
               <div className="w-20 h-20 bg-white/10 text-white rounded-full flex items-center justify-center mx-auto border border-white/20">
                 <ShieldCheck className="w-10 h-10 text-emerald-400" />
               </div>
 
               <div className="space-y-3">
-                <h2 className="text-xl font-black text-white">
+                <h2 className="text-2xl sm:text-3xl font-black text-white">
                   Ready to Continue?
                 </h2>
 
-                <p className="text-xs text-purple-200 leading-relaxed font-medium">
+                <p className="text-sm text-purple-200 leading-relaxed font-medium">
                   Your recorded inspection items are ready for the next step.
                   Continue when you are ready.
                 </p>
@@ -1366,7 +1382,7 @@ export default function MoveOutEvidencePage({
                   type="button"
                   disabled={submitting || !canModifyInspection}
                   onClick={handleProceed}
-                  className="w-full bg-white hover:bg-purple-50 text-[#4A1E6D] font-extrabold py-3 rounded-2xl text-xs transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                 className="w-full bg-white hover:bg-purple-50 text-[#4A1E6D] font-extrabold py-4 rounded-2xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {submitting ? (
                     <>
@@ -1389,7 +1405,7 @@ export default function MoveOutEvidencePage({
 
                     setErrorMessage("");
                   }}
-                  className="text-xs text-white/80 hover:text-white disabled:opacity-50"
+                  className="text-sm text-white/80 hover:text-white disabled:opacity-50"
                 >
                   Go back to evidence
                 </button>
@@ -1412,7 +1428,13 @@ export default function MoveOutEvidencePage({
             Move-Out Evidence Library
           </h1>
 
-          <div className="w-9" />
+          <button
+            type="button"
+            onClick={onDashboard}
+            className="rounded-lg bg-white/10 px-3 py-2 text-xs font-bold text-white hover:bg-white/20 transition-colors whitespace-nowrap"
+          >
+            Dashboard
+          </button>
         </header>
 
         <div className="px-6 pt-4 flex gap-2">
@@ -1650,7 +1672,6 @@ export default function MoveOutEvidencePage({
                                 type="file"
                                 multiple
                                 accept="image/jpeg,image/png,image/webp,image/heic,video/mp4,video/quicktime"
-                                capture="environment"
                                 disabled={
                                   !canModifyInspection ||
                                   uploadingItemIds.includes(

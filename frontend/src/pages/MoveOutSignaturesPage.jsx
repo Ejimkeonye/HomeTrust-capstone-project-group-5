@@ -114,6 +114,7 @@ export default function MoveOutSignaturesPage({
   inspectionId,
   userRole = "tenant",
   onBack,
+  onDashboard,
   onSignaturesComplete,
 }) {
   const propertyKey = property?.propertyId || property?.id;
@@ -231,10 +232,20 @@ export default function MoveOutSignaturesPage({
         { signature: draftSignature },
       );
       const result = getPayload(response);
+      const returnedId = result.inspectionId || result.id;
+      const returnedPropertyId =
+        result.propertyId || result.property?.propertyId || result.property?.id;
       const returnedSignatures = result.signatures;
-      if (!returnedSignatures || !returnedSignatures[roleKey]) {
+      const savedSignature = getCanonicalSignature(result, roleKey);
+
+      if (
+        String(returnedId || "") !== String(activeInspectionId) ||
+        String(returnedPropertyId || "") !== String(propertyKey || "") ||
+        result.mode !== "MoveOut" ||
+        !isPersistedSignature(savedSignature)
+      ) {
         throw new Error(
-          "The server did not confirm that your signature was saved. Reload and check the inspection before trying again.",
+          "The server response could not be verified against this Move-Out inspection. Reload and check the saved state before trying again.",
         );
       }
 
@@ -286,7 +297,7 @@ export default function MoveOutSignaturesPage({
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4 font-sans">
       <div className="w-full max-w-6xl mx-auto px-4 bg-white rounded-3xl shadow-2xl border border-slate-200 p-6 space-y-6">
-        <div className="flex items-center justify-between border-b pb-4">
+        <div className="flex items-center justify-between gap-2 border-b pb-4">
           <button
             type="button"
             onClick={onBack}
@@ -294,11 +305,20 @@ export default function MoveOutSignaturesPage({
           >
             ← Back
           </button>
-          <h2 className="text-sm font-extrabold text-[#4A1E6D]">
+
+          <h2 className="flex-1 text-center text-sm font-extrabold text-[#4A1E6D]">
             {roleKey
               ? `${roleLabel} Move-Out Signature`
               : "Move-Out Signatures"}
           </h2>
+
+          <button
+            type="button"
+            onClick={onDashboard}
+            className="whitespace-nowrap rounded-lg bg-[#4A1E6D] px-3 py-2 text-xs font-bold text-white hover:opacity-90"
+          >
+            Dashboard
+          </button>
         </div>
 
         <p className="text-xs text-slate-600 font-medium">
