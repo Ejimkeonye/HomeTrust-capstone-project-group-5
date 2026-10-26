@@ -1,5 +1,5 @@
-import nodemailer from 'nodemailer';
-import dotenv from 'dotenv';
+import nodemailer from "nodemailer";
+import dotenv from "dotenv";
 
 dotenv.config();
 
@@ -8,7 +8,8 @@ dotenv.config();
 // For Gmail: enable 2FA on your Google account, then generate an App Password
 // at https://myaccount.google.com/apppasswords and put it in SMTP_PASS.
 const useBrevo = Boolean(process.env.BREVO_API_KEY && process.env.MAIL_FROM);
-const isConfigured = useBrevo || Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
+const isConfigured =
+  useBrevo || Boolean(process.env.SMTP_USER && process.env.SMTP_PASS);
 
 const transporter = nodemailer.createTransport(
   process.env.SMTP_HOST
@@ -22,12 +23,12 @@ const transporter = nodemailer.createTransport(
         },
       }
     : {
-        service: 'gmail',
+        service: "gmail",
         auth: {
           user: process.env.SMTP_USER,
           pass: process.env.SMTP_PASS,
         },
-      }
+      },
 );
 
 interface SendInviteEmailOptions {
@@ -46,7 +47,9 @@ export async function sendInviteEmail({
   role,
 }: SendInviteEmailOptions): Promise<void> {
   if (!isConfigured) {
-    console.warn('[Mailer] SMTP_USER or SMTP_PASS not set in environment. Skipping email sending.');
+    console.warn(
+      "[Mailer] SMTP_USER or SMTP_PASS not set in environment. Skipping email sending.",
+    );
     return;
   }
 
@@ -96,15 +99,15 @@ export async function sendInviteEmail({
   const text = `HomeTrust Invitation\n\n${inviterName} has invited you as the ${role} to a property inspection at ${propertyAddress}.\n\nAccept your invitation here: ${inviteLink}\n\nThis link expires in 7 days.`;
 
   if (useBrevo) {
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
       headers: {
-        'api-key': process.env.BREVO_API_KEY as string,
-        'content-type': 'application/json',
-        accept: 'application/json',
+        "api-key": process.env.BREVO_API_KEY as string,
+        "content-type": "application/json",
+        accept: "application/json",
       },
       body: JSON.stringify({
-        sender: { name: 'HomeTrust', email: process.env.MAIL_FROM },
+        sender: { name: "HomeTrust", email: process.env.MAIL_FROM },
         to: [{ email: to }],
         subject,
         htmlContent: html,
@@ -112,7 +115,9 @@ export async function sendInviteEmail({
       }),
     });
     if (!res.ok) {
-      throw new Error(`[Mailer] Brevo send failed: ${res.status} ${await res.text()}`);
+      throw new Error(
+        `[Mailer] Brevo send failed: ${res.status} ${await res.text()}`,
+      );
     }
     return;
   }
@@ -126,24 +131,31 @@ export async function sendInviteEmail({
   });
 }
 
-
 /** Sends a password reset code using the HTTPS email API when configured, or SMTP otherwise. */
-export async function sendPasswordResetEmail(to: string, code: string): Promise<void> {
-  const subject = 'HomeTrust password reset code';
-  const text = 'Your HomeTrust verification code is ' + code + '. It expires in 10 minutes. If you did not request this, you can ignore this email.';
-  const html = '<p>Your HomeTrust verification code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">' +
-    code + '</p><p>This code expires in 10 minutes. If you did not request this, you can ignore this email.</p>';
+export async function sendPasswordResetEmail(
+  to: string,
+  code: string,
+): Promise<void> {
+  const subject = "HomeTrust password reset code";
+  const text =
+    "Your HomeTrust verification code is " +
+    code +
+    ". It expires in 10 minutes. If you did not request this, you can ignore this email.";
+  const html =
+    '<p>Your HomeTrust verification code is:</p><p style="font-size:28px;font-weight:bold;letter-spacing:6px">' +
+    code +
+    "</p><p>This code expires in 10 minutes. If you did not request this, you can ignore this email.</p>";
 
   if (useBrevo) {
-    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
-      method: 'POST',
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
       headers: {
-        'api-key': process.env.BREVO_API_KEY as string,
-        'content-type': 'application/json',
-        accept: 'application/json',
+        "api-key": process.env.BREVO_API_KEY as string,
+        "content-type": "application/json",
+        accept: "application/json",
       },
       body: JSON.stringify({
-        sender: { name: 'HomeTrust', email: process.env.MAIL_FROM },
+        sender: { name: "HomeTrust", email: process.env.MAIL_FROM },
         to: [{ email: to }],
         subject,
         htmlContent: html,
@@ -151,29 +163,43 @@ export async function sendPasswordResetEmail(to: string, code: string): Promise<
       }),
     });
     if (!response.ok) {
-      throw new Error(`[Mailer] Brevo password reset send failed: ${response.status} ${await response.text()}`);
+      throw new Error(
+        `[Mailer] Brevo password reset send failed: ${response.status} ${await response.text()}`,
+      );
     }
     return;
   }
   if (process.env.RESEND_API_KEY) {
-    if (!process.env.EMAIL_FROM) throw new Error('EMAIL_FROM must be configured when using the email API');
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
+    if (!process.env.EMAIL_FROM)
+      throw new Error("EMAIL_FROM must be configured when using the email API");
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
       headers: {
-        Authorization: 'Bearer ' + process.env.RESEND_API_KEY,
-        'Content-Type': 'application/json',
+        Authorization: "Bearer " + process.env.RESEND_API_KEY,
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from: process.env.EMAIL_FROM, to: [to], subject, text, html }),
+      body: JSON.stringify({
+        from: process.env.EMAIL_FROM,
+        to: [to],
+        subject,
+        text,
+        html,
+      }),
     });
-    if (!response.ok) throw new Error('Email API rejected the message with status ' + response.status);
+    if (!response.ok)
+      throw new Error(
+        "Email API rejected the message with status " + response.status,
+      );
     return;
   }
 
   if (!isConfigured || !process.env.SMTP_USER) {
-    throw new Error('Configure RESEND_API_KEY and EMAIL_FROM or SMTP_USER and SMTP_PASS');
+    throw new Error(
+      "Configure RESEND_API_KEY and EMAIL_FROM or SMTP_USER and SMTP_PASS",
+    );
   }
   await transporter.sendMail({
-    from: 'HomeTrust <' + process.env.SMTP_USER + '>',
+    from: "HomeTrust <" + process.env.SMTP_USER + ">",
     to,
     subject,
     text,
