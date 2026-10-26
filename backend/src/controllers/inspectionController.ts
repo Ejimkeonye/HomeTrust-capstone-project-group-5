@@ -5,7 +5,7 @@ import { docClient, TABLES } from '../config/dynamodb';
 import { AuthRequest } from '../middlewares/authMiddleware';
 import { IInspection, IInspectionSignature, IItemCondition, IProperty, IEvidence, InspectionCondition, ItemStatus, IItemDispute, DisputeSeverity } from '../types';
 import { writeAuditEvent } from '../utils/auditLogger';
-import { createInspectionPdf } from '../utils/inspectionPdf';
+import { createInspectionPdf, InspectionEvidenceImage } from '../utils/inspectionPdf';
 import { presignEvidenceGet } from '../utils/s3Presigner';
 
 const VALID_CONDITIONS: InspectionCondition[] = ['no_issue', 'stains', 'cracks', 'broken'];
@@ -662,12 +662,21 @@ export const approveInspection = async (req: AuthRequest, res: Response, next: N
   }
 };
 
-/** Download a PDF report containing conditions, reviews, and acknowledgement count. */
+/** Download a PDF report containing conditions, reviews, evidence images and acknowledgement count. */
 export const downloadInspectionReport = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const inspection = await loadInspection(req.params.id as string);
     if (!inspection) return res.status(404).json({ message: 'Inspection not found' });
     if (!canAccess(inspection, req.user!.userId)) return res.status(403).json({ message: 'Not authorized to download this report' });
+
+    // Keep the existing imports for GetCommand, docClient, TABLES, AuthRequest, IInspectionSignature, IProperty, IEvidence,
+    // createInspectionPdf and presignEvidenceGet.
+
+    // Load property details for the report header.
+    const propertyResult = await docClient.send(new GetCommand({ TableName: TABLES.PROPERTIES, Key: { propertyId: inspection.propertyId } }));
+    const property = propertyResult.Item as IProperty | undefined;
+
+    // Fetch signature images from S3.
     const signatureImages = await Promise.all(
       ([inspection.landlordSignature, inspection.tenantSignature]
         .filter((signature): signature is IInspectionSignature & { url: string } => Boolean(signature?.uploadedAt && signature.url)))
@@ -683,7 +692,41 @@ export const downloadInspectionReport = async (req: AuthRequest, res: Response, 
           };
         }),
     );
-    const pdf = createInspectionPdf(inspection, signatureImages);
+
+    // Fetch evidence images from S3 for embedding in the PDF.
+    const allEvidence: IEvidence[] = (inspection.items || []).flatMap(item => item.evidence || []);
+    const evidenceImages: InspectionEvidenceImage[] = await Promise.all(
+      allEvidence
+        .filter(evidence => evidence.type === 'image' && evidence.objectKey)
+        .map(async (evidence): Promise<InspectionEvidenceImage> => {
+          const base: InspectionEvidenceImage = {
+            evidenceId: evidence.evidenceId,
+            roomItemId: evidence.roomItemId,
+            filename: (evidence as any).filename || evidence.evidenceId,
+            type: evidence.type,
+            uploadedBy: evidence.uploadedBy,
+            createdAt: evidence.createdAt,
+          };
+          try {
+            const signedUrl = await presignEvidenceGet(evidenceBucket, evidence.objectKey, 60);
+            const imgResponse = await fetch(signedUrl);
+            if (!imgResponse.ok) return { ...base, omittedReason: `HTTP ${imgResponse.status}` };
+            const contentType = imgResponse.headers.get('content-type') || '';
+            if (!['image/jpeg', 'image/png'].includes(contentType)) {
+              return { ...base, omittedReason: `Unsupported format: ${contentType}` };
+            }
+            return {
+              ...base,
+              contentType,
+              bytes: Buffer.from(await imgResponse.arrayBuffer()),
+            };
+          } catch (fetchErr) {
+            return { ...base, omittedReason: 'Could not fetch image' };
+          }
+        }),
+    );
+
+    const pdf = await createInspectionPdf(inspection, property, signatureImages, evidenceImages);
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="inspection-${inspection.inspectionId}.pdf"`);
     return res.status(200).send(pdf);
