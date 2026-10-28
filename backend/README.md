@@ -142,7 +142,34 @@ Supported uploads are images/videos accepted by the presigned-upload Lambda. The
 5. Fetch the inspection; for each evidence record call `downloadUrl` to get a temporary S3 URL for rendering.
 6. Submit for review, record item/room decisions, collect acknowledgements, and provide the report PDF download.
 
+## Paystack Payment Integration (Move-In Evidence Access)
+
+Users are prompted to pay **₦5,000** at the point of downloading move-in evidence / inspection report.
+
+| Method | Endpoint | Auth | Description |
+| --- | --- | --- | --- |
+| POST | `/api/payments/initialize` | Yes; participant | Initialize Paystack checkout. Body: `{ "inspectionId": "...", "callbackUrl": "..." }`. Returns `{ authorizationUrl, reference, accessCode, amount: 5000, currency: "NGN" }`. |
+| GET | `/api/payments/verify/:reference` | Yes; participant | Verifies Paystack transaction with Paystack API. On success, unlocks evidence access for the inspection. |
+| GET | `/api/payments/status/:inspectionId` | Yes; participant | Checks if evidence access has already been paid and unlocked: `{ isPaid: boolean, amount: 5000, ... }`. |
+| POST | `/api/payments/webhook` | Paystack HMAC | Handles `charge.success` webhook events sent by Paystack. |
+
+### Download Gating
+When accessing `GET /api/inspections/:id/report.pdf` or `GET /api/evidence/:inspectionId/:evidenceId/download-url` for a move-in inspection:
+- If payment has not been made, returns `HTTP 402 Payment Required` with:
+  ```json
+  {
+    "message": "Payment of ₦5,000 is required to download move-in evidence",
+    "paymentRequired": true,
+    "amount": 5000,
+    "currency": "NGN",
+    "inspectionId": "..."
+  }
+  ```
+- Once payment is verified, the inspection's `isEvidencePaid` is set to `true`, and downloads are unlocked.
+- During local testing before starter business verification is complete on Paystack, the backend provides an automated test fallback URL or can be toggled via `REQUIRE_EVIDENCE_PAYMENT=false`.
+
 ## DynamoDB table and index requirements
+
 
 The application uses these keys/index names (string attributes):
 

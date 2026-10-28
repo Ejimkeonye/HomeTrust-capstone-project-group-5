@@ -321,7 +321,21 @@ export const getEvidenceDownloadUrl = async (
         .json({ message: 'Not authorized to view this evidence' });
     }
 
+    // Gate move-in evidence downloads behind Paystack payment (capped at ₦5,000)
+    const isMoveIn = (inspection as any).mode !== 'MoveOut';
+    const requirePayment = process.env.REQUIRE_EVIDENCE_PAYMENT !== 'false';
+    if (isMoveIn && requirePayment && !inspection.isEvidencePaid) {
+      return res.status(402).json({
+        message: 'Payment of ₦5,000 is required to download move-in evidence',
+        paymentRequired: true,
+        amount: 5000,
+        currency: 'NGN',
+        inspectionId: inspection.inspectionId,
+      });
+    }
+
     const evidence = evidenceResult.Item as IEvidence | undefined;
+
 
     if (!evidence) {
       return res.status(404).json({ message: 'Evidence not found' });

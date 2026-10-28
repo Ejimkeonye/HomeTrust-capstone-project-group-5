@@ -23,4 +23,6 @@ export const TABLES = {
   INVITATIONS: process.env.DYNAMODB_INVITATIONS_TABLE || 'MoveInInvitations',
   ROOM_ITEMS:  process.env.DYNAMODB_ROOM_ITEMS_TABLE  || 'MoveInRoomItems',
   EVIDENCE:    process.env.DYNAMODB_EVIDENCE_TABLE    || 'MoveInEvidence',
+  PAYMENTS:    process.env.DYNAMODB_PAYMENTS_TABLE    || 'MoveInPayments',
 } as const;
+

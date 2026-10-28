@@ -135,7 +135,7 @@ export function createInspectionPdf(
           if (image && supportedImage(image)) {
             ensureSpace(190);
             try {
-              doc.image(image.bytes!, { fit: [pageWidth, 165], align: 'left', valign: 'center' });
+              doc.image(image.bytes!, { fit: [pageWidth, 165], valign: 'center' });
               doc.moveDown(0.3);
             } catch {
               doc.fontSize(8).text('  Image could not be rendered in the PDF.');
@@ -168,7 +168,7 @@ export function createInspectionPdf(
       doc.font('Helvetica').fontSize(9).text(`Name: ${signature.name || 'Not recorded'}`);
       doc.text(`Signed at: ${formatDate(signature.signedAt)}`);
       try {
-        doc.image(signature.bytes, { fit: [190, 65], align: 'left' });
+        doc.image(signature.bytes, { fit: [190, 65] });
       } catch {
         doc.text('Signature image could not be displayed; signature record is listed above.');
       }

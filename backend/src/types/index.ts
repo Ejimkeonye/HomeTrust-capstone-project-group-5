@@ -94,7 +94,30 @@ export interface IInspection {
   createdAt: string;
   updatedAt: string;
   submittedAt?: string;
+  isEvidencePaid?: boolean;
+  paymentReference?: string;
+  paidAt?: string;
+  paidBy?: string;
+  paymentAmount?: number;
 }
+
+export interface IPayment {
+  reference: string;
+  inspectionId: string;
+  userId: string;
+  email: string;
+  amount: number;
+  amountInKobo: number;
+  currency: 'NGN';
+  status: 'PENDING' | 'SUCCESS' | 'FAILED';
+  paidAt?: string;
+  channel?: string;
+  paystackReference?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
 
 export interface IInvitation {
   token: string;
