@@ -669,6 +669,20 @@ export const downloadInspectionReport = async (req: AuthRequest, res: Response, 
     if (!inspection) return res.status(404).json({ message: 'Inspection not found' });
     if (!canAccess(inspection, req.user!.userId)) return res.status(403).json({ message: 'Not authorized to download this report' });
 
+    // Gate move-in report downloads behind Paystack payment (capped at ₦5,000)
+    const isMoveIn = (inspection as any).mode !== 'MoveOut';
+    const requirePayment = process.env.REQUIRE_EVIDENCE_PAYMENT !== 'false';
+    if (isMoveIn && requirePayment && !inspection.isEvidencePaid) {
+      return res.status(402).json({
+        message: 'Payment of ₦5,000 is required to download move-in evidence report',
+        paymentRequired: true,
+        amount: 5000,
+        currency: 'NGN',
+        inspectionId: inspection.inspectionId,
+      });
+    }
+
+
     // Keep the existing imports for GetCommand, docClient, TABLES, AuthRequest, IInspectionSignature, IProperty, IEvidence,
     // createInspectionPdf and presignEvidenceGet.
 
