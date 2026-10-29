@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   Printer,
@@ -78,6 +78,8 @@ export default function InspectionReportPage({
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   const [pdfError, setPdfError] = useState("");
+
+  const isDownloadingPdfRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -223,23 +225,11 @@ export default function InspectionReportPage({
     return Array.from(grouped.values());
   })();
 
-  const handleFinalLockAndSave = () => {
-    // The backend owns finalization and persistence. This action only returns
+  
+  const handleDownloadPdf = useCallback(async () => {
+    if (!inspectionId || isDownloadingPdfRef.current) return;
 
-    // the user to the dashboard after the saved inspection is confirmed locked.
-
-    if (!isActuallyLocked || isLoading || loadError) return;
-
-    setShowSuccessScreen(true);
-
-    onFinalize?.(activeInspectionData);
-  };
-
-  const handlePrint = () => window.print();
-
-  const handleDownloadPdf = async () => {
-    if (!inspectionId || isDownloadingPdf) return;
-
+    isDownloadingPdfRef.current = true;
     setIsDownloadingPdf(true);
 
     setPdfError("");
@@ -277,17 +267,113 @@ export default function InspectionReportPage({
         error?.response?.data || error?.message,
       );
 
-      setPdfError(
-        error.response?.status === 401
-          ? "Your session has expired. Please sign in again."
-          : "Unable to download the inspection report. Please try again.",
-      );
+      
+if (error.response?.status === 402) {
+  try {
+    console.log("PDF requires payment. Inspection:", inspectionId);
+    console.log("Calling payment initialization endpoint...");
+
+    const paymentResponse = await api.post("/payments/initialize", {
+      inspectionId,
+    });
+
+    console.log("Payment initialization response:", paymentResponse.data);
+
+    const authorizationUrl =
+      paymentResponse.data?.authorizationUrl ||
+      paymentResponse.data?.data?.authorizationUrl;
+
+    if (authorizationUrl) {
+      window.location.assign(authorizationUrl);
+      return;
+    }
+
+    setPdfError("Payment setup failed. Check the browser console.");
+  } catch (paymentError) {
+    console.error(
+      "Payment initialization failed:",
+      paymentError?.response?.data || paymentError?.message,
+    );
+    setPdfError("Unable to start payment. Check the browser console.");
+  }
+} else {
+  setPdfError(
+    error.response?.status === 401
+      ? "Your session has expired. Please sign in again."
+      : "Unable to download the inspection report. Please try again.",
+  );
+}
+
     } finally {
       if (downloadUrl) window.URL.revokeObjectURL(downloadUrl);
 
+      isDownloadingPdfRef.current = false;
       setIsDownloadingPdf(false);
     }
+  }, [inspectionId]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const reference = params.get("payment_ref");
+
+    if (!reference || !inspectionId) return;
+
+    let cancelled = false;
+
+    const verifyPayment = async () => {
+      try {
+        const response = await api.get(
+          `/payments/verify/${encodeURIComponent(reference)}`,
+        );
+
+        if (cancelled) return;
+
+        if (
+          response.data?.success === true &&
+          String(response.data?.inspectionId) === String(inspectionId)
+        ) {
+          window.history.replaceState(
+            {},
+            "",
+            window.location.pathname + window.location.hash,
+          );
+
+          await handleDownloadPdf();
+        } else {
+          setPdfError(
+            "Payment could not be confirmed for this inspection.",
+          );
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Payment verification failed:", error);
+          setPdfError(
+            "Unable to verify payment. Please try again.",
+          );
+        }
+      }
+    };
+
+    verifyPayment();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inspectionId, handleDownloadPdf]);
+
+  const handleFinalLockAndSave = () => {
+    // The backend owns finalization and persistence. This action only returns
+
+    // the user to the dashboard after the saved inspection is confirmed locked.
+
+    if (!isActuallyLocked || isLoading || loadError) return;
+
+    setShowSuccessScreen(true);
+
+    onFinalize?.(activeInspectionData);
   };
+
+  const handlePrint = () => window.print();
 
   if (showSuccessScreen) {
     return (

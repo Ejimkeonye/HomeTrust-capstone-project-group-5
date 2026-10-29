@@ -21,6 +21,7 @@ import NotificationsPage from "./pages/NotificationsPage";
 import ProfilePage from "./pages/ProfilePage";
 import { triggerNotification } from "./utils/notifications";
 import AdminStatsPage from "./pages/AdminStatsPage";
+import HowItWorksPage from "./pages/HowItWorksPage";
 import api from "./api/client"; // Live API client connected to Render backend
 
 const unwrapInspection = (response) =>
@@ -398,6 +399,9 @@ export default function App() {
   const navigate = useNavigate();
   const params = new URLSearchParams(location.search);
   const inviteToken = params.get("token");
+ 
+  const paymentInspectionId =
+  location.pathname.match(/^\/inspections\/([^/]+)\/report$/)?.[1] || null;
   const routeToView = {
     "/": "landing",
     "/welcome": "welcome",
@@ -419,6 +423,7 @@ export default function App() {
     "/notifications": "notifications",
     "/profile": "profile",
     "/admin": "admin",
+    "/how-it-works": "howItWorks",
   };
 
   const currentView =
@@ -426,7 +431,10 @@ export default function App() {
     location.pathname === "/join" ||
     location.pathname === "/invite"
       ? "onboarding"
-      : routeToView[location.pathname] || "landing";
+      : paymentInspectionId
+        ? "inspection-report"
+        : routeToView[location.pathname] || "landing";
+
 
   const viewToRoute = {
     landing: "/",
@@ -448,6 +456,7 @@ export default function App() {
     notifications: "/notifications",
     profile: "/profile",
     admin: "/admin",
+    howItWorks: "/how-it-works",
   };
 
   const setCurrentView = (view) => {
@@ -764,6 +773,98 @@ export default function App() {
       cancelled = true;
     };
   }, [currentUser]);
+  
+  
+useEffect(() => {
+  if (!paymentInspectionId || !currentUser?.token) return;
+
+  const inspectionIdFromUrl = decodeURIComponent(paymentInspectionId);
+  const paymentRef = new URLSearchParams(location.search).get("payment_ref");
+
+  if (!paymentRef) return;
+
+  let cancelled = false;
+
+  const restorePaymentReport = async () => {
+    try {
+      const response = await api.get(
+        `/inspections/${encodeURIComponent(inspectionIdFromUrl)}`,
+      );
+
+      const record = unwrapInspection(response);
+      const returnedId = record?.inspectionId || record?.id;
+      const propertyId = record?.propertyId;
+
+      if (
+        !returnedId ||
+        String(returnedId) !== String(inspectionIdFromUrl) ||
+        !propertyId ||
+        isArchivedInspection(record) ||
+        !isMoveInInspection(record)
+      ) {
+        throw new Error("The returned inspection could not be verified.");
+      }
+
+      const propertyResponse = await api.get(
+        `/properties/${encodeURIComponent(propertyId)}`,
+      );
+
+      const property =
+        propertyResponse.data?.property ||
+        propertyResponse.data?.data?.property ||
+        propertyResponse.data?.data ||
+        propertyResponse.data;
+
+      if (
+        !property ||
+        String(property.propertyId || property.id) !== String(propertyId)
+      ) {
+        throw new Error("The inspection property could not be verified.");
+      }
+
+      if (cancelled) return;
+
+      setProperties((previous) => {
+        const exists = previous.some(
+          (item) =>
+            String(item.propertyId || item.id) === String(propertyId),
+        );
+
+        return exists
+          ? previous.map((item) =>
+              String(item.propertyId || item.id) === String(propertyId)
+                ? property
+                : item,
+            )
+          : [...previous, property];
+      });
+
+      setSelectedProperty(property);
+      setInspectionId(String(returnedId));
+
+      // The URL already identifies the inspection-report view.
+      // Keep payment_ref so the report page can verify payment.
+    } catch (error) {
+      if (cancelled) return;
+
+      console.error("Failed to restore Paystack callback:", error);
+      alert("Unable to restore your inspection report. Please try again.");
+      navigate("/dashboard", { replace: true });
+    }
+  };
+
+  restorePaymentReport();
+
+  return () => {
+    cancelled = true;
+  };
+}, [
+  paymentInspectionId,
+  location.search,
+  currentUser?.token,
+  navigate,
+]);
+
 
   const handleAuthSuccess = (userData) => {
     if (!userData || !userData.token) {
@@ -1266,8 +1367,13 @@ export default function App() {
           }}
           onOpenNotifications={() => setCurrentView("notifications")}
           onOpenProfile={() => setCurrentView("profile")}
+          onHowItWorks={() => setCurrentView("howItWorks")}
         />
       )}
+
+      {currentView === "howItWorks" && (
+  <HowItWorksPage onBack={() => setCurrentView("dashboard")} />
+)}
 
       {currentView === "notifications" && (
         <NotificationsPage
