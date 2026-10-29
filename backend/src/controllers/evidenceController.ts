@@ -191,11 +191,12 @@ export const confirmUpload = async (
     );
 
     const expectedKeyPrefix =
-      'evidence/' + inspectionId + '/' + itemId + '/';
+      'evidence/' + String(inspectionId).replace(/[^a-zA-Z0-9_-]/g, '_') + '-' + String(itemId).replace(/[^a-zA-Z0-9_-]/g, '_') + '-';
+    const legacyKeyPrefix = 'evidence/' + inspectionId + '/' + itemId + '/';
 
     if (
       typeof object_key !== 'string' ||
-      !object_key.startsWith(expectedKeyPrefix)
+      !(object_key.startsWith(expectedKeyPrefix) || object_key.startsWith(legacyKeyPrefix))
     ) {
       res.status(400);
       throw new Error('Invalid evidence object key');
