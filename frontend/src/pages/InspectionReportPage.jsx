@@ -284,9 +284,30 @@ if (error.response?.status === 402) {
       paymentResponse.data?.data?.authorizationUrl;
 
     if (authorizationUrl) {
-      window.location.assign(authorizationUrl);
-      return;
-    }
+       const checkoutUrl = new URL(authorizationUrl);
+        if (
+    checkoutUrl.searchParams.get("mock") === "true" ||
+    checkoutUrl.origin === window.location.origin
+  ) {
+    console.error(
+      "Payment initialization returned a mock or non-Paystack URL:",
+      authorizationUrl,
+    );
+    setPdfError(
+      "Paystack checkout is not configured correctly. Please try again later.",
+    );
+    return;
+  }
+
+  if (checkoutUrl.hostname !== "checkout.paystack.com") {
+    console.error("Unexpected payment checkout URL:", authorizationUrl);
+    setPdfError("Unable to open secure payment checkout.");
+    return;
+  }
+
+  window.location.assign(checkoutUrl.href);
+  return;
+}
 
     setPdfError("Payment setup failed. Check the browser console.");
   } catch (paymentError) {
