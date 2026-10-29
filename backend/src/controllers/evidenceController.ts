@@ -120,14 +120,9 @@ export const getPresignedUrl = async (
       '_'
     );
 
-    const scopedFileName =
-      inspection_id +
-      '/' +
-      item_id +
-      '/' +
-      uuidv4() +
-      '-' +
-      safeFileName;
+    const safeInspectionId = String(inspection_id).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const safeItemId = String(item_id).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const scopedFileName = safeInspectionId + '-' + safeItemId + '-' + uuidv4() + '-' + safeFileName;
 
     const lambdaResponse = await fetch(PRESIGNED_UPLOAD_URL, {
       method: 'POST',
