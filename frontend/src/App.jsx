@@ -399,9 +399,9 @@ export default function App() {
   const navigate = useNavigate();
   const params = new URLSearchParams(location.search);
   const inviteToken = params.get("token");
- 
+
   const paymentInspectionId =
-  location.pathname.match(/^\/inspections\/([^/]+)\/report$/)?.[1] || null;
+    location.pathname.match(/^\/inspections\/([^/]+)\/report$/)?.[1] || null;
   const routeToView = {
     "/": "landing",
     "/welcome": "welcome",
@@ -434,7 +434,6 @@ export default function App() {
       : paymentInspectionId
         ? "inspection-report"
         : routeToView[location.pathname] || "landing";
-
 
   const viewToRoute = {
     landing: "/",
@@ -773,98 +772,90 @@ export default function App() {
       cancelled = true;
     };
   }, [currentUser]);
-  
-  
-useEffect(() => {
-  if (!paymentInspectionId || !currentUser?.token) return;
 
-  const inspectionIdFromUrl = decodeURIComponent(paymentInspectionId);
-  const paymentRef = new URLSearchParams(location.search).get("payment_ref");
+  useEffect(() => {
+    if (!paymentInspectionId || !currentUser?.token) return;
 
-  if (!paymentRef) return;
+    const inspectionIdFromUrl = decodeURIComponent(paymentInspectionId);
+    const paymentRef = new URLSearchParams(location.search).get("payment_ref");
 
-  let cancelled = false;
+    if (!paymentRef) return;
 
-  const restorePaymentReport = async () => {
-    try {
-      const response = await api.get(
-        `/inspections/${encodeURIComponent(inspectionIdFromUrl)}`,
-      );
+    let cancelled = false;
 
-      const record = unwrapInspection(response);
-      const returnedId = record?.inspectionId || record?.id;
-      const propertyId = record?.propertyId;
-
-      if (
-        !returnedId ||
-        String(returnedId) !== String(inspectionIdFromUrl) ||
-        !propertyId ||
-        isArchivedInspection(record) ||
-        !isMoveInInspection(record)
-      ) {
-        throw new Error("The returned inspection could not be verified.");
-      }
-
-      const propertyResponse = await api.get(
-        `/properties/${encodeURIComponent(propertyId)}`,
-      );
-
-      const property =
-        propertyResponse.data?.property ||
-        propertyResponse.data?.data?.property ||
-        propertyResponse.data?.data ||
-        propertyResponse.data;
-
-      if (
-        !property ||
-        String(property.propertyId || property.id) !== String(propertyId)
-      ) {
-        throw new Error("The inspection property could not be verified.");
-      }
-
-      if (cancelled) return;
-
-      setProperties((previous) => {
-        const exists = previous.some(
-          (item) =>
-            String(item.propertyId || item.id) === String(propertyId),
+    const restorePaymentReport = async () => {
+      try {
+        const response = await api.get(
+          `/inspections/${encodeURIComponent(inspectionIdFromUrl)}`,
         );
 
-        return exists
-          ? previous.map((item) =>
-              String(item.propertyId || item.id) === String(propertyId)
-                ? property
-                : item,
-            )
-          : [...previous, property];
-      });
+        const record = unwrapInspection(response);
+        const returnedId = record?.inspectionId || record?.id;
+        const propertyId = record?.propertyId;
 
-      setSelectedProperty(property);
-      setInspectionId(String(returnedId));
+        if (
+          !returnedId ||
+          String(returnedId) !== String(inspectionIdFromUrl) ||
+          !propertyId ||
+          isArchivedInspection(record) ||
+          !isMoveInInspection(record)
+        ) {
+          throw new Error("The returned inspection could not be verified.");
+        }
 
-      // The URL already identifies the inspection-report view.
-      // Keep payment_ref so the report page can verify payment.
-    } catch (error) {
-      if (cancelled) return;
+        const propertyResponse = await api.get(
+          `/properties/${encodeURIComponent(propertyId)}`,
+        );
 
-      console.error("Failed to restore Paystack callback:", error);
-      alert("Unable to restore your inspection report. Please try again.");
-      navigate("/dashboard", { replace: true });
-    }
-  };
+        const property =
+          propertyResponse.data?.property ||
+          propertyResponse.data?.data?.property ||
+          propertyResponse.data?.data ||
+          propertyResponse.data;
 
-  restorePaymentReport();
+        if (
+          !property ||
+          String(property.propertyId || property.id) !== String(propertyId)
+        ) {
+          throw new Error("The inspection property could not be verified.");
+        }
 
-  return () => {
-    cancelled = true;
-  };
-}, [
-  paymentInspectionId,
-  location.search,
-  currentUser?.token,
-  navigate,
-]);
+        if (cancelled) return;
 
+        setProperties((previous) => {
+          const exists = previous.some(
+            (item) => String(item.propertyId || item.id) === String(propertyId),
+          );
+
+          return exists
+            ? previous.map((item) =>
+                String(item.propertyId || item.id) === String(propertyId)
+                  ? property
+                  : item,
+              )
+            : [...previous, property];
+        });
+
+        setSelectedProperty(property);
+        setInspectionId(String(returnedId));
+
+        // The URL already identifies the inspection-report view.
+        // Keep payment_ref so the report page can verify payment.
+      } catch (error) {
+        if (cancelled) return;
+
+        console.error("Failed to restore Paystack callback:", error);
+        alert("Unable to restore your inspection report. Please try again.");
+        navigate("/dashboard", { replace: true });
+      }
+    };
+
+    restorePaymentReport();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [paymentInspectionId, location.search, currentUser?.token, navigate]);
 
   const handleAuthSuccess = (userData) => {
     if (!userData || !userData.token) {
@@ -1372,8 +1363,8 @@ useEffect(() => {
       )}
 
       {currentView === "howItWorks" && (
-  <HowItWorksPage onBack={() => setCurrentView("dashboard")} />
-)}
+        <HowItWorksPage onBack={() => setCurrentView("dashboard")} />
+      )}
 
       {currentView === "notifications" && (
         <NotificationsPage
@@ -1491,7 +1482,7 @@ useEffect(() => {
               const updatedProperties = properties.map((prop) =>
                 prop.propertyId === selectedProperty.propertyId ||
                 prop.id === selectedProperty.id
-                 ? { ...prop, moveOutProgress: 50, moveOutStatus: "ACTIVE" }
+                  ? { ...prop, moveOutProgress: 50, moveOutStatus: "ACTIVE" }
                   : prop,
               );
 
@@ -1525,6 +1516,7 @@ useEffect(() => {
         <MoveOutEvidencePage
           property={selectedProperty}
           inspectionId={moveOutInspectionId}
+          inspectionData={selectedMoveOutData}
           onBack={() => setCurrentView("move-out-inspection")}
           onDashboard={() => setCurrentView("dashboard")}
           onSubmitEvidence={async () => {

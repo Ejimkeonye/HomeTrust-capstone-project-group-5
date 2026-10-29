@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
-  Printer,
   Lock,
   Check,
   LogOut,
@@ -115,7 +114,7 @@ export default function InspectionReportPage({
         if (
           !inspection ||
           String(inspection.inspectionId || inspection.id || "") !==
-            String(inspectionId) ||
+          String(inspectionId) ||
           (inspection.propertyId &&
             propertyId &&
             String(inspection.propertyId) !== String(propertyId)) ||
@@ -139,7 +138,7 @@ export default function InspectionReportPage({
 
         setLoadError(
           err?.response?.data?.message ||
-            "Unable to load the saved inspection. Please try again.",
+          "Unable to load the saved inspection. Please try again.",
         );
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -225,7 +224,7 @@ export default function InspectionReportPage({
     return Array.from(grouped.values());
   })();
 
-  
+
   const handleDownloadPdf = useCallback(async () => {
     if (!inspectionId || isDownloadingPdfRef.current) return;
 
@@ -267,63 +266,71 @@ export default function InspectionReportPage({
         error?.response?.data || error?.message,
       );
 
-      
-if (error.response?.status === 402) {
-  try {
-    console.log("PDF requires payment. Inspection:", inspectionId);
-    console.log("Calling payment initialization endpoint...");
 
-    const paymentResponse = await api.post("/payments/initialize", {
-      inspectionId,
-    });
+      if (error.response?.status === 402) {
+        try {
+          console.log("PDF requires payment. Inspection:", inspectionId);
+          console.log("Calling payment initialization endpoint...");
 
-    console.log("Payment initialization response:", paymentResponse.data);
+          const paymentResponse = await api.post("/payments/initialize", {
+            inspectionId,
+          });
 
-    const authorizationUrl =
-      paymentResponse.data?.authorizationUrl ||
-      paymentResponse.data?.data?.authorizationUrl;
+          console.log(
+            "PAYMENT INITIALIZE RESPONSE:",
+            JSON.stringify(paymentResponse.data, null, 2),
+          );
 
-    if (authorizationUrl) {
-       const checkoutUrl = new URL(authorizationUrl);
-        if (
-    checkoutUrl.searchParams.get("mock") === "true" ||
-    checkoutUrl.origin === window.location.origin
-  ) {
-    console.error(
-      "Payment initialization returned a mock or non-Paystack URL:",
-      authorizationUrl,
-    );
-    setPdfError(
-      "Paystack checkout is not configured correctly. Please try again later.",
-    );
-    return;
-  }
+          console.log("Payment initialization response:", paymentResponse.data);
 
-  if (checkoutUrl.hostname !== "checkout.paystack.com") {
-    console.error("Unexpected payment checkout URL:", authorizationUrl);
-    setPdfError("Unable to open secure payment checkout.");
-    return;
-  }
+          const authorizationUrl =
+            paymentResponse.data?.authorizationUrl ||
+            paymentResponse.data?.data?.authorizationUrl;
 
-  window.location.assign(checkoutUrl.href);
-  return;
-}
+          if (authorizationUrl) {
+            const checkoutUrl = new URL(authorizationUrl);
 
-    setPdfError("Payment setup failed. Check the browser console.");
-  } catch (paymentError) {
-    console.error(
-      "Payment initialization failed:",
-      paymentError?.response?.data || paymentError?.message,
-    );
-    setPdfError("Unable to start payment. Check the browser console.");
-  }
-} else {
-  setPdfError(
-    error.response?.status === 401
-      ? "Your session has expired. Please sign in again."
-      : "Unable to download the inspection report. Please try again.",
-  );
-}
+
+            if (
+              checkoutUrl.searchParams.get("mock") === "true" ||
+              checkoutUrl.origin === window.location.origin
+            ) {
+              console.error(
+                "Payment initialization returned a mock or non-Paystack URL:",
+                authorizationUrl,
+              );
+              setPdfError(
+                "Paystack checkout is not configured correctly. Please try again later.",
+              );
+              return;
+            }
+
+            if (checkoutUrl.hostname !== "checkout.paystack.com") {
+              console.error("Unexpected payment checkout URL:", authorizationUrl);
+              setPdfError("Unable to open secure payment checkout.");
+              return;
+            }
+
+            window.location.assign(checkoutUrl.href);
+            return;
+
+          }
+
+          setPdfError("Payment setup failed. Check the browser console.");
+        } catch (paymentError) {
+          console.error(
+            "Payment initialization failed:",
+            paymentError?.response?.data || paymentError?.message,
+          );
+          setPdfError("Unable to start payment. Check the browser console.");
+        }
+      } else {
+        setPdfError(
+          error.response?.status === 401
+            ? "Your session has expired. Please sign in again."
+            : "Unable to download the inspection report. Please try again.",
+        );
+      }
 
     } finally {
       if (downloadUrl) window.URL.revokeObjectURL(downloadUrl);
@@ -394,8 +401,6 @@ if (error.response?.status === 402) {
     onFinalize?.(activeInspectionData);
   };
 
-  const handlePrint = () => window.print();
-
   if (showSuccessScreen) {
     return (
       <div className="min-h-screen bg-slate-900/65 backdrop-blur-md flex items-center justify-center p-4">
@@ -450,15 +455,6 @@ if (error.response?.status === 402) {
 
           <button
             type="button"
-            onClick={handlePrint}
-            className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer transition-colors"
-            title="Print Report"
-          >
-            <Printer className="w-4 h-4" />
-          </button>
-
-          <button
-            type="button"
             onClick={handleDownloadPdf}
             disabled={isDownloadingPdf || !inspectionId}
             className="p-2 text-white bg-white/10 hover:bg-white/20 rounded-full cursor-pointer transition-colors disabled:opacity-50"
@@ -492,20 +488,19 @@ if (error.response?.status === 402) {
             <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
               {inspection.submittedAt || inspection.createdAt
                 ? new Date(
-                    inspection.submittedAt || inspection.createdAt,
-                  ).toLocaleString("en-NG", {
-                    dateStyle: "medium",
+                  inspection.submittedAt || inspection.createdAt,
+                ).toLocaleString("en-NG", {
+                  dateStyle: "medium",
 
-                    timeStyle: "short",
-                  })
+                  timeStyle: "short",
+                })
                 : "Date not recorded"}
 
               <span
-                className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full border ${
-                  isActuallyLocked
+                className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full border ${isActuallyLocked
                     ? "bg-emerald-100 text-emerald-800 border-emerald-300"
                     : "bg-slate-100 text-slate-600 border-slate-300"
-                }`}
+                  }`}
               >
                 <Lock className="w-3 h-3" />{" "}
                 {isActuallyLocked
@@ -618,47 +613,47 @@ if (error.response?.status === 402) {
 
                         {(item.evidence?.length > 0 ||
                           item.photos?.length > 0) && (
-                          <div className="grid grid-cols-3 gap-2 pt-2">
-                            {(item.evidence || item.photos || []).map(
-                              (evidence, index) => {
-                                const imageUrl =
-                                  evidence.url || evidence.imageUrl;
+                            <div className="grid grid-cols-3 gap-2 pt-2">
+                              {(item.evidence || item.photos || []).map(
+                                (evidence, index) => {
+                                  const imageUrl =
+                                    evidence.url || evidence.imageUrl;
 
-                                return imageUrl ? (
-                                  <a
-                                    key={
-                                      evidence.evidenceId ||
-                                      evidence.id ||
-                                      index
-                                    }
-                                    href={imageUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="block"
-                                  >
-                                    <img
-                                      src={imageUrl}
-                                      alt={`Evidence for ${item.name}`}
-                                      loading="lazy"
-                                      className="w-full h-20 rounded-lg object-cover border border-slate-200"
-                                    />
-                                  </a>
-                                ) : (
-                                  <div
-                                    key={
-                                      evidence.evidenceId ||
-                                      evidence.id ||
-                                      index
-                                    }
-                                    className="text-[10px] text-slate-500 border rounded-lg p-2"
-                                  >
-                                    Evidence recorded; image URL unavailable.
-                                  </div>
-                                );
-                              },
-                            )}
-                          </div>
-                        )}
+                                  return imageUrl ? (
+                                    <a
+                                      key={
+                                        evidence.evidenceId ||
+                                        evidence.id ||
+                                        index
+                                      }
+                                      href={imageUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="block"
+                                    >
+                                      <img
+                                        src={imageUrl}
+                                        alt={`Evidence for ${item.name}`}
+                                        loading="lazy"
+                                        className="w-full h-20 rounded-lg object-cover border border-slate-200"
+                                      />
+                                    </a>
+                                  ) : (
+                                    <div
+                                      key={
+                                        evidence.evidenceId ||
+                                        evidence.id ||
+                                        index
+                                      }
+                                      className="text-[10px] text-slate-500 border rounded-lg p-2"
+                                    >
+                                      Evidence recorded; image URL unavailable.
+                                    </div>
+                                  );
+                                },
+                              )}
+                            </div>
+                          )}
                       </div>
                     ))}
                   </div>

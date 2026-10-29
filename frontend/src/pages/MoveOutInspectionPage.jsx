@@ -1044,7 +1044,7 @@ export default function MoveOutInspectionPage({
                     );
                   }
                   if (onCompleteMoveOutInspection)
-                    onCompleteMoveOutInspection(roomsData);
+                    onCompleteMoveOutInspection(roomsData, inspectionId);
                 } catch (err) {
                   console.error(
                     "Failed to submit Move-Out inspection:",
