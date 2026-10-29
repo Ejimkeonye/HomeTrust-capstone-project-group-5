@@ -92,8 +92,16 @@ function parseSignatureImage(value: unknown): { contentType: 'image/png' | 'imag
 
 async function requestSignatureUpload(fileName: string, contentType: string, authorization: string): Promise<{ uploadUrl: string; objectKey: string }> {
   const uploadServiceUrl = process.env.PRESIGNED_UPLOAD_URL;
-  if (!uploadServiceUrl) throw new Error('PRESIGNED_UPLOAD_URL is not configured');
-  if (!authorization) throw new Error('Authorization token is required for signature upload');
+  if (!uploadServiceUrl) {
+    const err: any = new Error('PRESIGNED_UPLOAD_URL is not configured on the server');
+    err.statusCode = 500;
+    throw err;
+  }
+  if (!authorization) {
+    const err: any = new Error('Authorization token is required for signature upload');
+    err.statusCode = 401;
+    throw err;
+  }
   const response = await fetch(uploadServiceUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: authorization },
@@ -102,12 +110,18 @@ async function requestSignatureUpload(fileName: string, contentType: string, aut
   if (!response.ok) {
     const upstreamBody = await response.text().catch(() => '');
     console.error('Signature upload service rejected request:', response.status, upstreamBody.slice(0, 300));
-    throw new Error('Signature upload service failed');
+    const err: any = new Error(
+      `Failed to get presigned URL from upload service (upstream HTTP ${response.status})`
+    );
+    err.statusCode = 502;
+    throw err;
   }
   const result = await response.json() as { upload_url?: unknown; object_key?: unknown };
   if (typeof result.upload_url !== 'string' || typeof result.object_key !== 'string' ||
       !result.object_key.startsWith('evidence/signatures/')) {
-    throw new Error('Signature upload service returned an invalid S3 location');
+    const err: any = new Error('Signature upload service returned an invalid S3 location');
+    err.statusCode = 502;
+    throw err;
   }
   return { uploadUrl: result.upload_url, objectKey: result.object_key };
 }
