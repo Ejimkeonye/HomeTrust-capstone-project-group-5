@@ -118,7 +118,7 @@ async function requestSignatureUpload(fileName: string, contentType: string, aut
   }
   const result = await response.json() as { upload_url?: unknown; object_key?: unknown };
   if (typeof result.upload_url !== 'string' || typeof result.object_key !== 'string' ||
-      !result.object_key.startsWith('evidence/signatures/')) {
+      !result.object_key.startsWith('evidence/signatures-')) {
     const err: any = new Error('Signature upload service returned an invalid S3 location');
     err.statusCode = 502;
     throw err;
@@ -183,7 +183,8 @@ export const saveInspectionSignature = async (req: AuthRequest, res: Response, n
 
     const safeInspectionId = inspectionId.replace(/[^a-zA-Z0-9_-]/g, '_');
     const extension = image.contentType === 'image/png' ? 'png' : 'jpg';
-    const fileName = 'signatures/' + safeInspectionId + '/' + role.toLowerCase() + '/' + uuidv4() + '.' + extension;
+    const safeRole = role.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+    const fileName = 'signatures-' + safeInspectionId + '-' + safeRole + '-' + uuidv4() + '.' + extension;
     const target = await requestSignatureUpload(fileName, image.contentType, req.headers.authorization || '');
     const signedAt = new Date().toISOString();
     const signature: IInspectionSignature = {
