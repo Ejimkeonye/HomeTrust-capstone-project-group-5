@@ -28,6 +28,10 @@ DYNAMODB_INSPECTIONS_TABLE=hometrust-dev-inspections
 DYNAMODB_ROOM_ITEMS_TABLE=hometrust-dev-roomItems
 DYNAMODB_EVIDENCE_TABLE=hometrust-dev-evidence
 DYNAMODB_INVITATIONS_TABLE=hometrust-dev-invitations
+PAYSTACK_SECRET_KEY=sk_test_...
+PAYSTACK_PUBLIC_KEY=pk_test_...
+PAYSTACK_PAYMENT_AMOUNT_NGN=5000
+PAYSTACK_WEBHOOK_URL=https://hometrust-capstone-project-group-5.onrender.com/api/payments/webhook
 ```
 
 Use the actual deployed table names and presigned-upload URL for your environment. AWS credentials come from the local AWS profile/environment or the deployed runtime's IAM role. `DYNAMODB_ENDPOINT` is optional for DynamoDB Local. Table auto-creation is skipped in production or when `DYNAMODB_AUTO_CREATE_TABLES=false`; production tables are managed by infrastructure.
@@ -152,6 +156,12 @@ Users are prompted to pay **₦5,000** at the point of downloading move-in evide
 | GET | `/api/payments/verify/:reference` | Yes; participant | Verifies Paystack transaction with Paystack API. On success, unlocks evidence access for the inspection. |
 | GET | `/api/payments/status/:inspectionId` | Yes; participant | Checks if evidence access has already been paid and unlocked: `{ isPaid: boolean, amount: 5000, ... }`. |
 | POST | `/api/payments/webhook` | Paystack HMAC | Handles `charge.success` webhook events sent by Paystack. |
+
+### Paystack Webhook Configuration
+In the [Paystack Dashboard (Settings > Developer / API Keys & Webhooks)](https://dashboard.paystack.com/#/settings/developer):
+- **Live/Test Webhook URL**:
+  `https://hometrust-capstone-project-group-5.onrender.com/api/payments/webhook`
+- Paystack signs incoming webhook requests using HMAC-SHA512 in the `x-paystack-signature` header with your `PAYSTACK_SECRET_KEY`. The backend verifies this signature before recording payment and unlocking evidence downloads.
 
 ### Download Gating
 When accessing `GET /api/inspections/:id/report.pdf` or `GET /api/evidence/:inspectionId/:evidenceId/download-url` for a move-in inspection:
