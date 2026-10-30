@@ -1281,7 +1281,10 @@ export default function MoveOutEvidencePage({
                                     )}
                                     {item.dispute.timestamp && (
                                       <span>
-                                        Date: {formatTimestamp(item.dispute.timestamp)}
+                                        Date:{" "}
+                                        {formatTimestamp(
+                                          item.dispute.timestamp,
+                                        )}
                                       </span>
                                     )}
                                   </div>
@@ -1350,8 +1353,7 @@ export default function MoveOutEvidencePage({
 
         {showConfirmationModal && (
           <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm z-30 flex items-center justify-center p-4">
-<div className="bg-[#4A1E6D] text-white rounded-4xl w-full max-w-sm sm:max-w-md p-6 sm:p-8 text-center space-y-6 shadow-2xl">
-
+            <div className="bg-[#4A1E6D] text-white rounded-4xl w-full max-w-sm sm:max-w-md p-6 sm:p-8 text-center space-y-6 shadow-2xl">
               <div className="w-20 h-20 bg-white/10 text-white rounded-full flex items-center justify-center mx-auto border border-white/20">
                 <ShieldCheck className="w-10 h-10 text-emerald-400" />
               </div>
@@ -1382,7 +1384,7 @@ export default function MoveOutEvidencePage({
                   type="button"
                   disabled={submitting || !canModifyInspection}
                   onClick={handleProceed}
-                 className="w-full bg-white hover:bg-purple-50 text-[#4A1E6D] font-extrabold py-4 rounded-2xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full bg-white hover:bg-purple-50 text-[#4A1E6D] font-extrabold py-4 rounded-2xl text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {submitting ? (
                     <>
@@ -1630,6 +1632,41 @@ export default function MoveOutEvidencePage({
 
                               <span>{item.notes}</span>
                             </p>
+                          )}
+
+                          {item.dispute && typeof item.dispute === "object" && (
+                            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2.5 space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-[11px] font-extrabold text-amber-900">
+                                  Dispute Filed
+                                </p>
+                                {item.dispute.severity && (
+                                  <span className="shrink-0 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-900">
+                                    Severity: {item.dispute.severity}
+                                  </span>
+                                )}
+                              </div>
+
+                              {item.dispute.description && (
+                                <p className="text-[11px] text-amber-950 whitespace-pre-wrap">
+                                  {item.dispute.description}
+                                </p>
+                              )}
+
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-amber-800">
+                                {item.dispute.raisedBy && (
+                                  <span>
+                                    Raised by: {item.dispute.raisedBy}
+                                  </span>
+                                )}
+                                {item.dispute.timestamp && (
+                                  <span>
+                                    Date:{" "}
+                                    {formatTimestamp(item.dispute.timestamp)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           )}
 
                           {getItemPhotos(item).length > 0 && (
