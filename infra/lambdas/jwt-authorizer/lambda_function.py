@@ -1,6 +1,5 @@
 
 import base64
-import binascii
 import hashlib
 import hmac
 import json
@@ -9,7 +8,6 @@ import os
 import time
 
 import boto3
-from botocore.exceptions import BotoCoreError, ClientError
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -119,8 +117,7 @@ def lambda_handler(event, context):
     except Exception as e:
         # Log ERROR with exception and traceback to CloudWatch for observability,
         # while failing closed securely without returning internal details to caller.
-        logger.error(
-            f"[ERROR] [JWT Authorizer] Authorization failed with {type(e).__name__}: {e}",
-            exc_info=True,
+        logger.exception(
+            f"[ERROR] [JWT Authorizer] Authorization failed with {type(e).__name__}"
         )
         return {"isAuthorized": False}
