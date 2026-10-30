@@ -118,6 +118,6 @@ def lambda_handler(event, context):
         # Log ERROR with exception and traceback to CloudWatch for observability,
         # while failing closed securely without returning internal details to caller.
         logger.exception(
-            f"[ERROR] [JWT Authorizer] Authorization failed with {type(e).__name__}: {e}"
+            f"[ERROR] [JWT Authorizer] Authorization failed with {type(e).__name__}"
         )
         return {"isAuthorized": False}
