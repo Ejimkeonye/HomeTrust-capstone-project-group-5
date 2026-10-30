@@ -52,6 +52,31 @@ export function createInspectionPdf(
     const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const bottom = () => doc.page.height - doc.page.margins.bottom;
     const ensureSpace = (height: number) => { if (doc.y + height > bottom()) doc.addPage(); };
+
+  const addEvidenceImage = (image: InspectionEvidenceImage) => {
+    if (!supportedImage(image) || !image.bytes) return;
+
+    const imageHeight = 180;
+    ensureSpace(imageHeight + 30);
+
+    // Keep the photo together with its caption.
+    const imageTop = doc.y;
+    try {
+      doc.image(image.bytes, doc.page.margins.left, imageTop, {
+        fit: [pageWidth, imageHeight],
+        align: 'center',
+        valign: 'center',
+      });
+      doc.y = imageTop + imageHeight + 8;
+      doc.font('Helvetica').fontSize(8).fillColor('#52616d')
+        .text(image.filename || 'Evidence photo', { width: pageWidth });
+      doc.moveDown(0.6).fillColor('#202a33');
+    } catch {
+      doc.y = imageTop;
+      doc.font('Helvetica').fontSize(8)
+        .text('Image could not be rendered in the PDF.');
+    }
+  };
     const section = (title: string) => {
       ensureSpace(34);
       doc.moveDown(0.6).font('Helvetica-Bold').fontSize(13).fillColor('#17324d').text(title);
@@ -133,13 +158,7 @@ export function createInspectionPdf(
             doc.fillColor('#7a4b00').text(`  Photo not embedded: ${image.omittedReason}`).fillColor('#202a33');
           }
           if (image && supportedImage(image)) {
-            ensureSpace(190);
-            try {
-              doc.image(image.bytes!, { fit: [pageWidth, 165], valign: 'center' });
-              doc.moveDown(0.3);
-            } catch {
-              doc.fontSize(8).text('  Image could not be rendered in the PDF.');
-            }
+            addEvidenceImage(image);
           }
         });
         doc.fontSize(9.5).moveDown(0.5);
@@ -156,7 +175,9 @@ export function createInspectionPdf(
     });
 
     // --- Signatures ---
-    section('Signatures');
+    // Keep signatures separate from evidence photos.
+  doc.addPage();
+  section('Signatures');
     for (const role of ['Landlord', 'Tenant'] as const) {
       const signature = signatures.find(item => item.role === role);
       ensureSpace(95);
