@@ -38,3 +38,4 @@ Thumbs.db
 *.log
 # Vercel local cache and configuration
 .vercel
+__pycache__/
