@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import LoadingScreen from "../components/LoadingScreen";
 import {
   ArrowLeft,
   Lock,
@@ -400,6 +401,12 @@ export default function InspectionReportPage({
 
     onFinalize?.(activeInspectionData);
   };
+
+  if (isLoading) {
+  return (
+    <LoadingScreen message="Loading your Move-In inspection report..." />
+  );
+}
 
   if (showSuccessScreen) {
     return (

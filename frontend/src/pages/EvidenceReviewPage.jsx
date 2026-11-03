@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-
+import LoadingScreen from "../components/LoadingScreen";
 import {
   ArrowLeft,
   Camera,
@@ -12,11 +12,8 @@ import {
   LoaderCircle,
   Plus,
 } from "lucide-react";
-
 import { triggerNotification } from "../utils/notifications";
-
 import api from "../api/client";
-
 const CONDITIONS = [
   { value: "no_issue", label: "No Issue" },
 
@@ -1052,6 +1049,11 @@ export default function EvidenceReviewPage({
     }
   };
 
+   if (inspectionStateLoading) {
+  return (
+    <LoadingScreen message="Loading your Move-In evidence..." />
+  );
+}
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
       <div className="w-full max-w-6xl mx-auto px-4 bg-white min-h-screen sm:min-h-200 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative text-slate-900">

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import LoadingScreen from "../components/LoadingScreen";
 import SignatureCanvas from "../components/SignatureCanvas";
 import api from "../api/client";
 import { triggerNotification } from "../utils/notifications";
@@ -290,6 +291,13 @@ export default function MoveOutSignaturesPage({
       setIsSubmitting(false);
     }
   };
+  
+
+  if (isLoading) {
+  return (
+    <LoadingScreen message="Loading your Move-In signatures..." />
+  );
+}
 
   const landlordImage = getSignatureImageUrl(savedSignatures.landlord);
   const tenantImage = getSignatureImageUrl(savedSignatures.tenant);

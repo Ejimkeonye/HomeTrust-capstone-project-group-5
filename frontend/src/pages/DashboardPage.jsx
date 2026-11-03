@@ -1,7 +1,6 @@
 import { useState } from "react";
-
 import CreatePropertyModal from "../components/CreatePropertyModal";
-
+import LoadingScreen from "../components/LoadingScreen";
 import {
   Home,
   BookOpen,
@@ -21,42 +20,30 @@ import {
 
 export default function DashboardPage({
   user,
-
   properties = [],
-
   activeProperty,
-
+  isLoading = false,
   onSelectProperty,
-
   onAddNewProperty,
-
   onDeleteProperty,
-
   onLogout,
-
   onViewReport,
-
   onStartInspection,
-
   onStartMoveOutInspection,
-
   onViewMoveOutReport,
-
   onViewEvidence,
-
   onOpenNotifications,
-
   onOpenProfile,
-
   onHowItWorks,
-
   hasUnreadNotifications = true,
 }) {
   const [activeTab, setActiveTab] = useState("home");
-
   const [showPropertyDropdown, setShowPropertyDropdown] = useState(false);
-
   const [showAddPropertyModal, setShowAddPropertyModal] = useState(false);
+
+  if (isLoading) {
+  return <LoadingScreen message="Loading your properties..." />;
+}
 
   // Check if user joined via an invitation link*
 
