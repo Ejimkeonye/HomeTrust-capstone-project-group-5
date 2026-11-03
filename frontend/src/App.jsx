@@ -183,6 +183,7 @@ export default function App() {
 
   const [properties, setProperties] = useState([]);
   const [selectedProperty, setSelectedProperty] = useState(null);
+  const [isLoadingProperties, setIsLoadingProperties] = useState(false);
   const [inspectionId, setInspectionId] = useState(null);
   const [moveOutInspectionId, setMoveOutInspectionId] = useState(null);
   const propertySelectionRequest = useRef(0);
@@ -474,6 +475,7 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     const fetchCloudProperties = async () => {
+      setIsLoadingProperties(true);
       if (!currentUser) {
         setProperties([]);
         setSelectedProperty(null);
@@ -763,6 +765,10 @@ export default function App() {
           }
         } catch (cacheError) {
           console.error("Failed to load cached properties:", cacheError);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingProperties(false);
         }
       }
     };
@@ -1205,6 +1211,7 @@ export default function App() {
           user={currentUser}
           properties={properties}
           activeProperty={selectedProperty}
+          isLoading={isLoadingProperties}
           onSelectProperty={handleSelectProperty}
           onAddNewProperty={handleAddNewProperty}
           onDeleteProperty={handleDeleteProperty}

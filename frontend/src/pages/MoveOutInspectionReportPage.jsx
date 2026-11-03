@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import LoadingScreen from "../components/LoadingScreen";
 import {
   ArrowLeft,
   Camera,
@@ -114,6 +115,7 @@ function SignatureCard({ label, signature }) {
   const saved = Boolean(
     signature && (typeof signature !== "object" || signature.uploadedAt),
   );
+
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
       <div className="min-w-0">
@@ -365,7 +367,13 @@ export default function MoveOutInspectionReportPage({
     setShowSuccess(true);
     onFinalize?.({ inspection: moveOutRecord, moveInInspection: moveInRecord });
   };
+  
 
+  if (isLoading) {
+  return (
+    <LoadingScreen message="Loading your Move-Out inspection report..." />
+  );
+}
   if (showSuccess) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-900/60 p-4">

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import LoadingScreen from "../components/LoadingScreen";
 import {
   ArrowLeft,
   Camera,
@@ -999,8 +1000,10 @@ export default function MoveOutInspectionPage({
         !!i.dispute,
     ).length || 0;
 
-  return (
-    <div className="min-h-screen bg-white flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
+  return isLoadingInspection ? (
+  <LoadingScreen message="Loading your Move-Out inspection..." />
+) : (
+  <div className="min-h-screen bg-white flex flex-col items-center justify-center p-0 sm:p-6 font-sans">
       <div className="w-full max-w-6xl mx-auto px-4 bg-white min-h-screen sm:min-h-203 sm:rounded-[48px] shadow-2xl border border-slate-200 flex flex-col justify-between overflow-hidden relative text-slate-900">
         {/* Top Header */}
         <div className="p-4 flex items-center justify-between z-10 gap-2 bg-[#4A1E6D] text-white">
